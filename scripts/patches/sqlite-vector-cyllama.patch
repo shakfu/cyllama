@@ -1,0 +1,51 @@
+diff --git a/src/distance-cpu.c b/src/distance-cpu.c
+index 2916508..260b3e1 100644
+--- a/src/distance-cpu.c
++++ b/src/distance-cpu.c
+@@ -1,3 +1,5 @@
++// Modified by cyllama from sqlite-vector 1.2.0 (Apache-2.0): see the "cyllama:" comment.
++
+ //
+ //  distance-cpu.c
+ //  sqlitevector
+@@ -751,7 +753,12 @@ float bit1_distance_hamming_cpu (const void *v1, const void *v2, int n) {
+ // MARK: - ENTRYPOINT -
+ 
+ #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+-    #include <cpuid.h>
++    // cyllama: MSVC has no <cpuid.h>; __cpuidex and _xgetbv come from <intrin.h>.
++    #if defined(_MSC_VER)
++        #include <intrin.h>
++    #else
++        #include <cpuid.h>
++    #endif
+ 
+     static void x86_cpuid(int leaf, int subleaf, int *eax, int *ebx, int *ecx, int *edx) {
+         #if defined(_MSC_VER)
+diff --git a/src/sqlite-vector.c b/src/sqlite-vector.c
+index 773b27d..e011111 100644
+--- a/src/sqlite-vector.c
++++ b/src/sqlite-vector.c
+@@ -1,3 +1,9 @@
++// Modified by cyllama from sqlite-vector 1.2.0 (Apache-2.0): see the "cyllama:" comments.
++
++// cyllama: glibc declares strcasestr only with _GNU_SOURCE; older glibc (manylinux) needs it.
++#ifndef _GNU_SOURCE
++#define _GNU_SOURCE
++#endif
+ //
+ //  sqlite-vector.c
+ //  sqlitevector
+@@ -23,6 +29,12 @@
+ #include <stdbool.h>
+ #include <stddef.h>
+ 
++// cyllama: MSVC has no strcasecmp / strncasecmp.
++#if defined(_MSC_VER)
++#define strcasecmp _stricmp
++#define strncasecmp _strnicmp
++#endif
++
+ #if defined(_WIN32) || ((defined(__linux__) && !defined(__GLIBC__) && !defined(__ANDROID__))) || defined(SQLITE_WASM_EXTRA_INIT)
+ // Provide strcasestr function implementation for environments that lack it:
+ // - Windows (MinGW, MSVC, etc.)

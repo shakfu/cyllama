@@ -4,7 +4,7 @@ Fixes for vendored C++ dependencies, with their upstream rationale. Where the
 issue can be handled from the Cython wrapper layer, cyllama does that and the
 patch here is only a proposed upstream change. Where it cannot — e.g. a hard
 `GGML_ABORT`/`abort()` that no Python-level code can intercept — the fix is
-applied to the cloned source at build time by `GgmlBuilder._apply_source_patches()`
+applied to the cloned source at build time by `Builder._apply_source_patches()`
 in `scripts/manage.py`. An already-applied patch is skipped. A patch that no
 longer applies fails the build with git's reason: rebase it, or delete it once
 upstream merges the fix.
@@ -127,6 +127,23 @@ An earlier llama.cpp patch is no longer carried: the gemma4a
 `clip_n_mmproj_embd()` abort fix was merged upstream in
 [ggml-org/llama.cpp#24091](https://github.com/ggml-org/llama.cpp/pull/24091)
 (released in `b9503`).
+
+### `sqlite-vector-cyllama.patch`
+
+**Target:** `src/sqlite-vector.c`, `src/distance-cpu.c` (sqlite-vector `1.2.0`)
+
+**Problem:** three build failures, each marked `cyllama:` in the source:
+
+- glibc declares `strcasestr` only under `_GNU_SOURCE`, so manylinux (AlmaLinux 8) fails.
+- MSVC has no `strcasecmp` / `strncasecmp`.
+- MSVC has no `<cpuid.h>`; `__cpuidex` and `_xgetbv` come from `<intrin.h>`.
+
+**Applied twice:** `SqliteVectorBuilder` applies it to `build/sqlite-vector`.
+Wheels compile `thirdparty/sqlite-vector/`, which holds the patched files.
+`manage.py check_vendor` applies the patch to a clone at the pin and requires
+the vendored tree to match byte for byte. After a bump, copy the new `src/`
+files into `thirdparty/sqlite-vector/`, then run
+`git apply -p2 --directory=thirdparty/sqlite-vector scripts/patches/sqlite-vector-cyllama.patch`.
 
 ## Not applied
 

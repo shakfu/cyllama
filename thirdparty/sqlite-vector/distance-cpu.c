@@ -1,4 +1,4 @@
-// Modified by cyllama from sqlite-vector 1.1.2 (Apache-2.0): see the "cyllama:" comment.
+// Modified by cyllama from sqlite-vector 1.2.0 (Apache-2.0): see the "cyllama:" comment.
 
 //
 //  distance-cpu.c
@@ -517,9 +517,11 @@ float uint8_distance_cosine_cpu (const void *v1, const void *v2, int n) {
     const uint8_t *a = (const uint8_t *)v1;
     const uint8_t *b = (const uint8_t *)v2;
     
-    uint32_t dot = 0;
-    uint32_t norm_a2 = 0;
-    uint32_t norm_b2 = 0;
+    // 64-bit for the same reason as the int8 kernel below: a product is at most 255*255,
+    // so uint32_t wrapped around silently past roughly 66k dimensions
+    uint64_t dot = 0;
+    uint64_t norm_a2 = 0;
+    uint64_t norm_b2 = 0;
 
     int i = 0;
     for (; i <= n - 4; i += 4) {
@@ -546,7 +548,7 @@ float uint8_distance_cosine_cpu (const void *v1, const void *v2, int n) {
         return 1.0f;
     }
 
-    float cosine_similarity = dot / (sqrtf((float)norm_a2) * sqrtf((float)norm_b2));
+    float cosine_similarity = (float)((double)dot / (sqrt((double)norm_a2) * sqrt((double)norm_b2)));
     if (cosine_similarity > 1.0f) cosine_similarity = 1.0f;
     if (cosine_similarity < -1.0f) cosine_similarity = -1.0f;
     return 1.0f - cosine_similarity;
@@ -631,9 +633,12 @@ float int8_distance_cosine_cpu (const void *v1, const void *v2, int n) {
     const int8_t *a = (const int8_t *)v1;
     const int8_t *b = (const int8_t *)v2;
     
-    int32_t dot = 0;
-    int32_t norm_a2 = 0;
-    int32_t norm_b2 = 0;
+    // 64-bit accumulators, as the NEON/AVX2/AVX-512 kernels use: a product is at most
+    // 127*127, so int32_t saturated at roughly 133k dimensions and the loop wrapped
+    // around silently. Each group of four products still fits in 32 bits.
+    int64_t dot = 0;
+    int64_t norm_a2 = 0;
+    int64_t norm_b2 = 0;
     
     int i = 0;
     for (; i <= n - 4; i += 4) {
@@ -660,7 +665,7 @@ float int8_distance_cosine_cpu (const void *v1, const void *v2, int n) {
         return 1.0f;
     }
 
-    float cosine_similarity = dot / (sqrtf((float)norm_a2) * sqrtf((float)norm_b2));
+    float cosine_similarity = (float)((double)dot / (sqrt((double)norm_a2) * sqrt((double)norm_b2)));
     if (cosine_similarity > 1.0f) cosine_similarity = 1.0f;
     if (cosine_similarity < -1.0f) cosine_similarity = -1.0f;
     return 1.0f - cosine_similarity;

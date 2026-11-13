@@ -1,8 +1,9 @@
 name: check-vendor
 
 # Vendor-drift guard: verifies thirdparty/{llama.cpp,whisper.cpp,
-# stable-diffusion.cpp}/include/ match the versions pinned in
-# scripts/manage.py. Catches:
+# stable-diffusion.cpp}/include/ and thirdparty/sqlite-vector/ match the
+# versions pinned in scripts/versions.toml. sqlite-vector may differ only in
+# `cyllama:`-marked hunks. Catches:
 #   - accidental local edits to vendored headers
 #   - upstream files added under non-exact pins
 #   - desynchronization between the pinned version and the committed tree
@@ -23,6 +24,7 @@ on:
       - 'thirdparty/llama.cpp/include/**'
       - 'thirdparty/whisper.cpp/include/**'
       - 'thirdparty/stable-diffusion.cpp/include/**'
+      - 'thirdparty/sqlite-vector/**'
       - '.github/workflows/check-vendor.yml'
   push:
     branches: [main, dev]
@@ -32,6 +34,7 @@ on:
       - 'thirdparty/llama.cpp/include/**'
       - 'thirdparty/whisper.cpp/include/**'
       - 'thirdparty/stable-diffusion.cpp/include/**'
+      - 'thirdparty/sqlite-vector/**'
       - '.github/workflows/check-vendor.yml'
 
 concurrency:
@@ -40,7 +43,7 @@ concurrency:
 
 jobs:
   check:
-    name: Verify vendored llama.cpp / whisper.cpp / stable-diffusion.cpp headers
+    name: Verify vendored llama.cpp / whisper.cpp / stable-diffusion.cpp headers and sqlite-vector sources
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -53,14 +56,15 @@ jobs:
       - name: Re-vendor and diff against committed tree
         run: python scripts/manage.py check_vendor
 
-      - name: Fail on untracked files under thirdparty/*/include/
+      - name: Fail on untracked files under vendored thirdparty/ trees
         run: |
           untracked=$(git status --porcelain \
             thirdparty/llama.cpp/include/ \
             thirdparty/whisper.cpp/include/ \
-            thirdparty/stable-diffusion.cpp/include/ | grep '^??' || true)
+            thirdparty/stable-diffusion.cpp/include/ \
+            thirdparty/sqlite-vector/ | grep '^??' || true)
           if [ -n "$untracked" ]; then
-            echo "::error::Untracked files under thirdparty/*/include/:"
+            echo "::error::Untracked files under vendored thirdparty/ trees:"
             echo "$untracked"
             exit 1
           fi

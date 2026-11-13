@@ -1040,6 +1040,64 @@ class Builder(AbstractBuilder):
         else:
             self.git_clone(self.repo_url, recurse=True, cwd=self.project.src)
 
+    def takes_ggml_patches(self) -> bool:
+        """True when ggml-*.patch apply to this tree; they target upstream ggml's layout."""
+        return False
+
+    def _apply_source_patches(self) -> None:
+        """Apply local fixes to the vendored source before building.
+
+        Two sets of ``scripts/patches/*.patch`` files are applied (with
+        ``-p1``, a/ b/ prefixes) to the cloned source tree: ``ggml-*.patch``,
+        which fix the ggml copy that every ggml-backed project vendors, and
+        ``<project>-*.patch`` (e.g. ``llama.cpp-*.patch``), which are specific
+        to one upstream. The tree is wiped and re-fetched by ``make
+        reset``/``remake`` -- so these must run on every build. An
+        already-applied patch is skipped; one that no longer applies fails the
+        build (see `_apply_patch`). The ``.patch`` files are the single source
+        of truth and double as the upstream PR payload; see
+        scripts/patches/README.md for the rationale and upstream refs.
+        """
+        patch_dir = Path(__file__).resolve().parent / "patches"
+        ggml_patches = sorted(patch_dir.glob("ggml-*.patch")) if self.takes_ggml_patches() else []
+        patches = ggml_patches + sorted(patch_dir.glob(f"{self.name}-*.patch"))
+        for patch in patches:
+            self._apply_patch(patch)
+
+    def _apply_patch(self, patch: Path) -> None:
+        """Apply a single unified diff to ``self.src_dir`` if it isn't already.
+
+        Uses ``git apply`` (which works with or without a git repo) and its
+        ``--check`` / ``--reverse --check`` dry-runs to decide between apply,
+        already-applied, and no-longer-applies.
+
+        A patch that no longer applies is fatal. Skipping it ships the build
+        without the fix, which is how the Metal MSL pin was lost when llama.cpp
+        v0.4.0 moved the code it patched.
+        """
+
+        def _git_apply(*flags: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                ["git", "apply", *flags, str(patch)],
+                cwd=str(self.src_dir),
+                capture_output=True,
+                text=True,
+            )
+
+        check = _git_apply("--check")
+        if check.returncode == 0:
+            subprocess.run(["git", "apply", str(patch)], cwd=str(self.src_dir), check=True)
+            self.log.info(f"applied patch: {patch.name}")
+        elif _git_apply("--reverse", "--check").returncode == 0:
+            self.log.debug(f"patch already applied, skipping: {patch.name}")
+        else:
+            self.fail(
+                f"{patch.name} no longer applies to {self.name} {self.version} ({self.src_dir}):\n"
+                f"{check.stderr.strip()}\n"
+                f"Rebase it onto this tree, or delete it if upstream fixed the defect, "
+                f"and record which in scripts/patches/README.md."
+            )
+
 
 class GgmlBuilder(Builder):
     """Builder base for ggml-backed projects (llama.cpp / whisper.cpp / sd.cpp).
@@ -1154,60 +1212,6 @@ class GgmlBuilder(Builder):
     def takes_ggml_patches(self) -> bool:
         """True when ggml-*.patch apply to this tree; they target upstream ggml's layout."""
         return True
-
-    def _apply_source_patches(self) -> None:
-        """Apply local fixes to the vendored source before building.
-
-        Two sets of ``scripts/patches/*.patch`` files are applied (with
-        ``-p1``, a/ b/ prefixes) to the cloned source tree: ``ggml-*.patch``,
-        which fix the ggml copy that every ggml-backed project vendors, and
-        ``<project>-*.patch`` (e.g. ``llama.cpp-*.patch``), which are specific
-        to one upstream. The tree is wiped and re-fetched by ``make
-        reset``/``remake`` -- so these must run on every build. An
-        already-applied patch is skipped; one that no longer applies fails the
-        build (see `_apply_patch`). The ``.patch`` files are the single source
-        of truth and double as the upstream PR payload; see
-        scripts/patches/README.md for the rationale and upstream refs.
-        """
-        patch_dir = Path(__file__).resolve().parent / "patches"
-        ggml_patches = sorted(patch_dir.glob("ggml-*.patch")) if self.takes_ggml_patches() else []
-        patches = ggml_patches + sorted(patch_dir.glob(f"{self.name}-*.patch"))
-        for patch in patches:
-            self._apply_patch(patch)
-
-    def _apply_patch(self, patch: Path) -> None:
-        """Apply a single unified diff to ``self.src_dir`` if it isn't already.
-
-        Uses ``git apply`` (which works with or without a git repo) and its
-        ``--check`` / ``--reverse --check`` dry-runs to decide between apply,
-        already-applied, and no-longer-applies.
-
-        A patch that no longer applies is fatal. Skipping it ships the build
-        without the fix, which is how the Metal MSL pin was lost when llama.cpp
-        v0.4.0 moved the code it patched.
-        """
-
-        def _git_apply(*flags: str) -> subprocess.CompletedProcess[str]:
-            return subprocess.run(
-                ["git", "apply", *flags, str(patch)],
-                cwd=str(self.src_dir),
-                capture_output=True,
-                text=True,
-            )
-
-        check = _git_apply("--check")
-        if check.returncode == 0:
-            subprocess.run(["git", "apply", str(patch)], cwd=str(self.src_dir), check=True)
-            self.log.info(f"applied patch: {patch.name}")
-        elif _git_apply("--reverse", "--check").returncode == 0:
-            self.log.debug(f"patch already applied, skipping: {patch.name}")
-        else:
-            self.fail(
-                f"{patch.name} no longer applies to {self.name} {self.version} ({self.src_dir}):\n"
-                f"{check.stderr.strip()}\n"
-                f"Rebase it onto this tree, or delete it if upstream fixed the defect, "
-                f"and record which in scripts/patches/README.md."
-            )
 
 
 class LlamaCppBuilder(GgmlBuilder):
@@ -2107,6 +2111,37 @@ class StableDiffusionCppBuilder(GgmlBuilder):
         self.copy_lib(self.build_dir, ".", "stable-diffusion", self.lib)
 
 
+def check_sqlite_vector_vendor(vendored: Path, upstream: Path, patches: list[Path]) -> list[str]:
+    """Compare `thirdparty/sqlite-vector/` with an upstream checkout plus `patches`.
+
+    Applies `patches` to `upstream` in place, then requires every vendored file to
+    match its counterpart under `src/`, `libs/` or the root byte for byte. Upstream
+    `src/` and `libs/fp16/` files missing from `vendored` are reported, because
+    CMakeLists.txt lists sources explicitly.
+    """
+    problems: list[str] = []
+    for patch in patches:
+        r = subprocess.run(["git", "apply", str(patch.resolve())], cwd=str(upstream), capture_output=True, text=True)
+        if r.returncode != 0:
+            problems.append(f"{patch.name}: does not apply: {r.stderr.strip()}")
+    if problems:
+        return problems
+    for committed in sorted(vendored.rglob("*")):
+        if not committed.is_file():
+            continue
+        rel = committed.relative_to(vendored)
+        candidates = [c for r in ("src", "libs", ".") if (c := upstream / r / rel).is_file()]
+        if not candidates:
+            problems.append(f"{rel}: no counterpart in sqlite-vector checkout")
+        elif candidates[0].read_bytes() != committed.read_bytes():
+            problems.append(f"{rel}: differs from upstream plus patches")
+    for sub, base in (("src", "src"), ("libs/fp16", "libs")):
+        for f in sorted((upstream / sub).glob("*")):
+            if f.is_file() and not (vendored / f.relative_to(upstream / base)).exists():
+                problems.append(f"{f.relative_to(upstream)}: not vendored")
+    return problems
+
+
 class SqliteVectorBuilder(Builder):
     """build sqlite-vector extension"""
 
@@ -2152,15 +2187,7 @@ class SqliteVectorBuilder(Builder):
         # Clean any previous build
         self.cmd("make clean", cwd=self.src_dir)
 
-        # Build the extension using make
-        # Patch source to define _GNU_SOURCE for strcasestr on older glibc
-        # (e.g. manylinux/AlmaLinux 8 where strcasestr needs _GNU_SOURCE)
-        sqlite_vector_c = self.src_dir / "src" / "sqlite-vector.c"
-        if sqlite_vector_c.exists():
-            content = sqlite_vector_c.read_text()
-            if "_GNU_SOURCE" not in content:
-                content = "#ifndef _GNU_SOURCE\n#define _GNU_SOURCE\n#endif\n" + content
-                sqlite_vector_c.write_text(content)
+        self._apply_source_patches()
         self.cmd("make extension", cwd=self.src_dir)
 
         # Copy the extension to package directory (for runtime use)
@@ -3433,7 +3460,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
         return problems
 
     def do_check_vendor(self, args: argparse.Namespace) -> None:
-        """verify thirdparty/*/include/ matches the pinned upstream versions"""
+        """verify thirdparty/*/include/ and thirdparty/sqlite-vector/ match the pinned upstream versions"""
         import subprocess
         import tempfile
 
@@ -3516,6 +3543,23 @@ class Application(ShellCmd, metaclass=MetaCommander):
                         print(f"  {p}", file=sys.stderr)
                 else:
                     print(f"OK: vendored headers match {other.name}@{other.version}")
+
+            sv = SqliteVectorBuilder()
+            sv_clone = tmp_path / sv.name
+            subprocess.run(
+                [*git_clone, "--depth", "1", "--branch", sv.version, sv.repo_url, str(sv_clone)],
+                check=True,
+            )
+            sv_vendored = sv.project.cwd / "thirdparty" / sv.name
+            sv_patches = sorted((Path(__file__).resolve().parent / "patches").glob(f"{sv.name}-*.patch"))
+            problems = check_sqlite_vector_vendor(sv_vendored, sv_clone, sv_patches)
+            if problems:
+                failed = True
+                print(f"ERROR: thirdparty/{sv.name}/ differs from pinned {sv.name}@{sv.version}", file=sys.stderr)
+                for p in problems:
+                    print(f"  {p}", file=sys.stderr)
+            else:
+                print(f"OK: vendored sources match {sv.name}@{sv.version}")
             if failed:
                 sys.exit(1)
 
