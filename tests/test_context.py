@@ -36,7 +36,9 @@ def test_context_params_set():
     params.n_batch = 1024
     params.n_ctx = 1024
     params.moe_cache_size = 1 << 30
+    params.moe_cache_cpu_share = 0.25
     assert params.n_threads == 8
     assert params.n_batch == 1024
     assert params.n_ctx == 1024
     assert params.moe_cache_size == 1 << 30
+    assert params.moe_cache_cpu_share == 0.25

@@ -37,6 +37,7 @@ class MtmdGenAudioType(IntEnum):
     SOPRANO = MTMD_GEN_AUDIO_TYPE_SOPRANO
     LFM3A = MTMD_GEN_AUDIO_TYPE_LFM3A
     CHATTERBOX = MTMD_GEN_AUDIO_TYPE_CHATTERBOX
+    DRAMA3 = MTMD_GEN_AUDIO_TYPE_DRAMA3
 
 
 class MtmdGenAudioOutMode(IntEnum):
@@ -1180,6 +1181,81 @@ cdef class MtmdVideo:
         return False
 
 
+cdef class MtmdResampler:
+    """Streaming resampler for raw mono float32 PCM.
+
+    Filter state carries across :meth:`process` calls, so use one instance per
+    stream. Typical use converts capture-rate audio to
+    :attr:`MtmdContext.audio_sample_rate`.
+
+    Example:
+        >>> with MtmdResampler(44100, ctx.audio_sample_rate) as rs:
+        ...     for chunk in mic_chunks:
+        ...         pcm = rs.process(chunk)
+    """
+
+    cdef mtmd_helper_resampler * _rs
+    cdef readonly int32_t rate_in
+    cdef readonly int32_t rate_out
+
+    def __cinit__(self, int32_t rate_in, int32_t rate_out):
+        self._rs = NULL
+        if rate_in <= 0 or rate_out <= 0:
+            raise ValueError(f"sample rates must be > 0, got {rate_in} -> {rate_out}")
+        self.rate_in = rate_in
+        self.rate_out = rate_out
+        self._rs = mtmd_helper_resampler_init(rate_in, rate_out)
+        if self._rs is NULL:
+            raise RuntimeError(f"Failed to initialize resampler {rate_in} -> {rate_out}")
+
+    def __dealloc__(self):
+        if self._rs is not NULL:
+            mtmd_helper_resampler_free(self._rs)
+            self._rs = NULL
+
+    def process(self, samples) -> array.array:
+        """Resample one chunk.
+
+        Args:
+            samples: float32 buffer (``array('f')``, contiguous float32 numpy
+                array) or an iterable of floats.
+
+        Returns:
+            ``array('f')`` of output samples; may be empty while the filter fills.
+
+        Raises:
+            RuntimeError: The resampler is closed or upstream reported an error.
+        """
+        if self._rs is NULL:
+            raise RuntimeError("Resampler is closed")
+        cdef const float[::1] view = _as_float_view(samples)
+        cdef size_t n_in = view.shape[0]
+        cdef const float * out = NULL
+        # Holds the GIL: the call mutates filter state, and close() must not race it.
+        cdef int64_t n_out = mtmd_helper_resampler_process(
+            self._rs, &view[0] if n_in > 0 else NULL, n_in, &out)
+        if n_out < 0:
+            raise RuntimeError(f"Resampling failed with error code: {n_out}")
+        result = array.array("f")
+        if n_out > 0:
+            # out may alias the input (equal rates) or an internal buffer reused next call
+            result.frombytes((<const char *>out)[:n_out * sizeof(float)])
+        return result
+
+    def close(self) -> None:
+        """Release the native resampler. Idempotent."""
+        if self._rs is not NULL:
+            mtmd_helper_resampler_free(self._rs)
+            self._rs = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+
 cdef class MtmdAudioGenerator:
     """Audio generation (TTS) driven by a backbone LlamaContext and an mmproj.
 
@@ -1235,7 +1311,7 @@ cdef class MtmdAudioGenerator:
 
     def set_input(self, prompt: str, MtmdBitmap speaker = None,
                   lang: Optional[str] = None, int top_k = 0, float top_p = 0.0,
-                  uint32_t seed = 0xFFFFFFFF, wav: bool = True, stream: bool = False,
+                  float temp = -1.0, uint32_t seed = 0xFFFFFFFF, wav: bool = True, stream: bool = False,
                   int32_t n_past = 0, out_mode = MtmdGenAudioOutMode.AUTO) -> None:
         """Start a new utterance or response; discards any previous generator state.
 
@@ -1246,6 +1322,8 @@ cdef class MtmdAudioGenerator:
             lang: Optional language code or name (pipeline-dependent).
             top_k: Code-predictor top-k; 0 uses the pipeline default.
             top_p: Code-predictor top-p; 0 uses the pipeline default.
+            temp: Audio frame temperature, if the model supports it; < 0 uses
+                the model default, 0 is greedy.
             seed: Code-predictor seed; 0xFFFFFFFF for random.
             wav: Output 16-bit WAV bytes if True, else raw float32 PCM.
             stream: If True, each :meth:`get_output` returns only audio produced
@@ -1288,6 +1366,7 @@ cdef class MtmdAudioGenerator:
             inp.lang = lang_b
         inp.top_k = top_k
         inp.top_p = top_p
+        inp.temp = temp
         inp.seed = seed
         inp.out_type = MTMD_HELPER_GEN_AUDIO_OUTTYPE_WAV if wav else MTMD_HELPER_GEN_AUDIO_OUTTYPE_PCM
         inp.stream = stream

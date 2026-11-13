@@ -1599,6 +1599,15 @@ cdef class LlamaContextParams:
     def moe_cache_size(self, size_t value):
         self.p.moe_cache_size = value
 
+    @property
+    def moe_cache_cpu_share(self) -> float:
+        """share of the MoE cache misses computed on the CPU instead of uploaded, 0 = all uploaded [EXPERIMENTAL]"""
+        return self.p.moe_cache_cpu_share
+
+    @moe_cache_cpu_share.setter
+    def moe_cache_cpu_share(self, float value):
+        self.p.moe_cache_cpu_share = value
+
     # @property
     # def logits_all(self) -> bool:
     #     """the llama_decode() call computes all logits, not just the last one (DEPRECATED - set llama_batch.logits instead)"""

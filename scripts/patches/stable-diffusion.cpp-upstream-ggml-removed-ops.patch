@@ -1,0 +1,49 @@
+diff --git a/src/core/ggml_extend.h b/src/core/ggml_extend.h
+index 33d8c3b..83936b3 100644
+--- a/src/core/ggml_extend.h
++++ b/src/core/ggml_extend.h
+@@ -7,6 +7,13 @@
+ #include "ggml-backend.h"
+ #include "ggml.h"
+ 
++#ifdef SD_USE_UPSTREAM_GGML
++// Upstream ggml (llama.cpp b12359) removed the per-op precision setters.
++// ggml_prec_set_acc writes the same op_params slot; leejet's fork still lacks it.
++#define ggml_mul_mat_set_prec ggml_prec_set_acc
++#define ggml_flash_attn_ext_set_prec ggml_prec_set_acc
++#endif
++
+ #define EPS 1e-05f
+ 
+ static_assert(GGML_MAX_NAME >= 160, "GGML_MAX_NAME must be at least 160");
+diff --git a/src/model/vae/minimax_h3_audio_vae.hpp b/src/model/vae/minimax_h3_audio_vae.hpp
+index a4fc144..aaf68c3 100644
+--- a/src/model/vae/minimax_h3_audio_vae.hpp
++++ b/src/model/vae/minimax_h3_audio_vae.hpp
+@@ -2,6 +2,7 @@
+ #define __SD_MODEL_VAE_MINIMAX_H3_AUDIO_VAE_HPP__
+ 
+ #include <array>
++#include <limits>
+ #include <string>
+ #include <vector>
+ 
+@@ -171,9 +172,18 @@ namespace MiniMaxH3 {
+             auto v = ggml_add(ctx->ggml_ctx, qkv[2], bias_shape(params["v_bias"]));
+ 
+             int64_t sequence = x->ne[1];
++#ifdef SD_USE_UPSTREAM_GGML
++            // Upstream ggml (llama.cpp b12359) removed ggml_diag_mask_inf.
++            auto mask = ggml_tri(ctx->ggml_ctx,
++                                 ggml_fill(ctx->ggml_ctx,
++                                           ggml_ext_zeros(ctx->ggml_ctx, sequence, sequence, 1, 1),
++                                           -std::numeric_limits<float>::infinity()),
++                                 GGML_TRI_TYPE_UPPER);
++#else
+             auto mask        = ggml_diag_mask_inf(ctx->ggml_ctx,
+                                                   ggml_ext_zeros(ctx->ggml_ctx, sequence, sequence, 1, 1),
+                                                   0);
++#endif
+             auto attn_out    = ggml_ext_attention_ext(ctx,
+                                                       q,
+                                                       k,

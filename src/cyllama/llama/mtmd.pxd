@@ -253,6 +253,7 @@ cdef extern from "mtmd.h":
         MTMD_GEN_AUDIO_TYPE_SOPRANO
         MTMD_GEN_AUDIO_TYPE_LFM3A
         MTMD_GEN_AUDIO_TYPE_CHATTERBOX
+        MTMD_GEN_AUDIO_TYPE_DRAMA3
 
     ctypedef struct mtmd_gen_audio_info:
         mtmd_gen_audio_type type
@@ -394,6 +395,7 @@ cdef extern from "mtmd-helper.h":
         const char * lang          # optional, can be NULL
         int32_t top_k
         float top_p
+        float temp                 # < 0 = model default, 0 = greedy
         uint32_t seed              # UINT32_MAX for random
         mtmd_helper_gen_audio_outtype out_type
 
@@ -464,6 +466,14 @@ cdef extern from "mtmd-helper.h":
                                                    size_t len,
                                                    bint placeholder,
                                                    mtmd_helper_init_opt opt)
+
+    # Streaming resampler for raw mono F32 PCM; one per stream
+    ctypedef struct mtmd_helper_resampler:
+        pass
+    cdef mtmd_helper_resampler * mtmd_helper_resampler_init(int32_t rate_in, int32_t rate_out)
+    cdef void mtmd_helper_resampler_free(mtmd_helper_resampler * ctx)
+    # *out is valid until the next call; returns output sample count, < 0 on error
+    cdef int64_t mtmd_helper_resampler_process(mtmd_helper_resampler * ctx, const float * input, size_t n_in, const float ** out) nogil
 
     # Helper functions for chunk processing
     cdef size_t mtmd_helper_get_n_tokens(const mtmd_input_chunks * chunks)

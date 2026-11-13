@@ -1,7 +1,7 @@
 # Upstream git tags cyllama builds against.
 # Read by scripts/manage.py and scripts/release_notes.py.
 
-llama_cpp = "b12110"  # same commit as v0.9.0
+llama_cpp = "b12359"  # same commit as v1.0.0
 whisper_cpp = "v1.9.4"
 stable_diffusion_cpp = "master-898-2bb7294"
 sqlite_vector = "1.1.2"

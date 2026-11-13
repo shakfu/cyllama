@@ -28,6 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **llama.cpp bumped to `b12359` (v1.0.0).** New `llama.h` functions (NextN / DFlash speculative-decoding API, `llama_batch_ext_add_embd_row`, `llama_batch_ext_set_embd_state_row`) are declared in the `.pxd` files only. `MtmdResampler` wraps `mtmd_helper_resampler_*`, a stateful mono float32 resampler for converting capture-rate audio to `MtmdContext.audio_sample_rate`. `LlamaContextParams.moe_cache_cpu_share`, `MtmdGenAudioType.DRAMA3` and a `temp` argument to `MtmdAudioGenerator.set_input` are exposed. Without `DRAMA3`, reading the gen-audio info of a Drama3 mmproj raised `ValueError`. Removed upstream and dropped from the `.pxd` files: `llama_context_params.defrag_thold`, `llama_vocab_cls`, and `GGML_OP_ADD1` / `GGML_OP_DIAG_MASK_INF` / `GGML_OP_DIAG_MASK_ZERO`. stable-diffusion.cpp needs a new patch to compile against this ggml; see `scripts/patches/README.md`.
+
 - **Upstream version pins moved to `scripts/versions.toml`.** `scripts/manage.py` and `scripts/release_notes.py` both read it. A TOML file over a `versions.py` module because it is data any tool can read with `tomllib`, without running code. Deps cache keys and the `check-vendor` and `build-cibw-abi3` path filters now include it, so a version bump still invalidates cached builds. The manylinux `before-all` interpreter moves from cp310 to cp312, because `tomllib` needs 3.11+.
 
 ### Removed

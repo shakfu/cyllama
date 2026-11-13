@@ -116,10 +116,8 @@ class TestSpeculativeCompatibility:
         assert isinstance(result, bool)
 
     def test_is_compat_none_context(self):
-        """Test compatibility check with None raises appropriate error."""
-        # Skip this test as it can cause segfaults
-        # The C API doesn't handle NULL pointers gracefully
-        pytest.skip("Skipping None test to avoid segfaults in C API")
+        """is_compat returns False for None instead of dereferencing NULL."""
+        assert Speculative.is_compat(None) is False
 
 
 class TestSpeculativeInitialization:

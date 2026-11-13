@@ -38,7 +38,7 @@ CASES = {
         "prefix": "mtmd_",
         "pxd": "mtmd.pxd",
         "skipped": {
-            **{f"mtmd_helper_{n}_deleter": "C++ unique_ptr helper" for n in ("gen_audio", "video")},
+            **{f"mtmd_helper_{n}_deleter": "C++ unique_ptr helper" for n in ("gen_audio", "video", "resampler")},
             **{f"mtmd_helper_video_{n}": "C++ only test API, not for applications" for n in ("src", "seq")},
         },
     },

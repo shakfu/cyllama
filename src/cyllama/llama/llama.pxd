@@ -307,7 +307,6 @@ cdef extern from "llama.h":
         float    yarn_beta_fast   # YaRN low correction dim
         float    yarn_beta_slow   # YaRN high correction dim
         uint32_t yarn_orig_ctx    # YaRN original context size
-        float    defrag_thold     # [DEPRECATED] defragment the KV cache if holes/size > thold, <= 0 disabled (default)
 
         ggml.ggml_backend_sched_eval_callback cb_eval
         void * cb_eval_user_data
@@ -316,6 +315,7 @@ cdef extern from "llama.h":
         ggml.ggml_type type_v # data type for V cache [EXPERIMENTAL]
 
         size_t moe_cache_size # device cache in bytes for the experts kept in host memory, split among the devices like the layers, 0 = disabled [EXPERIMENTAL]
+        float  moe_cache_cpu_share # share of the MoE cache misses computed on the CPU instead of uploaded, 0 = all uploaded [EXPERIMENTAL]
 
         # Abort callback
         # if it returns true, execution of llama_decode() will be aborted
@@ -571,6 +571,15 @@ cdef extern from "llama.h":
             const char * fname_inp,
             const char * fname_out,
             const llama_model_quantize_params * params) nogil
+
+    #
+    # NextN / speculative draft model queries
+    #
+
+    # DFlash2 selector: candidate tokens kept per block position; 0 if the model has no selector head
+    cdef int32_t llama_model_dflash_selector_top_k(const llama_model * model)
+    cdef const int32_t * llama_model_target_layer_ids(const llama_model * model)
+    cdef uint32_t llama_model_target_layer_ids_n(const llama_model * model)
 
     #
     # Adapters
@@ -894,6 +903,11 @@ cdef extern from "llama.h":
     # Extra hidden state carried over from a previous stage (MTP, Qwen3 VL deepstack)
     cdef bint llama_batch_ext_set_embd_state(llama_batch_ext * batch, int32_t idx, llama_embd embd)
 
+    # Entry whose embedding is row `row` of ctx_other's layer input device buffer
+    cdef int32_t llama_batch_ext_add_embd_row(llama_batch_ext * batch, llama_seq_id seq_id, int32_t row)
+    # State of entry idx is row `row` of the h_nextn device buffer (see llama_set_ctx_state_src)
+    cdef bint llama_batch_ext_set_embd_state_row(llama_batch_ext * batch, int32_t idx, int32_t row)
+
     cdef bint llama_batch_ext_set_output_embd(llama_batch_ext * batch, int32_t idx, bint value)
     cdef bint llama_batch_ext_set_output_logits(llama_batch_ext * batch, int32_t idx, bint value)
 
@@ -972,6 +986,26 @@ cdef extern from "llama.h":
     cdef float * llama_get_embeddings_seq( llama_context * ctx, llama_seq_id seq_id)
 
     #
+    # NextN / speculative decoding API
+    #
+
+    # masked: output only for tokens with batch.logits != 0
+    cdef void llama_set_embeddings_nextn(llama_context * ctx, bint value, bint masked)
+    cdef void llama_set_nextn_layer_offset(llama_context * ctx, int32_t offset)
+    cdef float * llama_get_embeddings_nextn(llama_context * ctx)
+    cdef float * llama_get_embeddings_nextn_ith(llama_context * ctx, int32_t i)
+    cdef void llama_set_embeddings_layer_inp(llama_context * ctx, uint32_t lid, bint value)
+    cdef float * llama_get_embeddings_layer_inp(llama_context * ctx, uint32_t lid)
+    cdef void llama_set_embeddings_layer_inp_dev(llama_context * ctx, bint value)
+    cdef bint llama_supports_embd_row(const llama_context * ctx)
+    cdef bint llama_set_embeddings_nextn_dev(llama_context * ctx, bint value)
+    cdef bint llama_get_embeddings_nextn_rows(llama_context * ctx, int64_t row0, int64_t n_rows, float * out)
+    cdef bint llama_set_embeddings_nextn_rows(llama_context * ctx, int64_t row0, int64_t n_rows, const float * data)
+    cdef bint llama_set_ctx_state_src(llama_context * ctx, llama_context * ctx_src)
+    # paired context (llama_context_params.ctx_other); may be NULL
+    cdef llama_context * llama_get_ctx_other(llama_context * ctx)
+
+    #
     # backend sampling API [EXPERIMENTAL]
     # note: use only if the llama_context was created with at least one llama_sampler_seq_config
     #
@@ -1016,7 +1050,6 @@ cdef extern from "llama.h":
     cdef llama_token llama_vocab_bos(const llama_vocab * vocab)  # beginning-of-sentence
     cdef llama_token llama_vocab_eos(const llama_vocab * vocab)  # end-of-sentence
     cdef llama_token llama_vocab_eot(const llama_vocab * vocab)  # end-of-turn
-    cdef llama_token llama_vocab_cls(const llama_vocab * vocab)  # classification
     cdef llama_token llama_vocab_sep(const llama_vocab * vocab)  # sentence separator
     cdef llama_token llama_vocab_nl (const llama_vocab * vocab)  # next-line
     cdef llama_token llama_vocab_pad(const llama_vocab * vocab)  # padding

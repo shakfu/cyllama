@@ -109,6 +109,31 @@ initialises for MSVC (`/DWIN32 /D_WINDOWS /W3 /GR /EHsc`) rather than append
 to it, silently dropping `/EHsc` and changing unwind semantics for the whole
 tree. `add_compile_options()` is purely additive.
 
+### `stable-diffusion.cpp-upstream-ggml-removed-ops.patch`
+
+**Target:** `src/core/ggml_extend.h`, `src/model/vae/minimax_h3_audio_vae.hpp`
+(stable-diffusion.cpp `master-898-2bb7294`, built against llama.cpp `b12359`)
+
+**Problem:** llama.cpp `b12359` removed three ggml functions SD still calls.
+Shared-ggml builds fail to compile:
+
+- `ggml_mul_mat_set_prec`, `ggml_flash_attn_ext_set_prec`: deprecated in
+  `b12110` in favour of `ggml_prec_set_acc`.
+- `ggml_diag_mask_inf`: the op itself (`GGML_OP_DIAG_MASK_INF`) is gone.
+
+**Fix:** Under `SD_USE_UPSTREAM_GGML` only:
+
+- Alias both setters to `ggml_prec_set_acc`. It writes the same `op_params`
+  slot for `MUL_MAT` (0) and `FLASH_ATTN_EXT` (3).
+- Build the causal mask as `ggml_tri(ggml_fill(zeros, -inf), UPPER)`. Both
+  write -inf where `i0 > i1` and 0 elsewhere. The CPU and Metal `tri` kernels
+  select rather than multiply, so no `-inf * 0` NaN.
+
+Vendored mode keeps the original calls; leejet's ggml fork lacks
+`ggml_prec_set_acc`. Upstream SD master already uses `ggml_prec_set_acc` but
+still calls `ggml_diag_mask_inf`. Drop the first hunk on the next SD bump; the
+second stays until upstream SD moves off the removed op.
+
 Two stable-diffusion.cpp patches were dropped at `master-898-2bb7294`, both
 fixed upstream:
 

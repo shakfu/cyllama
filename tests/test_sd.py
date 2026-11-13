@@ -695,7 +695,6 @@ class TestSDContextIntegration:
         # Image should have some variation (not all black or white)
         assert arr.std() > 5
 
-    @pytest.mark.skip(reason="Multiple generations on same context causes segfault - needs investigation")
     def test_deterministic_seed(self):
         """Test that same seed produces same image."""
         params = SDContextParams()
@@ -1732,7 +1731,6 @@ class TestConvenienceFunctionsIntegration:
         assert all(isinstance(img, SDImage) for img in images)
         assert all(img.width == 256 and img.height == 256 for img in images)
 
-    @pytest.mark.skip(reason="image_to_image after text_to_image in same session causes segfault - needs investigation")
     def test_image_to_image(self):
         """Test image_to_image convenience function."""
         # Create an init image

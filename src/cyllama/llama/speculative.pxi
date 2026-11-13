@@ -140,6 +140,17 @@ cdef class Speculative:
         is a property of the model architecture (recurrent vs. attention) and
         memory backend defaults, not of the caller's specific params, so a
         scratch context with default params gives the right answer.
+
+        Args:
+            ctx_target: Target context, or None.
+
+        Returns:
+            True if the model supports partial KV removal. False if it does
+            not, if ``ctx_target`` or its model is None or freed, or if the
+            probe context cannot be created or decoded.
+
+        Raises:
+            TypeError: ``ctx_target`` is neither a LlamaContext nor None.
         """
         if ctx_target is None or ctx_target.model is None:
             return False

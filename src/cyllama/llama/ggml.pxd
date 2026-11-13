@@ -107,7 +107,6 @@ cdef extern from "ggml.h":
         GGML_OP_DUP
         GGML_OP_ADD
         GGML_OP_ADD_ID
-        GGML_OP_ADD1
         GGML_OP_ACC
         GGML_OP_SUB
         GGML_OP_MUL
@@ -149,8 +148,6 @@ cdef extern from "ggml.h":
         GGML_OP_GET_ROWS_BACK
         GGML_OP_SET_ROWS
         GGML_OP_DIAG
-        GGML_OP_DIAG_MASK_INF
-        GGML_OP_DIAG_MASK_ZERO
         GGML_OP_SOFT_MAX
         GGML_OP_SOFT_MAX_BACK
         GGML_OP_ROPE
