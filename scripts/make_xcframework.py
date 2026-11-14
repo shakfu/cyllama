@@ -395,8 +395,8 @@ def _build_shared_cmake(
         # Must equal StableDiffusionCppBuilder.GGML_MAX_NAME in scripts/manage.py:
         # all three trees below share one ggml, so they share one ggml_tensor
         # layout. tests/test_build_abi.py holds the two in step.
-        "-DCMAKE_C_FLAGS=-DGGML_MAX_NAME=160",
-        "-DCMAKE_CXX_FLAGS=-DGGML_MAX_NAME=160",
+        "-DCMAKE_C_FLAGS_INIT=-DGGML_MAX_NAME=160",
+        "-DCMAKE_CXX_FLAGS_INIT=-DGGML_MAX_NAME=160",
         f"-DCMAKE_OSX_DEPLOYMENT_TARGET={MIN_MACOS}",
         *extra_cmake,
     ]

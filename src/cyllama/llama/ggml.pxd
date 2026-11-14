@@ -94,7 +94,6 @@ cdef extern from "ggml.h":
 
     cdef enum ggml_prec:
         GGML_PREC_UNDEFINED = 0
-        GGML_PREC_DEFAULT   = 0  # deprecated, use GGML_PREC_UNDEFINED
         GGML_PREC_F32       = 10
         GGML_PREC_BF16      = 15
         GGML_PREC_F16       = 20

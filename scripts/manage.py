@@ -1344,9 +1344,7 @@ class LlamaCppBuilder(GgmlBuilder):
         # build so both sides agree.
         extra = {}
         if StableDiffusionCppBuilder.uses_shared_ggml():
-            _def = f"-DGGML_MAX_NAME={StableDiffusionCppBuilder.GGML_MAX_NAME}"
-            extra["CMAKE_C_FLAGS"] = _def
-            extra["CMAKE_CXX_FLAGS"] = _def
+            extra.update(StableDiffusionCppBuilder.ggml_max_name_flags(backend_options))
 
         self.cmake_config(
             src_dir=self.src_dir,
@@ -1430,9 +1428,7 @@ class LlamaCppBuilder(GgmlBuilder):
         # Match SD's GGML_MAX_NAME so ggml_tensor struct layout is identical
         extra = {}
         if StableDiffusionCppBuilder.uses_shared_ggml():
-            _def = f"-DGGML_MAX_NAME={StableDiffusionCppBuilder.GGML_MAX_NAME}"
-            extra["CMAKE_C_FLAGS"] = _def
-            extra["CMAKE_CXX_FLAGS"] = _def
+            extra.update(StableDiffusionCppBuilder.ggml_max_name_flags(backend_options))
 
         self.cmake_config(
             src_dir=self.src_dir,
@@ -1876,9 +1872,7 @@ class WhisperCppBuilder(GgmlBuilder):
         # into silent corruption the first time upstream reaches for it.
         extra = {}
         if StableDiffusionCppBuilder.uses_shared_ggml():
-            _def = f"-DGGML_MAX_NAME={StableDiffusionCppBuilder.GGML_MAX_NAME}"
-            extra["CMAKE_C_FLAGS"] = _def
-            extra["CMAKE_CXX_FLAGS"] = _def
+            extra.update(StableDiffusionCppBuilder.ggml_max_name_flags(backend_options))
 
         self.cmake_config(
             src_dir=self.src_dir,
@@ -1933,6 +1927,23 @@ class StableDiffusionCppBuilder(GgmlBuilder):
     # every build, because this pin silently went stale once already: it sat at
     # 128 while upstream had moved to 160.
     GGML_MAX_NAME: int = 160
+
+    @classmethod
+    def ggml_max_name_flags(cls, backend_options: dict[str, Any]) -> dict[str, str]:
+        """CMake options that compile every ggml language with `GGML_MAX_NAME`.
+
+        Sets `CMAKE_<LANG>_FLAGS_INIT`, to which CMake appends its platform
+        defaults. A `-DCMAKE_<LANG>_FLAGS` replaces them, which dropped MSVC's
+        `/EHsc /GR`. CUDA and HIP have their own flag sets, so `.cu` files got
+        the default 64; they are added only when that backend is on, to avoid
+        CMake's unused-variable warning.
+        """
+        define = f"-DGGML_MAX_NAME={cls.GGML_MAX_NAME}"
+        langs = ["C", "CXX"]
+        langs += [
+            lang for lang, opt in (("CUDA", "GGML_CUDA"), ("HIP", "GGML_HIP")) if backend_options.get(opt) == "ON"
+        ]
+        return {f"CMAKE_{lang}_FLAGS_INIT": define for lang in langs}
 
     def _verify_ggml_max_name(self) -> None:
         """Abort the build if upstream's GGML_MAX_NAME no longer matches the pin.

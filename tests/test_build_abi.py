@@ -50,13 +50,29 @@ def test_every_tree_that_links_the_shared_ggml_gets_the_define(manage):
     # it. These two have to follow.
     followers = [manage.LlamaCppBuilder(), manage.WhisperCppBuilder()]
     for builder in followers:
-        # The value reaches cmake as a raw -D in CMAKE_{C,CXX}_FLAGS; assert the
-        # builder is wired to emit it rather than re-deriving how.
+        # Assert the builder is wired to the shared helper rather than
+        # re-deriving how the value reaches cmake.
         source = inspect.getsource(type(builder).build)
-        assert "GGML_MAX_NAME" in source, (
+        assert "ggml_max_name_flags(" in source, (
             f"{builder.name} does not propagate GGML_MAX_NAME to its cmake configure; "
             f"it will compile against a different struct ggml_tensor than the ggml it links"
         )
+
+
+def test_max_name_flags_append_to_platform_defaults(manage):
+    """`_INIT`, not `CMAKE_<LANG>_FLAGS`: a -D of the latter drops MSVC's /EHsc /GR."""
+    flags = manage.StableDiffusionCppBuilder.ggml_max_name_flags({})
+    define = f"-DGGML_MAX_NAME={manage.StableDiffusionCppBuilder.GGML_MAX_NAME}"
+    assert flags == {"CMAKE_C_FLAGS_INIT": define, "CMAKE_CXX_FLAGS_INIT": define}
+
+
+@pytest.mark.parametrize("backend, lang", [("GGML_CUDA", "CUDA"), ("GGML_HIP", "HIP")])
+def test_max_name_flags_reach_gpu_compilers(manage, backend, lang):
+    """CUDA and HIP have their own flag sets; .cu files otherwise see the default 64."""
+    on = manage.StableDiffusionCppBuilder.ggml_max_name_flags({backend: "ON"})
+    off = manage.StableDiffusionCppBuilder.ggml_max_name_flags({backend: "OFF"})
+    assert f"CMAKE_{lang}_FLAGS_INIT" in on
+    assert f"CMAKE_{lang}_FLAGS_INIT" not in off
 
 
 def test_cmakelists_matches_the_propagated_value(manage):
