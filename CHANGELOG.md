@@ -29,8 +29,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **Release notes link the upstream versions** ([#20](https://github.com/shakfu/cyllama/issues/20)). `scripts/release_notes.py` appends an `## Upstream versions` section that links the release tag of each pinned llama.cpp, whisper.cpp, stable-diffusion.cpp and sqlite-vector version.
 
 - **`SDContext.generate()` takes `vae_tile_size` and `vae_tile_overlap`.** `None` keeps the defaults (256 px, 0.5).
+
 - **`Embedder(pooling=...)` accepts a `PoolingType`** as well as its name. Passing the enum raised `AttributeError`.
+
 - **Whisper DTW token timestamps can be enabled.** `WhisperContextParams` gains `dtw_aheads_preset`, `dtw_n_top` and `dtw_mem_size`. Before, DTW could not be turned on: with `flash_attn` on (the default), whisper.cpp silently dropped it, and with `flash_attn` off, init failed on the unset preset. `WhisperContext` now raises `ValueError` in both cases, instead of a silent no-op or a generic load error. `WhisperAheadsPreset.CUSTOM` is rejected, because its heads array would have to outlive the context.
+
 - **`cyllama transcribe` gains `-fa`/`-nfa` and `--dtw MODEL`**, with upstream whisper-cli's names. `--dtw` turns flash attention off; combining it with `-fa` is an error. Upstream keeps flash attention on, so its `--dtw` has no effect. `-ojf` adds `t_dtw` in seconds per token.
 
 ### Changed
@@ -54,15 +57,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Fixed
 
 - **`SDContextParams().sampler_rng_type` raised `ValueError` on default params.** Upstream's default is `RNG_TYPE_COUNT`, meaning "same as `rng_type`", and `RngType` had no member for it. It is now `RngType.COUNT`.
+
 - **SD enums were missing upstream values.** `Prediction` lacked `FLUX3_FLOW`, `H3_AV_FLOW` and `MING_IMAGE_FLOW`, so reading `prediction` for those models raised. `SDType` lacked 22 weight types (the IQ, integer, F64, TQ, MXFP4/NVFP4, Q1_0/Q2_0 and F8 types).
+
 - **`sd --prediction sd3_flow` selected `EPS`.** The name map used `flow`. The choices are now upstream's 11 prediction names.
+
 - **`sd --sampler` / `--scheduler` rejected upstream names**, such as `dpm++2m`, and `dpmpp2mv2`. Both upstream names and lowercase member names are accepted.
+
 - **`sd --vae-tile-size` and `--vae-tile-overlap` had no effect.** They were parsed but never passed to `generate()`. The `--vae-tile-size` default changes from a nominal `512x512` to unset, which keeps the 256 px tiles every run actually used.
+
 - **`GGML_NATIVE=ON` and `GGML_OPENMP=ON` meant OFF, silently.** Only `1` meant on. Values other than `0`/`1` now log a warning, as other `manage.py` boolean variables do.
+
 - **The shared-ggml build replaced MSVC's default compiler flags and skipped CUDA/HIP.** `GGML_MAX_NAME=160` went in as `-DCMAKE_{C,CXX}_FLAGS`. That replaces CMake's platform defaults instead of extending them, so Windows builds lost `/EHsc` and `/GR`; without `/EHsc`, exception unwinding may skip destructors. CUDA and HIP have separate flag sets, so `.cu` files compiled against the default 64 while the ggml library they link used 160. No current CUDA code reads the misplaced fields. The define now goes in through `CMAKE_<LANG>_FLAGS_INIT`, to which CMake appends its defaults, and also reaches CUDA and HIP when those backends are on. It applies only to a fresh build directory: run `make reset` once on Windows.
+
 - **whisper.cpp compiled against its bundled ggml headers but linked llama.cpp's ggml.** At v1.9.5 / b12359, 5 constants whisper uses differed, among them `GGML_TYPE_COUNT` (43 vs 44) and 4 `GGML_OP_*` values. None changed behavior at these pins, because whisper only compares those op values with each other and ggml asserts on bad ftypes first. A later bump could make one cross the boundary. `manage.py` now injects llama.cpp's ggml source as whisper's `ggml` target. `WHISPER_USE_SYSTEM_GGML` was the alternative, but its CMake package drops the `GGML_USE_<backend>` defines that whisper uses for flash-attention KV padding. A test requires the installed whisper ggml headers to match llama.cpp's.
+
 - **`cyllama transcribe -ng` had no effect.** The CLI built its context with default params, so the GPU stayed on.
+
 - `cyllama memory --help` showed examples for a nonexistent `cyllama.memory_cli` module. The scikit-build CMake minimum is now 3.26, matching `CMakeLists.txt`. The `LlamaBatchExt.set_embd_state` error no longer calls the upstream function unimplemented.
+
 - **Linux GPU `before-all` interpreter pinned to cp312.** The cuda, rocm, sycl and vulkan-linux workflows picked `ls -d /opt/python/cp3*/bin | head -1`, which sorts lexically and selects cp310. That has no `tomllib`, so `manage.py ci_before_all` would fail at import.
 
 ## [0.9.0]
