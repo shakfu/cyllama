@@ -12,6 +12,11 @@ MANAGE_PY = Path(__file__).resolve().parent.parent / "scripts" / "manage.py"
 pytestmark = pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
 
 
+def _lf(text: str) -> bytes:
+    # write_text would emit CRLF on Windows, which git apply rejects in the patch.
+    return text.encode()
+
+
 def _load_manage():
     """Import scripts/manage.py as a module (it is not on the package path)."""
     if "cyllama_manage" in sys.modules:
@@ -44,22 +49,22 @@ def trees(tmp_path):
     up = tmp_path / "up"
     (up / "src").mkdir(parents=True)
     (up / "libs" / "fp16").mkdir(parents=True)
-    (up / "src" / "sv.c").write_text(UPSTREAM_C)
-    (up / "src" / "sv.h").write_text("#define V 1\n")
-    (up / "libs" / "sqlite3.h").write_text("/* sqlite */\n")
-    (up / "libs" / "fp16" / "fp16.h").write_text("/* fp16 */\n")
-    (up / "LICENSE.md").write_text("Apache-2.0\n")
+    (up / "src" / "sv.c").write_bytes(_lf(UPSTREAM_C))
+    (up / "src" / "sv.h").write_bytes(_lf("#define V 1\n"))
+    (up / "libs" / "sqlite3.h").write_bytes(_lf("/* sqlite */\n"))
+    (up / "libs" / "fp16" / "fp16.h").write_bytes(_lf("/* fp16 */\n"))
+    (up / "LICENSE.md").write_bytes(_lf("Apache-2.0\n"))
 
     ven = tmp_path / "ven"
     (ven / "fp16").mkdir(parents=True)
-    (ven / "sv.c").write_text(PATCHED_C)
-    (ven / "sv.h").write_text("#define V 1\n")
-    (ven / "sqlite3.h").write_text("/* sqlite */\n")
-    (ven / "fp16" / "fp16.h").write_text("/* fp16 */\n")
-    (ven / "LICENSE.md").write_text("Apache-2.0\n")
+    (ven / "sv.c").write_bytes(_lf(PATCHED_C))
+    (ven / "sv.h").write_bytes(_lf("#define V 1\n"))
+    (ven / "sqlite3.h").write_bytes(_lf("/* sqlite */\n"))
+    (ven / "fp16" / "fp16.h").write_bytes(_lf("/* fp16 */\n"))
+    (ven / "LICENSE.md").write_bytes(_lf("Apache-2.0\n"))
 
     patch = tmp_path / "sqlite-vector-test.patch"
-    patch.write_text(PATCH)
+    patch.write_bytes(_lf(PATCH))
     return ven, up, patch
 
 
@@ -75,39 +80,39 @@ def test_missing_patch_reported(trees):
 
 def test_change_beside_patched_hunk(trees):
     ven, up, patch = trees
-    (ven / "sv.c").write_text(PATCHED_C.replace("return 0", "return 1"))
+    (ven / "sv.c").write_bytes(_lf(PATCHED_C.replace("return 0", "return 1")))
     assert check(ven, up, [patch]) == ["sv.c: differs from upstream plus patches"]
 
 
 def test_upstream_change_under_old_pin(trees):
     ven, up, patch = trees
-    (up / "src" / "sv.c").write_text(UPSTREAM_C + "int g(void);\n")
+    (up / "src" / "sv.c").write_bytes(_lf(UPSTREAM_C + "int g(void);\n"))
     assert check(ven, up, [patch]) == ["sv.c: differs from upstream plus patches"]
 
 
 def test_patch_that_no_longer_applies(trees):
     ven, up, patch = trees
-    (up / "src" / "sv.c").write_text("int h(void);\n")
+    (up / "src" / "sv.c").write_bytes(_lf("int h(void);\n"))
     (problem,) = check(ven, up, [patch])
     assert problem.startswith("sqlite-vector-test.patch: does not apply")
 
 
 def test_unpatched_file_must_match(trees):
     ven, up, patch = trees
-    (ven / "sv.h").write_text("#define V 2\n")
+    (ven / "sv.h").write_bytes(_lf("#define V 2\n"))
     assert check(ven, up, [patch]) == ["sv.h: differs from upstream plus patches"]
 
 
 def test_extra_vendored_file(trees):
     ven, up, patch = trees
-    (ven / "extra.c").write_text("")
+    (ven / "extra.c").write_bytes(_lf(""))
     assert check(ven, up, [patch]) == ["extra.c: no counterpart in sqlite-vector checkout"]
 
 
 def test_new_upstream_source_not_vendored(trees):
     ven, up, patch = trees
-    (up / "src" / "distance-new.c").write_text("")
-    (up / "libs" / "fp16" / "bitcasts.h").write_text("")
+    (up / "src" / "distance-new.c").write_bytes(_lf(""))
+    (up / "libs" / "fp16" / "bitcasts.h").write_bytes(_lf(""))
     assert check(ven, up, [patch]) == [
         "src/distance-new.c: not vendored",
         "libs/fp16/bitcasts.h: not vendored",
