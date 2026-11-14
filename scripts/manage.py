@@ -1122,6 +1122,21 @@ class GgmlBuilder(Builder):
         """Bare names of core libs shipped/linked by a successful build."""
         return list(self.base_libs) + list(self.extra_libs)
 
+    def _drop_build_dir_on_ggml_change(self, ggml_options: dict[str, Any]) -> None:
+        """Drop the cmake tree when its ggml options differ from the last configure.
+
+        Every ggml source tree compiles into the same `ggml/` binary dir, and
+        make compares only mtimes, so objects from the previous tree survive
+        whenever they are newer than the incoming sources.
+        """
+        stamp = self.build_dir / ".cyllama-ggml-options"
+        wanted = repr(sorted(ggml_options.items()))
+        if self.build_dir.exists() and not (stamp.exists() and stamp.read_text() == wanted):
+            self.remove(self.build_dir)
+            self.log.info("Dropped %s: it was configured against a different ggml", self.build_dir)
+        self.build_dir.mkdir(parents=True, exist_ok=True)
+        stamp.write_text(wanted)
+
     def get_backend_cmake_options(self) -> dict[str, Any]:
         """Each subclass defines its own backend CMake options."""
         raise NotImplementedError
@@ -1848,6 +1863,30 @@ class WhisperCppBuilder(GgmlBuilder):
         self._apply_openmp(options)
         return options
 
+    INJECT_GGML = Path(__file__).resolve().parent / "cmake" / "whisper-use-llama-ggml.cmake"
+
+    def _ggml_options(self) -> dict[str, Any]:
+        """CMake options compiling whisper against llama.cpp's ggml source tree.
+
+        Whisper links llama.cpp's ggml, so its bundled headers can disagree on
+        enum values (`GGML_TYPE_COUNT` was 43 vs 44 at v1.9.5 / b12359).
+        Injecting the `ggml` target keeps the PUBLIC `GGML_USE_<backend>`
+        defines, which `WHISPER_USE_SYSTEM_GGML` drops; whisper uses them for
+        KV-cache padding. Both values are passed even when empty, because
+        they are CMake cache variables and would otherwise persist.
+        """
+        llama_ggml = self.project.src / "llama.cpp" / "ggml"
+        if not (llama_ggml / "CMakeLists.txt").exists():
+            self.log.warning(
+                "%s missing: whisper.cpp compiles its bundled ggml, whose enums may not match the linked one",
+                llama_ggml,
+            )
+            return {"CMAKE_PROJECT_whisper.cpp_INCLUDE": "", "CYLLAMA_GGML_SOURCE_DIR": ""}
+        return {
+            "CMAKE_PROJECT_whisper.cpp_INCLUDE": self.INJECT_GGML.as_posix(),
+            "CYLLAMA_GGML_SOURCE_DIR": llama_ggml.as_posix(),
+        }
+
     def build(self, shared: bool = False) -> None:
         """whisper.cpp main build function"""
         self.ensure_source()
@@ -1861,16 +1900,12 @@ class WhisperCppBuilder(GgmlBuilder):
         # Get backend options
         backend_options = self.get_backend_cmake_options()
 
-        # whisper.cpp builds its own ggml, but nothing links it: cyllama's
-        # CMakeLists takes every ggml lib from ${LLAMACPP_LIB}, so `libwhisper.a`
-        # and `libcommon.a` end up calling llama.cpp's ggml. That makes this the
-        # third tree that has to agree on GGML_MAX_NAME -- see the note on
-        # StableDiffusionCppBuilder.GGML_MAX_NAME for what a mismatch does to
-        # `struct ggml_tensor`. Whisper has been getting away with the default
-        # (64 against llama.cpp's 160) only because it never touches `extra`,
-        # the one field that moves; that is luck, not design, and it would turn
-        # into silent corruption the first time upstream reaches for it.
-        extra = {}
+        # cyllama's CMakeLists takes every ggml lib from ${LLAMACPP_LIB}, so
+        # `libwhisper.a` and `libcommon.a` call llama.cpp's ggml and must agree
+        # with it on GGML_MAX_NAME (see StableDiffusionCppBuilder.GGML_MAX_NAME)
+        # and on enum values (see _ggml_options).
+        extra = self._ggml_options()
+        self._drop_build_dir_on_ggml_change(extra)
         if StableDiffusionCppBuilder.uses_shared_ggml():
             extra.update(StableDiffusionCppBuilder.ggml_max_name_flags(backend_options))
 
@@ -2060,21 +2095,6 @@ class StableDiffusionCppBuilder(GgmlBuilder):
                 f"Cannot share ggml: {llama_ggml} is missing. Build llama.cpp first, or pass --sd-vendored-ggml."
             )
         return {"SD_USE_UPSTREAM_GGML": True, "SD_GGML_SOURCE_DIR": str(llama_ggml)}
-
-    def _drop_build_dir_on_ggml_change(self, ggml_options: dict[str, Any]) -> None:
-        """Drop the SD cmake tree when its ggml options differ from the last configure.
-
-        Every ggml source tree compiles into the same `ggml/` binary dir, and
-        make compares only mtimes, so objects from the previous tree survive
-        whenever they are newer than the incoming sources.
-        """
-        stamp = self.build_dir / ".cyllama-ggml-options"
-        wanted = repr(sorted(ggml_options.items()))
-        if self.build_dir.exists() and not (stamp.exists() and stamp.read_text() == wanted):
-            self.remove(self.build_dir)
-            self.log.info("Dropped %s: it was configured against a different ggml", self.build_dir)
-        self.build_dir.mkdir(parents=True, exist_ok=True)
-        stamp.write_text(wanted)
 
     def build(self, shared: bool = False, examples: bool = True) -> None:
         """stable-diffusion.cpp main build function"""

@@ -215,3 +215,44 @@ def test_backend_dl_is_off_on_darwin(manage, monkeypatch):
 
     monkeypatch.setattr(manage, "PLATFORM", "Linux")
     assert manage.LlamaCppBuilder._use_backend_dl() is True
+
+
+def _whisper_with_src(manage, tmp_path, monkeypatch):
+    builder = manage.WhisperCppBuilder()
+    monkeypatch.setattr(builder.project, "src", tmp_path)
+    return builder
+
+
+def test_whisper_compiles_llama_ggml(manage, tmp_path, monkeypatch):
+    """Whisper links llama.cpp's ggml, so it must compile against that tree too."""
+    (tmp_path / "llama.cpp" / "ggml").mkdir(parents=True)
+    (tmp_path / "llama.cpp" / "ggml" / "CMakeLists.txt").write_text("")
+    opts = _whisper_with_src(manage, tmp_path, monkeypatch)._ggml_options()
+
+    inject = Path(opts["CMAKE_PROJECT_whisper.cpp_INCLUDE"])
+    assert inject.is_file()
+    assert "CYLLAMA_GGML_SOURCE_DIR" in inject.read_text()
+    assert opts["CYLLAMA_GGML_SOURCE_DIR"] == (tmp_path / "llama.cpp" / "ggml").as_posix()
+
+
+def test_whisper_falls_back_without_llama_source(manage, tmp_path, monkeypatch):
+    """Empty values, not omitted keys: both are cache variables and would persist."""
+    opts = _whisper_with_src(manage, tmp_path, monkeypatch)._ggml_options()
+    assert opts == {"CMAKE_PROJECT_whisper.cpp_INCLUDE": "", "CYLLAMA_GGML_SOURCE_DIR": ""}
+
+
+WHISPER_INCLUDE = ROOT / "thirdparty" / "whisper.cpp" / "include"
+WHISPER_GGML_HEADERS = sorted(p.name for p in WHISPER_INCLUDE.glob("gg*.h")) if WHISPER_INCLUDE.is_dir() else []
+
+
+@pytest.mark.skipif(not WHISPER_GGML_HEADERS, reason="whisper.cpp headers not installed")
+@pytest.mark.parametrize("name", WHISPER_GGML_HEADERS)
+def test_whisper_ships_the_linked_ggml_headers(name):
+    """libwhisper.a is compiled against these and linked against llama.cpp's ggml.
+
+    A difference means enum values or struct layouts may disagree across the
+    call boundary; at v1.9.5 / b12359 `GGML_TYPE_COUNT` was 43 vs 44.
+    """
+    llama = ROOT / "thirdparty" / "llama.cpp" / "include" / name
+    assert llama.is_file(), f"{name} has no llama.cpp counterpart"
+    assert (WHISPER_INCLUDE / name).read_bytes() == llama.read_bytes()
