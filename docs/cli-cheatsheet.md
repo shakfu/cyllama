@@ -295,6 +295,8 @@ cyllama transcribe -m models/ggml-base.en.bin -f audio.wav -osrt -o output
 | `-pp, --print-progress` | Show progress |
 | `-nt, --no-timestamps` | Omit timestamps |
 | `-ng, --no-gpu` | Disable GPU |
+| `-fa, --flash-attn` / `-nfa, --no-flash-attn` | Flash attention on (default) / off |
+| `-dtw, --dtw MODEL` | DTW token timestamps with MODEL's alignment heads (`tiny` ... `large.v3.turbo`). Turns flash attention off; `-ojf` then adds `t_dtw` (seconds) per token |
 | `-v, --verbose` | Show C-level log output from whisper.cpp/ggml |
 
 ---

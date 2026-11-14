@@ -79,7 +79,7 @@ class WhisperParams:
         self.no_timestamps = False
         self.log_score = False
         self.use_gpu = True
-        self.flash_attn = False
+        self.flash_attn = True
         self.suppress_nst = False
         self.verbose = False
 
@@ -281,6 +281,34 @@ def output_csv(ctx: wh.WhisperContext, params: WhisperParams, output_file: Any) 
         print(f'{t0_ms},{t1_ms},"{text_escaped}"', file=output_file)
 
 
+# whisper-cli's --dtw names; each maps to WhisperAheadsPreset.<NAME upper, dots as underscores>.
+DTW_PRESETS = [
+    "tiny",
+    "tiny.en",
+    "base",
+    "base.en",
+    "small",
+    "small.en",
+    "medium",
+    "medium.en",
+    "large.v1",
+    "large.v2",
+    "large.v3",
+    "large.v3.turbo",
+]
+
+
+def create_context_params(params: WhisperParams) -> Any:
+    """Build WhisperContextParams from the GPU, flash-attention and DTW options."""
+    cparams = wh.WhisperContextParams()
+    cparams.use_gpu = params.use_gpu
+    cparams.flash_attn = params.flash_attn
+    if params.dtw:
+        cparams.dtw_token_timestamps = True
+        cparams.dtw_aheads_preset = getattr(wh.WhisperAheadsPreset, params.dtw.upper().replace(".", "_"))
+    return cparams
+
+
 def output_json(ctx: wh.WhisperContext, params: WhisperParams, output_file: Any, full: bool = False) -> None:
     """Output transcription in JSON format."""
     result: dict[str, Any] = {"text": "", "segments": []}
@@ -329,7 +357,11 @@ def output_json(ctx: wh.WhisperContext, params: WhisperParams, output_file: Any,
                 token_id = ctx.full_get_token_id(i, j)
                 token_p = ctx.full_get_token_p(i, j)
 
-                tokens.append({"text": token_text, "id": token_id, "probability": token_p})
+                token = {"text": token_text, "id": token_id, "probability": token_p}
+                if params.dtw:
+                    t_dtw = ctx.full_get_token_data(i, j).t_dtw
+                    token["t_dtw"] = t_dtw * 0.01 if t_dtw >= 0 else None  # -1: special tokens
+                tokens.append(token)
 
             segment["tokens"] = tokens
 
@@ -408,7 +440,7 @@ def process_file(input_file: str, params: WhisperParams) -> None:
 
     # Initialize Whisper context
     try:
-        ctx = wh.WhisperContext(params.model)
+        ctx = wh.WhisperContext(params.model, create_context_params(params))
     except Exception as e:
         print(f"Error loading model {params.model}: {e}", file=sys.stderr)
         return
@@ -612,6 +644,27 @@ Examples:
     parser.add_argument("-pp", "--print-progress", action="store_true", help="Print progress")
     parser.add_argument("-nt", "--no-timestamps", action="store_true", help="Do not print timestamps")
     parser.add_argument("-ng", "--no-gpu", action="store_true", help="Disable GPU")
+    parser.add_argument(
+        "-fa",
+        "--flash-attn",
+        dest="flash_attn",
+        action="store_const",
+        const=True,
+        default=None,
+        help="Enable flash attention (default, unless --dtw)",
+    )
+    parser.add_argument(
+        "-nfa", "--no-flash-attn", dest="flash_attn", action="store_const", const=False, help="Disable flash attention"
+    )
+    parser.add_argument(
+        "-dtw",
+        "--dtw",
+        choices=DTW_PRESETS,
+        default="",
+        metavar="MODEL",
+        help="DTW token timestamps with the alignment heads of MODEL (%(choices)s); disables flash attention. "
+        "-ojf adds t_dtw (seconds) per token",
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Show C-level log output from whisper.cpp/ggml")
 
     args = parser.parse_args()
@@ -658,6 +711,10 @@ Examples:
     params.print_progress = args.print_progress
     params.no_timestamps = args.no_timestamps
     params.use_gpu = not args.no_gpu
+    if args.dtw and args.flash_attn:
+        parser.error("--dtw cannot be combined with --flash-attn")
+    params.dtw = args.dtw
+    params.flash_attn = not args.dtw if args.flash_attn is None else args.flash_attn
     params.verbose = args.verbose
 
     return params

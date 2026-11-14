@@ -124,6 +124,38 @@ cdef class WhisperContextParams:
     def dtw_token_timestamps(self, bint value):
         self._c_params.dtw_token_timestamps = value
 
+    @property
+    def dtw_aheads_preset(self):
+        """Alignment-head preset (a `WhisperAheadsPreset` value) used by DTW."""
+        return <int>self._c_params.dtw_aheads_preset
+
+    @dtw_aheads_preset.setter
+    def dtw_aheads_preset(self, int value):
+        # CUSTOM needs a heads array that outlives the context; not exposed.
+        if value == wh.WHISPER_AHEADS_CUSTOM:
+            raise ValueError("WhisperAheadsPreset.CUSTOM is not supported")
+        if not wh.WHISPER_AHEADS_NONE <= value <= wh.WHISPER_AHEADS_LARGE_V3_TURBO:
+            raise ValueError(f"invalid dtw_aheads_preset: {value}")
+        self._c_params.dtw_aheads_preset = <wh.whisper_alignment_heads_preset>value
+
+    @property
+    def dtw_n_top(self):
+        """Number of top text layers used with `WhisperAheadsPreset.N_TOP_MOST`."""
+        return self._c_params.dtw_n_top
+
+    @dtw_n_top.setter
+    def dtw_n_top(self, int value):
+        self._c_params.dtw_n_top = value
+
+    @property
+    def dtw_mem_size(self):
+        """Bytes reserved for the DTW computation (default 128 MiB)."""
+        return self._c_params.dtw_mem_size
+
+    @dtw_mem_size.setter
+    def dtw_mem_size(self, size_t value):
+        self._c_params.dtw_mem_size = value
+
 cdef class WhisperVadParams:
     cdef wh.whisper_vad_params _c_params
 
@@ -1164,6 +1196,13 @@ cdef class WhisperContext:
 
         if params is None:
             params = WhisperContextParams()
+
+        if params.dtw_token_timestamps:
+            # whisper.cpp would silently turn DTW off, or fail with a generic load error.
+            if params.flash_attn:
+                raise ValueError("dtw_token_timestamps requires flash_attn=False")
+            if params.dtw_aheads_preset == wh.WHISPER_AHEADS_NONE:
+                raise ValueError("dtw_token_timestamps requires a dtw_aheads_preset other than NONE")
 
         # Whisper accepts both legacy ggml and newer GGUF magics. Validate
         # that the file exists, is readable, non-empty, AND has a known

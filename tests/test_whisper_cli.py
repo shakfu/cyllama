@@ -83,7 +83,7 @@ class TestWhisperParams:
         assert params.no_timestamps is False
         assert params.log_score is False
         assert params.use_gpu is True
-        assert params.flash_attn is False
+        assert params.flash_attn is True
         assert params.suppress_nst is False
 
         # Test string parameters
@@ -555,6 +555,68 @@ class TestRegressionCases:
         # Should not raise encoding errors
         assert isinstance(escaped_json, str)
         assert isinstance(escaped_csv, str)
+
+
+def _parse(*argv):
+    with patch("sys.argv", ["cli.py", "-f", "test.wav", *argv]):
+        return cli.parse_arguments()
+
+
+class TestContextFlags:
+    """-ng, -fa/-nfa and --dtw reach WhisperContextParams."""
+
+    def test_defaults(self):
+        params = _parse()
+        assert (params.use_gpu, params.flash_attn, params.dtw) == (True, True, "")
+
+    def test_no_gpu_and_no_flash_attn(self):
+        cparams = cli.create_context_params(_parse("-ng", "-nfa"))
+        assert (cparams.use_gpu, cparams.flash_attn, cparams.dtw_token_timestamps) == (False, False, False)
+
+    def test_dtw_turns_flash_attn_off(self):
+        cparams = cli.create_context_params(_parse("--dtw", "large.v3.turbo"))
+        assert cparams.flash_attn is False
+        assert cparams.dtw_token_timestamps is True
+        assert cparams.dtw_aheads_preset == cli.wh.WhisperAheadsPreset.LARGE_V3_TURBO
+
+    def test_dtw_with_flash_attn_is_an_error(self):
+        with pytest.raises(SystemExit):
+            _parse("--dtw", "base.en", "-fa")
+
+    def test_unknown_dtw_preset_is_an_error(self):
+        with pytest.raises(SystemExit):
+            _parse("--dtw", "huge")
+
+    def test_every_dtw_name_has_a_preset(self):
+        for name in cli.DTW_PRESETS:
+            assert cli.create_context_params(_parse("--dtw", name)).dtw_aheads_preset > 0
+
+    @pytest.mark.slow
+    def test_dtw_full_json(self, sample_audio_path, whisper_model_path, temp_dir):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "cyllama.whisper.cli",
+                "-f",
+                str(Path(sample_audio_path).resolve()),
+                "-m",
+                str(Path(whisper_model_path).resolve()),
+                "--dtw",
+                "base.en",
+                "-ojf",
+                "-np",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=temp_dir,
+        )
+        assert result.returncode == 0, result.stderr
+        tokens = json.loads((Path(temp_dir) / "jfk_full.json").read_text())["segments"][0]["tokens"]
+        t_dtw = [t["t_dtw"] for t in tokens if t["t_dtw"] is not None]
+        assert len(t_dtw) > 5
+        assert t_dtw == sorted(t_dtw)
 
 
 if __name__ == "__main__":

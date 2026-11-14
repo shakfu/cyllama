@@ -150,10 +150,22 @@ params = WhisperContextParams()
 params.use_gpu = True           # Use GPU acceleration
 params.flash_attn = True        # Use flash attention
 params.gpu_device = 0           # GPU device index
-params.dtw_token_timestamps = False  # DTW timestamps; see note below
+params.dtw_token_timestamps = False  # DTW timestamps; see below
 ```
 
-`dtw_token_timestamps = True` alone does not enable DTW. With `flash_attn = True` (the default) whisper.cpp disables DTW. With `flash_attn = False`, init fails because cyllama has no setter for `dtw_aheads_preset`, which stays at NONE.
+DTW (dynamic time warping) token timestamps fill `WhisperTokenData.t_dtw`, in 10 ms units. They need `flash_attn = False` and an alignment-head preset matching the model. `WhisperContext` raises `ValueError` otherwise:
+
+```python
+from cyllama.whisper import WhisperAheadsPreset
+
+params = WhisperContextParams()
+params.flash_attn = False
+params.dtw_token_timestamps = True
+params.dtw_aheads_preset = WhisperAheadsPreset.BASE_EN  # for ggml-base.en.bin
+# N_TOP_MOST uses the last `dtw_n_top` text layers instead of a model preset.
+```
+
+`WhisperAheadsPreset.CUSTOM` is not supported.
 
 ### WhisperFullParams
 

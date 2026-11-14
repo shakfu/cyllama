@@ -26,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`SDContext.generate()` takes `vae_tile_size` and `vae_tile_overlap`.** `None` keeps the defaults (256 px, 0.5).
 - **`Embedder(pooling=...)` accepts a `PoolingType`** as well as its name. Passing the enum raised `AttributeError`.
+- **Whisper DTW token timestamps can be enabled.** `WhisperContextParams` gains `dtw_aheads_preset`, `dtw_n_top` and `dtw_mem_size`. Before, DTW could not be turned on: with `flash_attn` on (the default), whisper.cpp silently dropped it, and with `flash_attn` off, init failed on the unset preset. `WhisperContext` now raises `ValueError` in both cases, instead of a silent no-op or a generic load error. `WhisperAheadsPreset.CUSTOM` is rejected, because its heads array would have to outlive the context.
+- **`cyllama transcribe` gains `-fa`/`-nfa` and `--dtw MODEL`**, with upstream whisper-cli's names. `--dtw` turns flash attention off; combining it with `-fa` is an error. Upstream keeps flash attention on, so its `--dtw` has no effect. `-ojf` adds `t_dtw` in seconds per token.
 
 ### Fixed
 
@@ -40,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - The sqlite-vector 1.2.0 refresh dropped the MSVC `__builtin_popcount` fallback in `distance-avx2.c`, so `vector.dll` failed with LNK2019. The fix is restored in `sqlite-vector-cyllama.patch`, and a test now rejects unguarded `__builtin_*` calls in the MSVC-compiled sources.
   - stable-diffusion.cpp's shared-ggml compat layer calls `ggml_graph_view`, which `ggml-base.dll` does not export, so `stable_diffusion.pyd` failed to link in dynamic Windows builds. The new `stable-diffusion.cpp-graph-view-unexported.patch` builds the view from public fields instead.
 - **whisper.cpp compiled against its bundled ggml headers but linked llama.cpp's ggml.** At v1.9.5 / b12359, 5 constants whisper uses differed, among them `GGML_TYPE_COUNT` (43 vs 44) and 4 `GGML_OP_*` values. None changed behavior at these pins, because whisper only compares those op values with each other and ggml asserts on bad ftypes first. A later bump could make one cross the boundary. `manage.py` now injects llama.cpp's ggml source as whisper's `ggml` target. `WHISPER_USE_SYSTEM_GGML` was the alternative, but its CMake package drops the `GGML_USE_<backend>` defines that whisper uses for flash-attention KV padding. A test requires the installed whisper ggml headers to match llama.cpp's.
+- **`cyllama transcribe -ng` had no effect.** The CLI built its context with default params, so the GPU stayed on.
 - `cyllama memory --help` showed examples for a nonexistent `cyllama.memory_cli` module. The scikit-build CMake minimum is now 3.26, matching `CMakeLists.txt`. The `LlamaBatchExt.set_embd_state` error no longer calls the upstream function unimplemented.
 
 ## [1.0.0a0]
