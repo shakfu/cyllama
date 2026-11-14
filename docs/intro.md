@@ -73,10 +73,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone https://github.com/shakfu/cyllama.git
 cd cyllama
 
-# Sync dependencies (uv creates the virtual environment automatically)
-uv sync
-
-# Build cyllama
+# Build dependencies and cyllama (uv creates the virtual environment)
 make
 
 # Download a test model

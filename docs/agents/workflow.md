@@ -1,6 +1,6 @@
 # DAG-based agent workflow orchestration
 
-**Implementation specification for `src/cyllama/agents/workflow.py`.** This document is the design that will be built. Ports byte-identical to `inferna` modulo namespace.
+**Implementation specification for `src/cyllama/agents/workflow.py`.** This document records the design as built. Ports byte-identical to `inferna` modulo namespace.
 
 ## 1. Thesis
 
@@ -154,7 +154,7 @@ class _AutoState(TypedDict):
 
 ### 4.3 Reducer semantics
 
-By default, each state key has **one writer** — a node returning a key already written by another node raises `WorkflowDefinitionError` at compile time. This is the safest default and what the decorator API enforces.
+By default, each state key has **one writer** — a node returning a key already written by another node fails the run with `WorkflowExecutionError`. This is the safest default and what the decorator API enforces.
 
 For multi-writer keys (e.g., a `messages` list aggregated across nodes), declare a reducer on the state field:
 
@@ -193,7 +193,12 @@ class Workflow(Generic[StateT]):
         self,
         state_schema: type[StateT] | None = None,
         *,
+        max_steps: int = 100,
         reducers: dict[str, Reducer] | None = None,
+        invariants: list[WorkflowInvariant] | None = None,
+        policy: ContractPolicy = ContractPolicy.ENFORCE,
+        task_param: str = "task",
+        answer_key: str | None = None,
     ) -> None: ...
 
     # Static graph building
@@ -215,7 +220,7 @@ class Workflow(Generic[StateT]):
     ) -> None: ...
 
     def set_entry(self, name: str) -> None: ...
-    def set_exit(self, name: str) -> None: ...  # or set_exits([...]) for multi-exit
+    def set_exit(self, name: str) -> None: ...  # call once per exit for multi-exit
 
     # Decorator API (Layer C; section 6)
     def node(self, fn: Callable | None = None, *, name: str | None = None,
@@ -226,11 +231,11 @@ class Workflow(Generic[StateT]):
     @property
     def nodes(self) -> dict[str, Node]: ...
     @property
-    def edges(self) -> list[Edge]: ...
+    def static_edges(self) -> dict[str, list[str]]: ...
     @property
-    def conditional_edges(self) -> list[ConditionalEdge]: ...
+    def conditional_edges(self) -> dict[str, ConditionalEdge]: ...
     @property
-    def derived_state_schema(self) -> type[TypedDict]: ...
+    def derived_state_schema(self) -> dict[str, Any]: ...
 
     # Compile + run
     def compile(self) -> "CompiledWorkflow[StateT]": ...
@@ -298,8 +303,6 @@ If `set_exit` is never called, all sink nodes (nodes with no outgoing edges) are
 
 - Graph (over static edges) is acyclic — topological sort succeeds. Conditional edges *can* create cycles (a router could route back to an earlier node), but the cycle bound is the workflow's configurable `max_steps` (default 100); see §7.5.
 
-- For each state key, at most one writer node (unless a reducer is registered for that key).
-
 - All node return types (declared via type hints when available) match the state schema field types.
 
 Compilation is the only failure mode for definition errors — runtime errors are different (§9).
@@ -341,7 +344,7 @@ result = agent.run("hello world")       # binds to state[task_param]
 
 # Integration points opt in explicitly:
 tool = agent_as_tool(flow.as_agent(), name="research", description="...")
-loop = ReflectionLoop(flow.as_agent(), critic.as_agent(), max_attempts=3)
+loop = ReflectionLoop(flow.as_agent(), critic, max_attempts=3)  # critic: any AgentProtocol
 team = TieredAgentTeam(
     supervisor=supervisor,
     workers=[AgentRole("researcher", flow.as_agent(), "..."), ...],
@@ -401,19 +404,19 @@ The return type annotation becomes the state field type (when a state schema is 
 def slow_fetch(url: str) -> str: ...
 ```
 
-Forwards to `Workflow.add_node(..., timeout=10.0)`. Enforced via the same daemon-thread + join pattern used by `Tool.timeout` (`react.py:_execute_tool_raw`); the node raises `ToolTimeoutError` on timeout, which the workflow converts to an error event and skips downstream nodes.
+Forwards to `Workflow.add_node(..., timeout=10.0)`. Enforced with `asyncio.wait_for`; on timeout the node raises `WorkflowExecutionError`, which the workflow converts to an error event and skips downstream nodes.
 
 ### 6.3 Dependency inference
 
 For each parameter of a decorated node:
 
-1. If the parameter name matches a previously-registered node name: add a static edge from that node to this one.
+1. If the parameter name matches a registered node name (resolved at compile time): add a static edge from that node to this one.
 
 2. Otherwise: the parameter is a workflow input — it must be supplied via `run(**initial_state)`.
 
-A parameter that is **neither** a registered node nor in `initial_state` at compile time raises `WorkflowDefinitionError`.
+A parameter that is **neither** a registered node nor in `initial_state` fails the run with `WorkflowExecutionError` ("missing required workflow inputs").
 
-Order of decoration matters only when names collide. The same decorator on a function whose parameter shadows a real workflow input is allowed; the input wins (i.e., `initial_state["query"]` is what `search(query=...)` receives).
+Decoration order does not matter: names resolve at compile time. When a parameter name matches both a node and an `initial_state` key, the node wins: `search(query)` depends on node `query` and receives its return value, not `initial_state["query"]`.
 
 ### 6.4 `@flow.route(after=...)`
 
@@ -435,6 +438,8 @@ flow.add_conditional_edge("search", _route_layer_b, edge_map=None)
 The router function's parameter binding follows the same rules as node parameter binding (§6.3): each parameter pulls from state by name.
 
 The router's return value is treated as the target node name directly (equivalent to `edge_map=None`). To use an explicit edge map, drop to Layer B and call `add_conditional_edge` directly.
+
+A routed target must not take the routed-from node as a Layer-C parameter. That parameter adds a static edge, and section 5.3 forbids mixing static and conditional edges. Register such a target as a Layer-B node that reads `state["search"]` (see section 15.3).
 
 ### 6.5 `flow.add_node(fn, name=None)` (non-decorator form)
 
@@ -554,9 +559,9 @@ A single node's execution:
 
 3. If `async def`, await directly; else, run on `asyncio.to_thread`.
 
-4. If a timeout is set, race against an `asyncio.wait_for` with the declared budget; on timeout raise `ToolTimeoutError`.
+4. If a timeout is set, race against an `asyncio.wait_for` with the declared budget; on timeout raise `WorkflowExecutionError`.
 
-5. Emit `EventType.ACTION` at start (with `metadata={"node": name, "inputs": ...}`) and `EventType.OBSERVATION` at end (with `metadata={"node": name, "result": ...}`).
+5. Emit `EventType.NODE_START` at start (with `metadata={"node": name, "inputs": ...}`) and `EventType.NODE_END` at end (with `metadata={"node": name, "update": ...}`).
 
 6. Capture the return dict and hand back for state merging.
 
@@ -568,9 +573,9 @@ After a level completes, all node return dicts are merged into the running state
 
   - If `key` has a registered reducer, call `reducer(state[key], value)` and update state.
 
-  - Else: state[key] = value (last-write wins within the level; but multiple writers in the same level without a reducer is a compile error per §5.5).
+  - Else: state[key] = value. A second writer of the same key without a reducer raises `WorkflowExecutionError`.
 
-State merges across levels are sequential. State merges within a level are deterministic (alphabetical by node name) when no reducer is registered, but the compile-time single-writer rule means this shouldn't matter.
+State merges across levels are sequential. State merges within a level are deterministic (alphabetical by node name).
 
 ### 7.5 Termination
 
@@ -607,10 +612,10 @@ For each workflow run, the event sequence is:
 WORKFLOW_START               metadata={"entry": "...", "initial_state": ...}
   NODE_START (entry)         metadata={"node": "...", "inputs": ...}
   ... (sub-agent events, if the node wraps an agent, with source + parent_event_id)
-  NODE_END (entry)           metadata={"node": "...", "result": ...}
+  NODE_END (entry)           metadata={"node": "...", "update": ...}
   NODE_START (next level)
   ...
-WORKFLOW_END                 metadata={"final_state": ..., "success": bool}
+WORKFLOW_END                 metadata={"state": ..., "success": bool}
 ```
 
 `source` on workflow-level events is `None` (they're emitted by the workflow itself). Sub-agent events forwarded into a workflow run carry their `source` (set by `agent_as_tool` or by the node wrapping the agent) and a `parent_event_id` linking to the enclosing `NODE_START` event.
@@ -631,8 +636,6 @@ Raised by `Workflow.compile()`:
 
 - Cycle in static-edge graph.
 
-- Multiple writers for the same state key without a reducer.
-
 - Node return type incompatible with state schema field type.
 
 - Conditional edge target node has only conditional incoming edges (over-specified).
@@ -645,13 +648,15 @@ Raised inside a node and caught by the runtime:
 
 - Any exception from a node body.
 
-- `ToolTimeoutError` from a timed-out node.
+- `WorkflowExecutionError` from a timed-out node.
 
 - `ToolArgumentError` from `coerce_args` boundary validation.
 
 - Conditional router returns a node name not in `edge_map` (and `edge_map` is non-None) — `WorkflowRoutingError`.
 
 - `max_steps` exceeded — `WorkflowExecutionError`.
+
+- Multiple writers for the same state key without a reducer: `WorkflowExecutionError`.
 
 The workflow terminates, emits `EventType.ERROR` with the exception, and returns `WorkflowResult(success=False, error=<formatted>, ...)`. Downstream nodes are skipped.
 
@@ -704,7 +709,7 @@ Invariants fire after each node completes. Violations follow `ContractPolicy` se
 
 ## 11. Public API surface
 
-Complete list of names exported from `cyllama.agents.workflow` and re-exported from `cyllama.agents`.
+Complete list of names exported from `cyllama.agents.workflow`. They are not re-exported from `cyllama.agents`; import them from `cyllama.agents.workflow`.
 
 ### Classes
 
@@ -740,19 +745,16 @@ Complete list of names exported from `cyllama.agents.workflow` and re-exported f
 | `tool_node(tool, name)` | Build a Layer-B node from a `Tool`. |
 | `workflow_node(compiled, name, *, task_param="task", project_state=False)` | Wrap a `CompiledWorkflow` (or `Workflow`, auto-compiled) as a node inside another workflow. Inner events forwarded with source/parent rewriting; inner failures re-raise as `WorkflowExecutionError`. |
 
-All names are added to `cyllama.agents.__init__.py` `__all__`.
-
 ## 12. File layout (as landed)
 
 ```text
 src/cyllama/agents/
-  workflow.py            # main module (~2100 LoC across all five phases)
+  workflow.py            # main module (all five phases)
                          # includes the `reducer` namespace inline
                          # rather than a separate workflow_reducers.py
-  __init__.py            # re-exports
 
 tests/
-  test_agents_workflow.py  # all 118 workflow tests in a single file,
+  test_agents_workflow.py  # all workflow tests in a single file,
                            # organized by phase + feature (TestReducers,
                            # TestWorkflowInvariants, TestAgentProtocolCompliance,
                            # TestAgentNodeStreaming, TestWorkflowNode,
@@ -763,7 +765,7 @@ docs/
   agents/workflow.md     # this design doc, kept as the implementation reference
 ```
 
-The originally-planned `workflow-user.md` and the planned three-file test split did not ship; the single test file stays navigable at 1800 lines, and the patterns doc (`docs/agents/patterns.md`) covers the user-tutorial role.
+The originally-planned `workflow-user.md` and the planned three-file test split did not ship; the single test file stays navigable, and the patterns doc (`docs/agents/patterns.md`) covers the user-tutorial role.
 
 ## 13. Implementation phases
 
@@ -833,7 +835,7 @@ The originally-planned `workflow-user.md` and the planned three-file test split 
 
 ### Phase 5 — `AgentProtocol` compliance via `as_agent()`, sub-workflow composition — **landed**
 
-- `Workflow.as_agent()` and `CompiledWorkflow.as_agent()` return a `_WorkflowAgentAdapter` that satisfies `AgentProtocol` (`run(task: str) -> AgentResult`, `arun(task)`, `stream(task)`, `astream(task)`, `metrics` property). Callers opt in at the protocol boundary: `agent_as_tool(flow.as_agent(), ...)`, `ReflectionLoop(worker.as_agent(), critic.as_agent(), ...)`, `TieredAgentTeam(workers=[AgentRole("name", flow.as_agent(), ...)])`.
+- `Workflow.as_agent()` and `CompiledWorkflow.as_agent()` return a `_WorkflowAgentAdapter` that satisfies `AgentProtocol` (`run(task: str) -> AgentResult`, `arun(task)`, `stream(task)`, `astream(task)`, `metrics` property). Callers opt in at the protocol boundary: `agent_as_tool(flow.as_agent(), ...)`, `ReflectionLoop(worker.as_agent(), critic, ...)`, `TieredAgentTeam(workers=[AgentRole("name", flow.as_agent(), ...)])`.
 
 - The workflow's native API stays **kwargs-only**: `flow.run(**kwargs)` returns `WorkflowResult`. No polymorphic positional overloading. This trades one extra method call at protocol boundaries for an unambiguous native API — `flow.run` always means "kwargs in, WorkflowResult out".
 
@@ -873,13 +875,11 @@ The following are explicitly **out of scope** for the initial implementation. Th
 
 ## 14. Documentation updates
 
-When the implementation lands:
+As landed:
 
 - `docs/agents/workflow.md` (this doc) stays as the maintainer reference.
 
-- `docs/agents/workflow-user.md` is new — five-example user tutorial.
-
-- `docs/agents/patterns.md` §9 flipped from "not supported" to "first-class"; recipe shows a Layer-C workflow that branches on data.
+- `docs/agents/patterns.md` §9 flipped from "not supported" to "first-class"; recipe shows a Layer-C workflow that branches on data. It also covers the user-tutorial role; `workflow-user.md` did not ship (section 12).
 
 - `docs/agents_overview.md` gains a "Workflows" section that references the user tutorial and lists the Phase 1-5 capability matrix.
 
@@ -889,7 +889,7 @@ When the implementation lands:
 
 ## 15. Worked examples
 
-Five end-to-end examples that drive the design. The implementation must support all five; the user tutorial walks through them.
+Five end-to-end examples that drive the design.
 
 ### 15.1 Linear pipeline (Layer C)
 
@@ -924,13 +924,17 @@ print(result.state["summarize"])
 flow = Workflow()
 
 @flow.node
-def search_wikipedia(query: str) -> str: ...
+def plan(query: str) -> str:
+    return query.strip()
 
 @flow.node
-def search_local_docs(query: str) -> str: ...
+def search_wikipedia(plan: str) -> str: ...
 
 @flow.node
-def calculator(query: str) -> str: ...
+def search_local_docs(plan: str) -> str: ...
+
+@flow.node
+def calculator(plan: str) -> str: ...
 
 @flow.node
 def synthesize(
@@ -940,13 +944,13 @@ def synthesize(
 ) -> str:
     return llm(combine(...)).text
 
-flow.set_entry("search_wikipedia")  # one of the three; the others run in parallel
+flow.set_entry("plan")
 flow.set_exit("synthesize")
 
 result = flow.run(query="...")
 ```
 
-(The three searches run concurrently because none depends on the others; `synthesize` waits for all three.)
+(A workflow has one entry node, so `plan` precedes the fan-out. The three searches depend only on `plan` and run concurrently; `synthesize` waits for all three.)
 
 ### 15.3 Conditional branching (Layer C)
 
@@ -957,8 +961,12 @@ flow = Workflow()
 def search(query: str) -> list[str]:
     return rag.search(query)
 
-@flow.node
-def summarize(search: list[str]) -> str: ...
+# Layer-B node: a Layer-C `search` parameter would add a static edge
+# from `search`, which cannot coexist with the router below (section 6.4).
+def summarize(state: dict) -> dict:
+    return {"summarize": llm(f"Summarize: {state['search']}").text}
+
+flow.add_node("summarize", summarize)
 
 @flow.node
 def fallback(query: str) -> str:
@@ -979,7 +987,7 @@ result = flow.run(query="...")
 
 ```python
 from typing import TypedDict
-from cyllama.agents.workflow import Workflow, agent_node, reducer
+from cyllama.agents.workflow import Workflow, reducer
 from cyllama.agents import ReActAgent
 
 class State(TypedDict):
@@ -992,17 +1000,26 @@ flow = Workflow(State, reducers={"messages": reducer.append})
 researcher_agent = ReActAgent(...)
 coder_agent = ReActAgent(...)
 
-flow.add_node("researcher", agent_node(researcher_agent, name="researcher",
-                                       task_param="task"))
-flow.add_node("coder", agent_node(coder_agent, name="coder", task_param="task"))
+# agent_node(agent, name) writes the answer to state[name]. Call the
+# agents directly so both answers land on the shared `messages` key.
+def researcher(state: State) -> dict:
+    return {"messages": researcher_agent.run(state["task"]).answer}
+
+def coder(state: State) -> dict:
+    return {"messages": coder_agent.run(state["task"]).answer}
 
 def finalize(state: State) -> dict:
     return {"final": "\n".join(state["messages"])}
 
+flow.add_node("start", lambda state: None)  # single entry; fans out below
+flow.add_node("researcher", researcher)
+flow.add_node("coder", coder)
 flow.add_node("finalize", finalize)
+flow.add_edge("start", "researcher")
+flow.add_edge("start", "coder")
 flow.add_edge("researcher", "finalize")
 flow.add_edge("coder", "finalize")
-flow.set_entry("researcher")  # second entry not supported; use a router from a dummy entry
+flow.set_entry("start")
 flow.set_exit("finalize")
 
 result = flow.compile().run({"task": "..."})
@@ -1060,11 +1077,11 @@ Each phase's landing must pass:
 | 5. AgentProtocol + sub-workflows | 100 | 15 | 21 |
 | **Total** | **~1050** | **~100** | **118** |
 
-Final implementation: a single `workflow.py` (~2100 LoC including the inline `reducer` namespace) and a single test file `test_agents_workflow.py` (118 tests, all passing in <1s). The landed code reuses `ContractPolicy` / `ContractViolation` from `contract.py`, `AgentEvent.source` / `parent_event_id` from `types.py`, the `Tool.timeout` daemon-thread pattern (for sync nodes), and the `AgentProtocol` structural contract — no parallel reimplementations.
+Final implementation: a single `workflow.py` (including the inline `reducer` namespace) and a single test file `test_agents_workflow.py`. The landed code reuses `ContractPolicy` / `ContractViolation` from `contract.py`, `AgentEvent.source` / `parent_event_id` from `types.py`, and the `AgentProtocol` structural contract — no parallel reimplementations.
 
 ## 18. Further reading
 
-- [`patterns.md`](patterns.md) §9 — current "not supported" stance flipped to first-class on Phase 1 landing.
+- [`patterns.md`](patterns.md) §9 — user-facing workflow recipes.
 
 - [`../agents_overview.md`](../agents_overview.md) — the agent layer this workflow composes with.
 

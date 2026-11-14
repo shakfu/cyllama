@@ -1,0 +1,23 @@
+diff --git a/src/core/ggml_compat.cpp b/src/core/ggml_compat.cpp
+index 061b337..0be8352 100644
+--- a/src/core/ggml_compat.cpp
++++ b/src/core/ggml_compat.cpp
+@@ -159,7 +159,17 @@ ggml_status ggml_backend_graph_compute_async_range(ggml_backend_t backend, ggml_
+     if (first == last) {
+         return GGML_STATUS_SUCCESS;
+     }
+-    auto view = ggml_graph_view(graph, first, last);
++    // cyllama: ggml_graph_view is internal (no GGML_API), so a shared ggml-base.dll
++    // does not export it and Windows fails to link. Same fields as ggml_graph_view.
++    ggml_cgraph view = *graph;
++    view.size        = 0;
++    view.n_nodes     = last - first;
++    view.n_leafs     = 0;
++    view.nodes       = graph->nodes + first;
++    view.grads       = nullptr;
++    view.grad_accs   = nullptr;
++    view.leafs       = nullptr;
++    view.uid         = 0;
+     return ggml_backend_graph_compute_async(backend, &view);
+ }
+ #endif

@@ -197,7 +197,7 @@ Limitations:
 
 - **No Ctrl-C.** `SDContext` has no `install_sigint_handler()` or `cancel_requested`. SIGINT during a main-thread `generate()` is lost: the call runs to completion and returns normally.
 
-- **Cancellation raises `RuntimeError`.** `LLM` and `WhisperContext` raise `InterruptedError`; `SDContext` raises the same `RuntimeError("Image generation failed")` as a real failure.
+- **Cancellation raises `RuntimeError`.** `LLM` ends the stream and returns the partial output; `WhisperContext` raises `InterruptedError`; `SDContext` raises the same `RuntimeError("Image generation failed")` as a real failure.
 
 - **`upscale` and `convert` cannot be cancelled.** They do not take an `sd_ctx_t`, so the cancel flag does not reach them.
 

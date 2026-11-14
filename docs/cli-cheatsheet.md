@@ -243,9 +243,9 @@ cyllama transcribe -m models/ggml-base.en.bin -f audio.wav -osrt -o output
 |------|------|---------|-------------|
 | `-f, --file` | string | | Input audio file (repeatable) |
 | `-o, --output` | string | | Output file path (repeatable) |
-| `-m, --model` | string | | Path to whisper model |
-| `-t, --threads` | int | (auto) | Number of threads |
-| `-p, --processors` | int | (auto) | Number of processors |
+| `-m, --model` | string | models/ggml-base.en.bin | Path to whisper model |
+| `-t, --threads` | int | 1 | Number of threads |
+| `-p, --processors` | int | 1 | Number of processors |
 | `-l, --language` | string | en | Language code (or `auto`) |
 | `-tr, --translate` | flag | | Translate to English |
 | `-dl, --detect-language` | flag | | Detect language |
@@ -326,7 +326,7 @@ cyllama tts -m models/Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf -mm models/mmproj-Qwen3
 | `-ngl, --n-gpu-layers` | int | -1 | GPU layers to offload (-1 = all) |
 | `-n, --n-predict` | int | 4096 (`-mm`: 512) | Max tokens, or audio frames with `-mm` |
 | `--speaker-file` | string | | OuteTTS: speaker profile JSON; `-mm`: reference audio for voice cloning |
-| `--lang` | string | en | `-mm` only: language code (Qwen3-TTS, LFM3-Audio) |
+| `--lang` | string | | `-mm` only: language code (Qwen3-TTS, LFM3-Audio) |
 | `--voice` | string | first | `-mm` only: predefined voice name; exclusive with `--speaker-file` |
 | `--use-guide-tokens` | flag | (on) | Use guide tokens (prevents hallucinations) |
 | `--no-guide-tokens` | flag | | Disable guide tokens |
@@ -408,6 +408,7 @@ All generation subcommands (`txt2img`, `img2img`, `inpaint`, `controlnet`) share
 | `--llm` | string | | Path to LLM text encoder |
 | `--llm-vision` | string | | Path to LLM vision encoder |
 | `--tensor-type-rules` | string | | Tensor type rules |
+| `--tokenizer` | string | | `tokenizer.json` path, or `main=FILE,clip-l=FILE,clip-g=FILE`; required for PiD and Lens |
 
 ### Common Generation Options
 
@@ -457,12 +458,14 @@ All generation subcommands (`txt2img`, `img2img`, `inpaint`, `controlnet`) share
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--sampler` | string | | Method: `euler`, `euler_a`, `heun`, `dpm2`, `dpm++2s_a`, `dpm++2m`, `dpm++2mv2`, `ipndm`, `ipndm_v`, `lcm`, `tcd`, `er_sde` |
-| `--scheduler` | string | | Schedule: `discrete`, `karras`, `exponential`, `ays`, `gits` |
+| `--sampler` | string | | Method: `euler`, `euler_a`, `heun`, `dpm2`, `dpm++2s_a`, `dpm++2m`, `dpm++2mv2`, `ipndm`, `ipndm_v`, `lcm`, `ddim_trailing`, `tcd`, `res_multistep`, `res_2s`, `er_sde`, `euler_cfg_pp`, `euler_a_cfg_pp`, `euler_ge`, `dpm++2m_sde`, `dpm++2m_sde_bt`, `lms` |
+| `--scheduler` | string | | Schedule: `discrete`, `karras`, `exponential`, `ays`, `gits`, `sgm_uniform`, `simple`, `smoothstep`, `kl_optimal`, `lcm`, `bong_tangent`, `ltx2`, `logit_normal`, `flux2`, `flux`, `beta`, `llada_image` |
 | `--eta` | float | inf | Eta for samplers (inf = auto-resolve per method) |
 | `--rng` | choice | | RNG type: `std_default`, `cuda`, `cpu` |
 | `--sampler-rng` | choice | | Sampler RNG type |
-| `--prediction` | choice | | Prediction type: `eps`, `v`, `edm_v`, `flow`, `flux_flow`, `flux2_flow` |
+| `--prediction` | choice | | Prediction type: `eps`, `v`, `edm_v`, `sd3_flow`, `flux_flow`, `sefi_flow`, `minit2i_flow`, `sensenova_u1_flow`, `flux3_flow`, `h3_av_flow`, `ming_image_flow` |
+
+`--sampler` and `--scheduler` also accept the lowercase enum member names (e.g. `dpmpp2m`, `dpmpp2mv2`).
 
 ### Guidance Options
 
@@ -479,10 +482,17 @@ All generation subcommands (`txt2img`, `img2img`, `inpaint`, `controlnet`) share
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `-t, --threads` | int | -1 (auto) | Number of threads |
-| `--offload-to-cpu` | flag | | Offload weights to CPU (low VRAM) |
-| `--clip-on-cpu` | flag | | Keep CLIP on CPU |
-| `--vae-on-cpu` | flag | | Keep VAE on CPU |
-| `--control-net-cpu` | flag | | Keep ControlNet on CPU |
+| `--max-vram` | string | | Per-device GiB budget: `N` caps at N GiB, `-N` leaves N GiB free, `0` uses live free VRAM; per-device form `cuda0=6,vulkan0=4` |
+| `--disable-prefetch` | flag | | Disable async prefetch of the next segment's weights |
+| `--disable-segmented-compute` | flag | | Force monolithic graph execution |
+| `--backend` | string | | Compute device for all modules (`cuda0`) or per module (`diffusion=cuda0,te=cpu`). Modules: `diffusion`, `te`, `vae`, `clip-vision`, `control-net`, `photomaker`, `upscaler`, `detector` |
+| `--params-backend` | string | | Weight residency, same syntax as `--backend` plus `cpu`/`disk` targets |
+| `--auto-fit` | choice | (upstream: on) | `on`/`off`; place modules by available memory. A non-empty `--params-backend` disables it |
+| `--eager-load` | flag | | Load all params at model-load time instead of lazily |
+| `--offload-to-cpu` | flag | | Keep all weights on CPU (low VRAM); alias for `--params-backend cpu` |
+| `--clip-on-cpu` | flag | | Keep text encoder weights on CPU; alias for `--params-backend te=cpu` |
+| `--vae-on-cpu` | flag | | Keep VAE weights on CPU; alias for `--params-backend vae=cpu` |
+| `--control-net-cpu` | flag | | Keep ControlNet weights on CPU; alias for `--params-backend control-net=cpu` |
 | `--diffusion-fa` | flag | | Flash attention in diffusion model |
 | `--diffusion-conv-direct` | flag | | Direct convolution in diffusion |
 | `--vae-conv-direct` | flag | | Direct convolution in VAE |
@@ -492,7 +502,7 @@ All generation subcommands (`txt2img`, `img2img`, `inpaint`, `controlnet`) share
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--vae-tiling` | flag | | Enable VAE tiling for large images |
-| `--vae-tile-size` | string | 512x512 | VAE tile size |
+| `--vae-tile-size` | string | 256x256 | VAE tile size in pixels, `WxH` |
 | `--vae-tile-overlap` | float | 0.5 | VAE tile overlap fraction |
 
 ### Preview Options
@@ -531,7 +541,6 @@ cyllama sd upscale -m models/esrgan.gguf -i input.png -o output.png
 | `-f, --factor` | int | (model default) | Upscale factor |
 | `-r, --repeats` | int | 1 | Upscale repeats |
 | `-t, --threads` | int | -1 (auto) | Number of threads |
-| `--offload-to-cpu` | flag | | Offload to CPU |
 | `-v, --verbose` | flag | | Verbose output |
 
 ### convert

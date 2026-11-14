@@ -28,7 +28,7 @@ uv pip install -e .
 **Solution:**
 
 ```bash
-# Check CMake version (need 3.21+)
+# Check CMake version (need 3.26+)
 cmake --version
 
 # Clean and rebuild
@@ -81,8 +81,11 @@ ls thirdparty/llama.cpp/include/
 3. **Use correct GGUF format:** Cyllama requires GGUF format (not GGML). Convert older models:
 
    ```bash
-   # Use llama.cpp's conversion tool
-   python llama.cpp/convert.py old-model.bin --outfile new-model.gguf
+   # Legacy GGML file -> GGUF
+   python llama.cpp/convert_llama_ggml_to_gguf.py --input old-model.bin --output new-model.gguf
+
+   # Hugging Face model directory -> GGUF
+   python llama.cpp/convert_hf_to_gguf.py path/to/hf-model --outfile new-model.gguf
    ```
 
 ### "Out of memory" / VRAM Exhaustion
@@ -520,14 +523,15 @@ def prepare_audio(samples, sample_rate):
 
 ### "Module not available"
 
-**Cause:** Built without Stable Diffusion support.
+**Cause:** Built with `WITH_STABLEDIFFUSION=0`. SD is built by default.
 
 **Solution:**
 
 ```bash
-# Rebuild with SD support
-WITH_STABLEDIFFUSION=1 make reset
-WITH_STABLEDIFFUSION=1 make build
+# Rebuild without the opt-out
+unset WITH_STABLEDIFFUSION
+make reset
+make build
 ```
 
 ### Images are Blank or Corrupted
@@ -539,7 +543,7 @@ WITH_STABLEDIFFUSION=1 make build
 1. **For SDXL Turbo models:**
 
    ```python
-   images = text_to_image(
+   image = text_to_image(
        model_path="sd_xl_turbo.gguf",
        prompt="...",
        sample_steps=4,   # Turbo uses fewer steps
@@ -550,7 +554,7 @@ WITH_STABLEDIFFUSION=1 make build
 2. **For standard SD models:**
 
    ```python
-   images = text_to_image(
+   image = text_to_image(
        model_path="sd_v1_5.gguf",
        prompt="...",
        sample_steps=20,  # More steps

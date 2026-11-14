@@ -160,7 +160,7 @@ cyllama ships three session-storage backends in `src/cyllama/agents/session.py`:
 
 - `MemorySessionStore` — in-process dict, lost at process end.
 
-- `FileSessionStore` — JSON files on disk; multi-process via OS locks.
+- `FileSessionStore` — JSON files on disk; thread-safe within one process (no cross-process locking).
 
 - `SqliteSessionStore` — SQLite-backed, supports concurrent readers.
 
@@ -258,13 +258,18 @@ def classify(query: str) -> dict:
     confidence = score(query)
     return {"confidence": confidence, "topic": guess_topic(query)}
 
-@flow.node
-def answer(classify: dict) -> str:
-    return llm.complete(f"Topic={classify['topic']}: {classify}").text
+# Routed targets are Layer-B nodes that read state["classify"]. A Layer-C
+# parameter named `classify` would add a static edge from `classify`, and a
+# node cannot have both static and conditional outgoing edges.
+def answer(state: dict) -> dict:
+    topic = state["classify"]["topic"]
+    return {"answer": llm(f"Topic={topic}: {state['query']}").text}
 
-@flow.node
-def escalate(classify: dict) -> str:
-    return queue_human_review(classify)
+def escalate(state: dict) -> dict:
+    return {"escalate": queue_human_review(state["classify"])}
+
+flow.add_node("answer", answer)
+flow.add_node("escalate", escalate)
 
 # Conditional router decides which downstream node runs.
 @flow.route(after="classify")
@@ -311,7 +316,7 @@ Other capabilities (all landed in the Phase 1-5 rollout):
 
 - PEP 484 `Workflow[StateT]` generic for typed state.
 
-**Reference**: `cyllama/agents/workflow.py`; design + per-phase notes in [`workflow.md`](workflow.md); 118 tests in `tests/test_agents_workflow.py`.
+**Reference**: `cyllama/agents/workflow.py`; design + per-phase notes in [`workflow.md`](workflow.md); tests in `tests/test_agents_workflow.py`.
 
 ---
 
@@ -335,12 +340,12 @@ All six tractable pattern gaps from the original audit have **landed**. The tabl
 
 | Rank | Gap | Status | Where | Tests |
 |---|---|---|---|---|
-| **1** | `ReflectionLoop` (Reflection/Reflexion) | **Landed** | `composition.py` | `tests/test_agents_composition.py::TestReflection*` |
+| **1** | `ReflectionLoop` (Reflection/Reflexion) | **Landed** | `composition.py` | `tests/test_agents_composition.py::test_reflection_loop_*` |
 | **2** | `rag_as_tool` (RAG agents) | **Landed** | `composition.py` | `tests/test_agents_composition.py::test_rag_as_tool_*` |
 | **3** | `SemanticMemory` (long-term memory) | **Landed** | `memory.py` | `tests/test_agents_memory.py` |
 | **4** | `plan_and_execute` (Plan-and-Execute) | **Landed** | `composition.py` | `tests/test_agents_composition.py::test_plan_and_execute_*` |
 | **5** | `mcp_agent_tool` (cross-process) | **Landed** | `composition.py` | `tests/test_agents_composition.py::test_mcp_agent_tool_*` |
-| **6** | `Workflow` (DAG / State-Machine, §9) | **Landed** (Phases 1-5) | `workflow.py` | `tests/test_agents_workflow.py` (118 tests) |
+| **6** | `Workflow` (DAG / State-Machine, §9) | **Landed** (Phases 1-5) | `workflow.py` | `tests/test_agents_workflow.py` |
 
 Documented gaps that remain (each is a future extension, not a missing fundamental):
 
@@ -366,9 +371,9 @@ These appear in the table above but won't be addressed without a forcing use cas
 
 ### Positioning consequence
 
-Reading down the "Value" column reveals the pattern: every "high value" gap closes a **reliability or composition** gap (reflection loops, RAG bridging, persistent memory, plan-then-execute). Every "not on roadmap" item belongs to the **autonomy or graph-orchestration** half of the agent space.
+Every landed gap closes a **reliability or composition** gap (reflection loops, RAG bridging, persistent memory, plan-then-execute, bounded workflows). Every "not on roadmap" item needs **unbounded autonomy or branching search** (sections 4 and 8).
 
-This isn't accidental. cyllama leans into bounded, observable, schema-constrained behavior (loop detection, `max_iterations`, `Annotated[]` markers, ContractAgent invariants); it explicitly declines unbounded autonomy and graph orchestration. Users who want those should reach for an autonomy-first framework. Users who want debuggable, schema-grounded, locally-runnable agents are in the right place.
+This isn't accidental. cyllama leans into bounded, observable, schema-constrained behavior (loop detection, `max_iterations`, `Annotated[]` markers, ContractAgent invariants); it explicitly declines unbounded autonomy. Workflows (section 9) stay bounded by `max_steps` and invariants. Users who want unbounded autonomy should reach for an autonomy-first framework. Users who want debuggable, schema-grounded, locally-runnable agents are in the right place.
 
 ## Further reading
 

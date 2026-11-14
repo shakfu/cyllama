@@ -40,6 +40,7 @@ def complete(
     model_path: str,
     config: Optional[GenerationConfig] = None,
     stream: bool = False,
+    verbose: bool = False,
     **kwargs
 ) -> Response | Iterator[str]
 ```
@@ -53,6 +54,8 @@ def complete(
 - `config` (GenerationConfig, optional): Generation configuration object
 
 - `stream` (bool): If True, return iterator of text chunks
+
+- `verbose` (bool): Print detailed information during generation
 
 - `**kwargs`: Override config parameters (temperature, max_tokens, etc.)
 
@@ -91,9 +94,10 @@ def chat(
     model_path: str,
     config: Optional[GenerationConfig] = None,
     stream: bool = False,
+    verbose: bool = False,
     template: Optional[str] = None,
     **kwargs
-) -> str | Iterator[str]
+) -> Response | Iterator[str]
 ```
 
 **Parameters:**
@@ -105,6 +109,8 @@ def chat(
 - `config` (GenerationConfig, optional): Generation configuration
 
 - `stream` (bool): Enable streaming output
+
+- `verbose` (bool): Print detailed information during generation
 
 - `template` (str, optional): Chat template name to use. If None, uses model's default.
 
@@ -337,7 +343,10 @@ class LLM:
         self,
         model_path: str,
         config: Optional[GenerationConfig] = None,
-        verbose: bool = False
+        verbose: bool = False,
+        cache_size: int = 0,
+        cache_ttl: Optional[float] = None,
+        **kwargs
     )
 ```
 
@@ -348,6 +357,12 @@ class LLM:
 - `config` (GenerationConfig, optional): Default generation configuration
 
 - `verbose` (bool): Print detailed information during generation
+
+- `cache_size` (int): Maximum number of cached responses (0 = disabled)
+
+- `cache_ttl` (float, optional): Cache time-to-live in seconds (None = no expiration)
+
+- `**kwargs`: Override fields on a copy of `config`; without `config`, they build a new `GenerationConfig`
 
 **Methods:**
 
@@ -392,7 +407,7 @@ def chat(
     config: Optional[GenerationConfig] = None,
     stream: bool = False,
     template: Optional[str] = None
-) -> str | Iterator[str]
+) -> Response | Iterator[str]
 ```
 
 **Parameters:**
@@ -431,7 +446,8 @@ config = GenerationConfig(temperature=0.9, max_tokens=100)
 response = gen("Tell me a joke", config=config)
 
 # With statistics
-response, stats = gen.generate_with_stats("Question?")
+response = gen.generate_with_stats("Question?")
+stats = response.stats
 print(f"Generated {stats.generated_tokens} tokens in {stats.total_time:.2f}s")
 print(f"Speed: {stats.tokens_per_second:.2f} tokens/sec")
 
@@ -647,7 +663,7 @@ async def __call__(
     prompt: str,
     config: Optional[GenerationConfig] = None,
     **kwargs
-) -> str
+) -> Response
 ```
 
 #### `stream()`
@@ -659,6 +675,7 @@ async def stream(
     self,
     prompt: str,
     config: Optional[GenerationConfig] = None,
+    timeout: Optional[float] = None,
     **kwargs
 ) -> AsyncIterator[str]
 ```
@@ -672,7 +689,7 @@ async def generate_with_stats(
     self,
     prompt: str,
     config: Optional[GenerationConfig] = None
-) -> Tuple[str, GenerationStats]
+) -> Response
 ```
 
 **Example:**
@@ -693,8 +710,8 @@ async def main():
             print(chunk, end="", flush=True)
 
         # With stats
-        text, stats = await llm.generate_with_stats("Question?")
-        print(f"Generated {stats.generated_tokens} tokens")
+        response = await llm.generate_with_stats("Question?")
+        print(f"Generated {response.stats.generated_tokens} tokens")
 
 asyncio.run(main())
 ```
@@ -712,7 +729,7 @@ async def complete_async(
     config: Optional[GenerationConfig] = None,
     verbose: bool = False,
     **kwargs
-) -> str
+) -> Response
 ```
 
 **Example:**
@@ -738,7 +755,7 @@ async def chat_async(
     config: Optional[GenerationConfig] = None,
     verbose: bool = False,
     **kwargs
-) -> str
+) -> Response
 ```
 
 **Example:**
@@ -792,9 +809,9 @@ class OpenAICompatibleClient:
     def __init__(
         self,
         model_path: str,
-        temperature: float = 0.7,
-        max_tokens: int = 512,
-        n_gpu_layers: int = -1
+        temperature: float = 0.8,
+        n_gpu_layers: int = -1,
+        verbose: bool = False
     )
 ```
 
@@ -842,12 +859,15 @@ from cyllama.integrations import CyllamaLLM
 
 class CyllamaLLM(LLM):
     model_path: str
-    temperature: float = 0.7
+    temperature: float = 0.8
     max_tokens: int = 512
     top_k: int = 40
     top_p: float = 0.95
+    min_p: float = 0.05
     repeat_penalty: float = 1.0
     n_gpu_layers: int = -1
+    n_ctx: Optional[int] = None
+    stop_sequences: List[str] = []
 ```
 
 **Example:**
@@ -870,9 +890,9 @@ result = chain.run(topic="quantum computing")
 # With streaming
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
+# Tokens stream to callbacks whenever a callback manager is attached.
 llm = CyllamaLLM(
     model_path="models/llama.gguf",
-    streaming=True,
     callbacks=[StreamingStdOutCallbackHandler()]
 )
 ```
@@ -1122,9 +1142,9 @@ decoder = TokenDecoder(vocab)
 text = "".join(decoder.decode(t) for t in token_ids) + decoder.flush()
 
 # Special tokens
-print(vocab.bos)           # Begin-of-sequence token
-print(vocab.eos)           # End-of-sequence token
-print(vocab.eot)           # End-of-turn token
+print(vocab.token_bos())   # Begin-of-sequence token
+print(vocab.token_eos())   # End-of-sequence token
+print(vocab.token_eot())   # End-of-turn token
 print(vocab.n_vocab)       # Vocabulary size
 
 # Check token types
@@ -1152,7 +1172,7 @@ batch.clear()
 
 # Convenience function
 from cyllama.llama.llama_cpp import llama_batch_get_one
-batch = llama_batch_get_one(tokens, pos_offset=0)
+batch = llama_batch_get_one(tokens, n_past=0)
 ```
 
 ---
@@ -1173,7 +1193,7 @@ ctx.process(batch, LLAMA_PROCESS_TYPE_DECODE)
 logits = ctx.get_logits_ith(-1)
 ```
 
-`set_embd_state()` (MTP, deepstack hidden state) is declared upstream but not implemented in llama.cpp v0.6.0; it raises `RuntimeError`.
+`set_embd_state(idx, data, n_rows=1)` attaches MTP or deepstack hidden state to an entry. It raises `RuntimeError` on a bad index, a size mismatch, an already-set state, or a context that takes no state embeddings.
 
 ---
 
@@ -1305,23 +1325,19 @@ Download models from HuggingFace with Ollama-style tags.
 ```python
 from cyllama.llama.llama_cpp import download_model, list_cached_models
 
-# Download from HuggingFace
-download_model(
-    hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF:q4",
-    cache_dir="~/.cache/cyllama/models"
-)
+# Download from HuggingFace into the cache directory; returns True on success
+download_model(hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF:q4")
 
-# List cached models
+# List cached models ('size' is always 0; manifests do not record it)
 models = list_cached_models()
 for model in models:
     print(f"{model['user']}/{model['model']}:{model['tag']}")
-    print(f"  Path: {model['path']}")
-    print(f"  Size: {model['size'] / 1024 / 1024:.2f} MB")
+    print(f"  Manifest: {model['manifest_path']}")
 
 # Direct URL download
 download_model(
-    url="https://example.com/model.gguf",
-    output_path="models/custom.gguf"
+    model_path="models/custom.gguf",
+    url="https://example.com/model.gguf"
 )
 ```
 
@@ -1773,7 +1789,9 @@ def text_to_image(
     vae_tiling: bool = False,
     hires_fix: bool = False,
     hires_scale: float = 2.0,
-    diffusion_flash_attn: bool = False
+    diffusion_flash_attn: bool = False,
+    backend: Optional[str] = None,
+    params_backend: Optional[str] = None
 ) -> SDImage
 ```
 
@@ -1830,7 +1848,7 @@ with SDContext(params) as ctx:
     )
 ```
 
-`SDContext.generate(...)` accepts the same kwargs as `text_to_image()` plus `batch_count`, `init_image`, `mask_image`, `control_image`, `control_strength`, `strength`, and `flow_shift`. Returns `List[SDImage]`.
+`SDContext.generate(...)` takes the per-generation kwargs of `text_to_image()` (prompt, size, seed, sampling, `clip_skip`, `eta`, `slg_scale`, `vae_tiling`, `hires_fix`, `hires_scale`). Model paths, `n_threads`, `diffusion_flash_attn`, `backend` and `params_backend` belong to `SDContextParams`. It adds `batch_count`, `init_image`, `mask_image`, `control_image`, `control_strength`, `strength`, `flow_shift`, `vae_tile_size` (`(w, h)` pixels) and `vae_tile_overlap`. `sample_method` and `scheduler` default to `None` (model default). Returns `List[SDImage]`.
 
 **Properties:**
 
@@ -1840,6 +1858,8 @@ with SDContext(params) as ctx:
 
 - `supports_video_generation` (bool): Model can run `generate_video()`.
 
+- `has_control_net` (bool): A ControlNet is loaded.
+
 **Methods:**
 
 - `generate(**kwargs) -> List[SDImage]`: Text/img2img/inpaint/ControlNet generation.
@@ -1848,9 +1868,13 @@ with SDContext(params) as ctx:
 
 - `generate_video(**kwargs) -> List[SDImage]`: Video frame generation (requires video-capable model).
 
-- `default_sample_method(sample_method=None) -> SampleMethod`: Model's preferred sampler.
+- `get_default_sample_method() -> SampleMethod`: Model's preferred sampler.
 
-- `default_scheduler(sample_method=None) -> Scheduler`: Model's preferred scheduler.
+- `get_default_scheduler(sample_method=None) -> Scheduler`: Model's preferred scheduler.
+
+- `load_control_net(path: str) -> bool` / `unload_control_net() -> bool`: Swap the ControlNet without reloading the context. Not safe during a generation.
+
+- `set_generation_progress_callback(callback | None) -> None`: Per-context progress callback. It receives an `SDGenerationProgress` namedtuple `(stage, detail, unit, sample_pass, completed, total)`, importable from `cyllama.sd.stable_diffusion`. Raises `RuntimeError` if the context is closed or busy.
 
 - `cancel(mode: CancelMode = CancelMode.ALL) -> None`: Request cancellation of an in-flight `generate()` / `generate_video()` running on another thread. `CancelMode.ALL` stops as soon as possible, `CancelMode.NEW_LATENTS` finishes the current sample then skips remaining batch latents, `CancelMode.RESET` clears a pending request.
 
@@ -1881,6 +1905,9 @@ params.pulid_weights_path = None           # Optional PuLID weights
 params.rpc_servers = None                  # Optional RPC backends, e.g. "host:port"
 params.wtype = SDType.COUNT               # COUNT = auto-detect
 params.rng_type = RngType.CUDA
+params.sampler_rng_type = RngType.COUNT    # COUNT (default) = same as rng_type
+params.batched_cfg = True                  # One batched forward for both CFG branches; no effect on Metal
+params.conditioning_cache_size = 4         # Cached conditioning entries; 0 disables, negative raises ValueError
 ```
 
 Memory is controlled by two independent mechanisms, which together replace the removed `offload_params_to_cpu` / `keep_clip_on_cpu` / `keep_vae_on_cpu` / `keep_control_net_on_cpu` / `free_params_immediately` / `vae_decode_only` flags:
@@ -1909,6 +1936,8 @@ pil_img = img.to_pil()     # requires Pillow
 
 img.save("output.png")
 img = SDImage.load("input.png")
+
+print(img.generation_info)  # sdcpp.generation/v1 JSON str, or None for Python-built images
 ```
 
 ### `SDImageGenParams`
@@ -1930,7 +1959,7 @@ params.clip_skip = -1
 
 # VAE tiling
 params.vae_tiling_enabled = True
-params.vae_tile_size = (512, 512)
+params.vae_tile_size = (512, 512)   # image pixels; 0 = 256
 params.vae_tile_overlap = 0.5
 
 # Cache acceleration (legacy easycache_* aliases also available)
@@ -2096,6 +2125,8 @@ set_preview_callback(None)
 
 - `RES_MULTISTEP`, `RES_2S`, `ER_SDE`
 
+- `EULER_CFG_PP`, `EULER_A_CFG_PP`, `EULER_GE`, `DPMPP2M_SDE`, `DPMPP2M_SDE_BT`, `LMS`
+
 - `COUNT` (auto-detect sentinel)
 
 **`Scheduler`**
@@ -2104,11 +2135,17 @@ set_preview_callback(None)
 
 - `SGM_UNIFORM`, `SIMPLE`, `SMOOTHSTEP`, `KL_OPTIMAL`, `LCM`, `BONG_TANGENT`
 
+- `LTX2`, `LOGIT_NORMAL`, `FLUX2`, `FLUX`, `BETA`, `LLADA_IMAGE`
+
 - `COUNT` (auto-detect sentinel)
 
 **`Prediction`**
 
-- `EPS`, `V`, `EDM_V`, `FLOW`, `FLUX_FLOW`, `SEFI_FLOW`, `MINIT2I_FLOW`, `COUNT`
+- `EPS`, `V`, `EDM_V`, `FLOW`, `FLUX_FLOW`, `SEFI_FLOW`, `MINIT2I_FLOW`, `SENSENOVA_U1_FLOW`
+
+- `FLUX3_FLOW`, `H3_AV_FLOW`, `MING_IMAGE_FLOW`
+
+- `COUNT` (auto-detect sentinel)
 
 **`SDType`**: Data types for model weights / quantization
 
@@ -2118,11 +2155,17 @@ set_preview_callback(None)
 
 - `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`, `Q8_K`
 
+- `IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ3_XXS`, `IQ3_S`, `IQ4_NL`, `IQ4_XS`
+
+- `TQ1_0`, `TQ2_0`, `MXFP4`, `NVFP4`, `Q1_0`, `Q2_0`, `F8_E4M3`, `F8_E5M2`
+
+- `I8`, `I16`, `I32`, `I64`, `F64`
+
 - `COUNT` (auto-detect sentinel)
 
-**`RngType`**: `STD_DEFAULT`, `CUDA`, `CPU`
+**`RngType`**: `STD_DEFAULT`, `CUDA`, `CPU`, `COUNT` (`sampler_rng_type` only: same as `rng_type`)
 
-**`LogLevel`**: `DEBUG`, `INFO`, `WARN`, `ERROR`
+**`LogLevel`**: `DEBUG`, `VERBOSE`, `INFO`, `WARN`, `ERROR`
 
 **`PreviewMode`**: `NONE`, `PROJ`, `TAE`, `VAE`
 
@@ -2137,6 +2180,10 @@ set_preview_callback(None)
 - `LANCZOS`, `NEAREST`
 
 - `MODEL` (external upscaler model — set `hires_model_path`)
+
+**`VaeFormat`**: `AUTO`, `FLUX`, `SD3`, `FLUX2`, `WAN`
+
+**`CancelMode`**: `ALL`, `NEW_LATENTS`, `RESET` (see `SDContext.cancel()`)
 
 ### Utility Functions
 
@@ -2170,8 +2217,8 @@ python -m cyllama.sd txt2img \
     --steps 4 --cfg 1.0
 
 # img2img / inpaint / ControlNet / video
-python -m cyllama.sd img2img --model M --init INPUT --prompt "..." --output OUT
-python -m cyllama.sd inpaint --model M --init INPUT --mask MASK --prompt "..." --output OUT
+python -m cyllama.sd img2img --model M --init-img INPUT --prompt "..." --output OUT
+python -m cyllama.sd inpaint --model M --init-img INPUT --mask MASK --prompt "..." --output OUT
 python -m cyllama.sd controlnet --model M --control-net CN --control-image C --prompt "..." --output OUT
 python -m cyllama.sd video --model M --prompt "..." --output frames/
 
@@ -2244,8 +2291,8 @@ All functions include comprehensive type hints for IDE support:
 ```python
 from typing import List, Dict, Optional, Iterator, Callable, Tuple
 from cyllama import (
-    complete,          # str | Iterator[str]
-    chat,              # str | Iterator[str]
+    complete,          # Response | Iterator[str]
+    chat,              # Response | Iterator[str]
     LLM,               # class
     GenerationConfig,  # @dataclass
 )
@@ -2271,13 +2318,14 @@ for prompt in prompts:
 ### 2. Batch Processing
 
 ```python
-from cyllama import batch_generate, GenerationConfig
+from cyllama import batch_generate, complete, GenerationConfig
+
+prompts = ["What is 2+2?", "What is 3+3?", "What is 4+4?"]
 
 # BAD: Sequential processing
-responses = [generate(p, model_path="model.gguf") for p in prompts]
+responses = [complete(p, model_path="model.gguf") for p in prompts]
 
 # GOOD: Parallel batch processing (3-10x faster)
-prompts = ["What is 2+2?", "What is 3+3?", "What is 4+4?"]
 responses = batch_generate(
     prompts,
     model_path="model.gguf",

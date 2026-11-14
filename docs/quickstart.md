@@ -184,7 +184,7 @@ Generate images with Stable Diffusion:
 ```python
 from cyllama.sd import text_to_image
 
-images = text_to_image(
+image = text_to_image(
     model_path="models/sd_xl_turbo_1.0.q8_0.gguf",
     prompt="a photo of a cute cat",
     width=512,
@@ -193,7 +193,7 @@ images = text_to_image(
     cfg_scale=1.0
 )
 
-images[0].save("cat.png")
+image.save("cat.png")
 ```
 
 ## Speech-to-Text

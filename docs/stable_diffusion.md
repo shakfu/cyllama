@@ -29,7 +29,7 @@ The stable diffusion module provides Python bindings to stable-diffusion.cpp, en
 ```python
 from cyllama.sd import text_to_image
 
-images = text_to_image(
+image = text_to_image(
     model_path="models/sd_xl_turbo_1.0.q8_0.gguf",
     prompt="a photo of a cute cat",
     width=512,
@@ -38,7 +38,7 @@ images = text_to_image(
     cfg_scale=1.0
 )
 
-images[0].save("output.png")
+image.save("output.png")
 ```
 
 ### With Model Reuse
@@ -67,7 +67,7 @@ with SDContext(params) as ctx:
 
 #### text_to_image()
 
-Generate images from a text prompt.
+Generate one image from a text prompt. `text_to_images()` takes the same arguments plus `batch_count: int = 1` and returns `List[SDImage]`.
 
 ```python
 def text_to_image(
@@ -77,11 +77,10 @@ def text_to_image(
     width: int = 512,
     height: int = 512,
     seed: int = -1,
-    batch_count: int = 1,
     sample_steps: int = 20,
     cfg_scale: float = 7.0,
-    sample_method: SampleMethod = None,
-    scheduler: Scheduler = None,
+    sample_method: SampleMethod = SampleMethod.COUNT,
+    scheduler: Scheduler = Scheduler.COUNT,
     n_threads: int = -1,
     vae_path: str = None,
     taesd_path: str = None,
@@ -89,15 +88,16 @@ def text_to_image(
     clip_g_path: str = None,
     t5xxl_path: str = None,
     control_net_path: str = None,
-    lora_model_dir: str = None,
     clip_skip: int = -1,
     eta: float = float('inf'),
     slg_scale: float = 0.0,
     vae_tiling: bool = False,
     hires_fix: bool = False,
     hires_scale: float = 2.0,
-    diffusion_flash_attn: bool = False
-) -> List[SDImage]
+    diffusion_flash_attn: bool = False,
+    backend: str = None,
+    params_backend: str = None
+) -> SDImage
 ```
 
 | Parameter | Type | Default | Description |
@@ -108,11 +108,10 @@ def text_to_image(
 | `width` | int | 512 | Output width |
 | `height` | int | 512 | Output height |
 | `seed` | int | -1 | Random seed (-1 = random) |
-| `batch_count` | int | 1 | Number of images |
 | `sample_steps` | int | 20 | Sampling steps |
 | `cfg_scale` | float | 7.0 | CFG guidance scale |
-| `sample_method` | SampleMethod | None | Sampling method |
-| `scheduler` | Scheduler | None | Noise scheduler |
+| `sample_method` | SampleMethod | COUNT | Sampling method (COUNT = model default) |
+| `scheduler` | Scheduler | COUNT | Noise scheduler (COUNT = model default) |
 | `clip_skip` | int | -1 | CLIP layers to skip |
 | `n_threads` | int | -1 | Thread count (-1 = auto) |
 | `eta` | float | inf | Eta for samplers (inf = auto-resolve per method) |
@@ -121,6 +120,8 @@ def text_to_image(
 | `hires_fix` | bool | False | Enable hires-fix two-pass generation (latent upscale) |
 | `hires_scale` | float | 2.0 | Hires-fix upscale factor |
 | `diffusion_flash_attn` | bool | False | Use flash attention |
+| `backend` | str | None | Compute placement, e.g. `"diffusion=cuda0,te=cpu"` (see `SDContextParams`) |
+| `params_backend` | str | None | Weight placement, e.g. `"te=cpu"` (see `SDContextParams`) |
 
 #### image_to_image()
 
@@ -129,7 +130,7 @@ Transform an existing image with text guidance.
 ```python
 def image_to_image(
     model_path: str,
-    init_image: SDImage,
+    init_image: SDImage | str,
     prompt: str,
     negative_prompt: str = "",
     strength: float = 0.75,
@@ -174,11 +175,20 @@ if ctx.is_valid:
 |--------|-------------|
 | `generate(...)` | Generate images from text prompt |
 | `generate_video(...)` | Generate video frames (requires video model) |
+| `generate_with_params(params)` | Generate from a populated `SDImageGenParams` |
 | `get_default_sample_method()` | Get model's default sampler |
-| `get_default_scheduler()` | Get model's default scheduler |
+| `get_default_scheduler(sample_method=None)` | Get model's default scheduler |
+| `cancel(mode=CancelMode.ALL)` | Stop an in-flight generation from another thread (`ALL`, `NEW_LATENTS`, `RESET`) |
+| `set_generation_progress_callback(cb)` | Per-context progress callback; `None` clears it (see below) |
+| `load_control_net(path)` / `unload_control_net()` | Swap the ControlNet; not safe during a generation |
+| `has_control_net` | `bool` -- a ControlNet is loaded |
 | `is_valid` | Check if context is valid |
 | `supports_image_generation` | `bool` — model can run `generate()` / txt2img (false for WAN-style video-only models) |
 | `supports_video_generation` | `bool` — model can run `generate_video()` |
+
+`generate()` also takes `vae_tile_size` (`(w, h)` in pixels) and `vae_tile_overlap`.
+
+`set_generation_progress_callback()` passes an `SDGenerationProgress` namedtuple `(stage, detail, unit, sample_pass, completed, total)` to the callback. Import it from `cyllama.sd.stable_diffusion`. The call raises `RuntimeError` if the context is closed or busy.
 
 ### SDContextParams
 
@@ -201,21 +211,25 @@ params.taesd_path = "taesd.safetensors"       # TAESD for fast preview
 params.control_net_path = "controlnet.gguf"   # ControlNet model
 params.photo_maker_path = "photomaker.bin"    # PhotoMaker model
 params.high_noise_diffusion_model_path = "..."  # High-noise model (Wan2.2 MoE)
-params.lora_model_dir = "loras/"              # LoRA directory
-params.embedding_dir = "embeddings/"          # Embeddings directory
 params.tensor_type_rules = "^vae\\.=f16"      # Mixed precision rules
 
 # Numeric/enum parameters
 params.n_threads = 4                          # Thread count
 params.wtype = SDType.COUNT                   # Weight type (COUNT = auto-detect)
 params.rng_type = RngType.CUDA                # RNG type
-params.sampler_rng_type = RngType.CPU         # Sampler RNG type
+params.sampler_rng_type = RngType.COUNT       # Sampler RNG type (COUNT = same as rng_type)
 params.prediction = Prediction.COUNT          # Prediction type (COUNT = auto-detect)
 params.lora_apply_mode = LoraApplyMode.AUTO   # LoRA application mode
-params.chroma_t5_mask_pad = 0                 # Chroma T5 mask pad
+params.vae_format = VaeFormat.AUTO            # VAE format (AUTO = detect from model)
+params.conditioning_cache_size = 4            # Cached conditioning entries; 0 disables, negative raises ValueError
+params.model_args = "chroma_use_dit_mask=0"   # Extra key=value loader args (Chroma, Qwen-Image)
 
 # Memory placement (replaces the removed per-component CPU-offload flags)
-params.max_vram = "-1"                        # "0" off, "-1" auto, or GiB budget / backend spec
+params.max_vram = None                        # GiB per device: "N" cap, "-N" leave N free, "0"/None live free VRAM
+params.backend = None                         # Compute placement, e.g. "diffusion=cuda0,te=cpu"
+params.params_backend = None                  # Weight placement, e.g. "te=cpu"; "cpu"/"disk" valid
+params.auto_fit = True                        # Place modules by free memory; non-empty params_backend disables it
+params.split_mode = None                      # Multi-device split: "layer" (default), "row", or "diffusion=row"
 params.eager_load = False                     # Load all params at load time, not lazily
 params.pulid_weights_path = None              # Optional PuLID weights
 params.rpc_servers = None                     # Optional RPC backends "host:port,..."
@@ -226,12 +240,10 @@ params.diffusion_flash_attn = False           # Flash attention
 params.diffusion_conv_direct = False          # Direct convolution
 params.vae_conv_direct = False                # VAE direct convolution
 params.tae_preview_only = False               # TAESD for preview only
-params.circular_x = False                     # Circular padding X (tileable)
-params.circular_y = False                     # Circular padding Y (tileable)
-params.qwen_image_zero_cond_t = False         # Zero conditioning for Qwen
-params.chroma_use_dit_mask = True             # DiT mask for Chroma
-params.chroma_use_t5_mask = False             # T5 mask for Chroma
+params.batched_cfg = True                     # One batched forward for both CFG branches; no effect on Metal
 ```
+
+`circular_x` / `circular_y` (tileable output) are `SDImageGenParams` properties.
 
 ### SDImage
 
@@ -248,6 +260,7 @@ img = SDImage.load("input.jpg", channels=3)  # Force RGB
 print(img.width, img.height, img.channels)
 print(img.shape)   # (H, W, C)
 print(img.is_valid)
+print(img.generation_info)  # sdcpp.generation/v1 JSON str, or None for Python-built images
 
 # Save to file (PNG, JPEG, BMP supported)
 img.save("output.png")
@@ -284,7 +297,7 @@ params.control_strength = 0.9    # ControlNet strength
 
 # VAE tiling for large images
 params.vae_tiling_enabled = True
-params.vae_tile_size = (512, 512)
+params.vae_tile_size = (512, 512)   # image pixels; 0 = 256
 params.vae_tile_overlap = 0.5
 
 # EasyCache acceleration
@@ -416,6 +429,9 @@ Sampling methods for diffusion:
 | `EULER_CFG_PP` | Euler CFG++ |
 | `EULER_A_CFG_PP` | Euler ancestral CFG++ |
 | `EULER_GE` | Euler GE |
+| `DPMPP2M_SDE` | DPM++ 2M SDE |
+| `DPMPP2M_SDE_BT` | DPM++ 2M SDE (upstream `dpm++2m_sde_bt`) |
+| `LMS` | LMS |
 | `COUNT` | Sentinel — auto-resolve per model (default) |
 
 ### Scheduler
@@ -436,6 +452,11 @@ Noise schedulers:
 | `LCM` | LCM scheduler |
 | `BONG_TANGENT` | Bong-tangent scheduler |
 | `LTX2` | LTX-2 scheduler |
+| `LOGIT_NORMAL` | Logit-normal scheduler |
+| `FLUX2` | FLUX.2 scheduler |
+| `FLUX` | FLUX scheduler |
+| `BETA` | Beta scheduler |
+| `LLADA_IMAGE` | LLaDA image scheduler |
 | `COUNT` | Sentinel — auto-resolve per model (default) |
 
 ### Prediction
@@ -444,14 +465,18 @@ Prediction types:
 
 | Value | Description |
 |-------|-------------|
-| `DEFAULT` | Auto-detect from model |
 | `EPS` | Epsilon prediction |
 | `V` | V-prediction |
 | `EDM_V` | EDM V-prediction |
-| `SD3_FLOW` | SD3 flow matching |
+| `FLOW` | SD3 flow matching (CLI `sd3_flow`) |
 | `FLUX_FLOW` | FLUX flow matching |
 | `SEFI_FLOW` | SEFI flow matching |
 | `MINIT2I_FLOW` | MiniT2I flow matching |
+| `SENSENOVA_U1_FLOW` | SenseNova U1 flow matching |
+| `FLUX3_FLOW` | FLUX.3 flow matching |
+| `H3_AV_FLOW` | H3 AV flow matching |
+| `MING_IMAGE_FLOW` | Ming image flow matching |
+| `COUNT` | Auto-detect from model (default) |
 
 ### SDType
 
@@ -466,6 +491,14 @@ Data types for quantization:
 - 8-bit: `Q8_0`, `Q8_1`, `Q8_K`
 
 - K-quants: `Q2_K`, `Q3_K`, `Q6_K`
+
+- IQ quants: `IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ3_XXS`, `IQ3_S`, `IQ4_NL`, `IQ4_XS`
+
+- Other: `TQ1_0`, `TQ2_0`, `MXFP4`, `NVFP4`, `Q1_0`, `Q2_0`, `F8_E4M3`, `F8_E5M2`
+
+- Integer / F64: `I8`, `I16`, `I32`, `I64`, `F64`
+
+- `COUNT`: auto-detect sentinel
 
 ### LoraApplyMode
 
@@ -505,6 +538,20 @@ Preview modes during generation:
 | `TAE` | TAESD preview |
 | `VAE` | Full VAE preview |
 
+### VaeFormat
+
+VAE format for `SDContextParams.vae_format`: `AUTO` (detect from model, default), `FLUX`, `SD3`, `FLUX2`, `WAN`.
+
+### CancelMode
+
+Modes for `SDContext.cancel()`:
+
+| Value | Description |
+|-------|-------------|
+| `ALL` | Stop as soon as possible (default) |
+| `NEW_LATENTS` | Finish the current sample, skip the remaining batch latents |
+| `RESET` | Clear a pending cancel request |
+
 ## Callbacks
 
 Set callbacks for logging, progress, and preview during generation.
@@ -520,7 +567,7 @@ from cyllama.sd import (
 
 # Log callback
 def log_cb(level: LogLevel, text: str):
-    level_names = {0: 'DEBUG', 1: 'INFO', 2: 'WARN', 3: 'ERROR'}
+    level_names = {0: 'DEBUG', 1: 'VERBOSE', 2: 'INFO', 3: 'WARN', 4: 'ERROR'}
     print(f'[{level_names.get(level, level)}] {text}', end='')
 
 set_log_callback(log_cb)
@@ -742,9 +789,10 @@ python -m cyllama.sd info
 | `--t5xxl` | T5-XXL model (SD3/FLUX) |
 | `--llm` | LLM text encoder (FLUX2) |
 | `--llm-vision` | LLM vision encoder |
-| `--control-net` | ControlNet model |
-| `--lora-dir` | LoRA models directory |
-| `--embd-dir` | Embeddings directory |
+| `--high-noise-diffusion-model` | High-noise diffusion model (Wan2.2 MoE) |
+| `--tensor-type-rules` | Per-tensor type rules, e.g. `"^vae\.=f16"` |
+| `--tokenizer` | `tokenizer.json`; required for PiD and Lens |
+| `--control-net` | ControlNet model (`controlnet` subcommand) |
 
 **Generation Options**:
 
@@ -765,11 +813,13 @@ python -m cyllama.sd info
 
 | Option | Description |
 |--------|-------------|
-| `--sampler` | Sampling method |
-| `--scheduler` | Noise scheduler |
+| `--sampler` | Sampling method: upstream name (`dpm++2m`) or lowercase enum name (`dpmpp2m`) |
+| `--scheduler` | Noise scheduler, same naming as `--sampler` |
 | `--eta` | Eta for DDIM/TCD |
 | `--rng` | RNG type (std_default, cuda, cpu) |
-| `--prediction` | Prediction type override |
+| `--sampler-rng` | Sampler RNG type (default: same as `--rng`) |
+| `--prediction` | Prediction type override: `eps`, `v`, `edm_v`, `sd3_flow`, `flux_flow`, `sefi_flow`, `minit2i_flow`, `sensenova_u1_flow`, `flux3_flow`, `h3_av_flow`, `ming_image_flow` |
+| `--flow-shift` | Flow shift (SD3.x/Wan) |
 
 **Guidance Options**:
 
@@ -786,12 +836,22 @@ python -m cyllama.sd info
 | Option | Description |
 |--------|-------------|
 | `--threads`, `-t` | Thread count |
-| `--offload-to-cpu` | Offload weights to CPU |
-| `--clip-on-cpu` | Keep CLIP on CPU |
-| `--vae-on-cpu` | Keep VAE on CPU |
-| `--control-net-cpu` | Keep ControlNet on CPU |
+| `--max-vram` | Per-device GiB budget: `N` cap, `-N` leave N free, `0` live free VRAM |
+| `--backend` | Compute placement, e.g. `diffusion=cuda0,te=cpu` |
+| `--params-backend` | Weight placement; also accepts `cpu`/`disk` targets |
+| `--auto-fit [on\|off]` | Place modules by free memory (default on) |
+| `--eager-load` | Load all params at model-load time |
+| `--disable-prefetch` | Disable async prefetch of the next segment's weights |
+| `--disable-segmented-compute` | Force monolithic graphs |
+| `--offload-to-cpu` | Alias for `--params-backend cpu` |
+| `--clip-on-cpu` | Alias for `--params-backend te=cpu` |
+| `--vae-on-cpu` | Alias for `--params-backend vae=cpu` |
+| `--control-net-cpu` | Alias for `--params-backend control-net=cpu` |
 | `--diffusion-fa` | Flash attention |
+| `--diffusion-conv-direct` / `--vae-conv-direct` | Direct convolution |
 | `--vae-tiling` | Enable VAE tiling |
+| `--vae-tile-size WxH` | VAE tile size in pixels (default 256x256) |
+| `--vae-tile-overlap` | VAE tile overlap fraction (default 0.5) |
 
 **Other Options**:
 
@@ -811,7 +871,7 @@ python -m cyllama.sd info
 | FLUX | flux.1-dev, flux.1-schnell | Needs clip_l + t5xxl or llm |
 | FLUX2 | flux2-* | Uses LLM encoder (Qwen) |
 | Wan/CogVideoX | wan-2.1, cogvideox | Video generation |
-| LoRA | *.safetensors | Place in lora_model_dir |
+| LoRA | *.safetensors | Load via `SDImageGenParams.set_loras()` |
 | ControlNet | control_* | Use with control images |
 | ESRGAN | esrgan-x4 | Upscaling only |
 

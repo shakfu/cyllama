@@ -1,3 +1,29 @@
+diff --git a/src/distance-avx2.c b/src/distance-avx2.c
+index 1b980ac..92268b3 100644
+--- a/src/distance-avx2.c
++++ b/src/distance-avx2.c
+@@ -1,3 +1,5 @@
++// Modified by cyllama from sqlite-vector 1.2.0 (Apache-2.0): see the "cyllama:" comment.
++
+ //
+ //  distance-avx2.c
+ //  sqlitevector
+@@ -991,7 +993,15 @@ float bit1_distance_hamming_avx2 (const void *v1, const void *v2, int n) {
+     
+     // Handle remainder with scalar
+     for (; i < n; i++) {
++        #if defined(__GNUC__) || defined(__clang__)
+         distance += __builtin_popcount(a[i] ^ b[i]);
++        #else
++        // cyllama: MSVC has no __builtin_popcount (mirrors distance-sse2.c).
++        uint8_t x = a[i] ^ b[i];
++        x = x - ((x >> 1) & 0x55);
++        x = (x & 0x33) + ((x >> 2) & 0x33);
++        distance += (x + (x >> 4)) & 0x0f;
++        #endif
+     }
+     
+     return (float)distance;
 diff --git a/src/distance-cpu.c b/src/distance-cpu.c
 index 2916508..260b3e1 100644
 --- a/src/distance-cpu.c

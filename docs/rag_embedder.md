@@ -47,7 +47,7 @@ embedder = Embedder(
 | `mean` | Average all token embeddings (default) |
 | `cls` | Use first token embedding (CLS token) |
 | `last` | Use last token embedding |
-| `none` | Return all token embeddings |
+| `none` | Falls back to mean pooling |
 
 ```python
 from cyllama.rag import Embedder, PoolingType
@@ -108,7 +108,6 @@ Get embedding with additional metadata:
 result = embedder.embed_with_info("Your text here")
 print(f"Embedding: {result.embedding[:5]}...")
 print(f"Token count: {result.token_count}")
-print(f"Truncated: {result.truncated}")
 ```
 
 ### embed_iter()
@@ -116,7 +115,7 @@ print(f"Truncated: {result.truncated}")
 Generator for memory-efficient batch embedding:
 
 ```python
-for embedding in embedder.embed_iter(large_text_list, batch_size=32):
+for text, embedding in zip(large_text_list, embedder.embed_iter(large_text_list)):
     # Process each embedding
     store.add_one(embedding, text)
 ```

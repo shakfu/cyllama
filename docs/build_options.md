@@ -12,6 +12,8 @@ Cyllama uses a two-phase build:
 
 Most options in this guide affect Phase 1. Backend flags (`GGML_CUDA`, etc.) affect both phases.
 
+`make build` runs Phase 1 only when `thirdparty/llama.cpp/lib/libllama.a` is missing. The `VAR=... make build` examples below therefore take effect on a fresh checkout or after `make reset`; otherwise use a `make build-<backend>` target, which resets first.
+
 ## Static vs Dynamic Linking
 
 By default, cyllama links statically -- all llama.cpp code is compiled into the extension. This produces a self-contained install with no runtime dependencies on shared libraries.
@@ -28,7 +30,7 @@ make build-vulkan-dynamic   # Vulkan, shared libs
 python3 scripts/manage.py build --all --dynamic
 ```
 
-In dynamic mode, the build downloads pre-built release archives from the llama.cpp GitHub releases when available. If no pre-built asset exists for your platform/backend combination, it falls back to building from source with `BUILD_SHARED_LIBS=ON`.
+In dynamic mode, the build downloads pre-built release archives from the llama.cpp GitHub releases only when `SD_USE_VENDORED_GGML=1` and an asset exists for your platform/backend combination. Otherwise it builds from source with `BUILD_SHARED_LIBS=ON`. The default `SD_USE_VENDORED_GGML=0` links stable-diffusion.cpp against llama.cpp's ggml, which must be built with SD's `GGML_MAX_NAME`. The `build-*-dynamic` targets set `SD_USE_VENDORED_GGML=0`, so they always build from source.
 
 Wheel builds also have dynamic variants:
 
@@ -38,6 +40,8 @@ make wheel-cuda-dynamic   # Dynamic wheel (shared libs bundled)
 ```
 
 ### Pre-built Dynamic Releases
+
+These downloads apply only with `SD_USE_VENDORED_GGML=1` (see above).
 
 | Platform | Backend | Available? |
 |----------|---------|------------|
@@ -171,7 +175,7 @@ By default, llama.cpp builds with `GGML_NATIVE=ON`, which optimizes for the CPU 
 For portable binaries (e.g., distributing to others):
 
 ```bash
-GGML_NATIVE=OFF GGML_CUDA=1 make build
+GGML_NATIVE=0 GGML_CUDA=1 make build
 ```
 
 The CI wheel builds always set `GGML_NATIVE=OFF` for this reason.
@@ -230,8 +234,8 @@ This is a no-op on non-Windows platforms or non-CUDA builds. It lives in `cyllam
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GGML_NATIVE` | `ON` | Optimize for build machine CPU |
-| `GGML_OPENMP` | `ON` | Enable OpenMP parallelism |
+| `GGML_NATIVE` | (upstream: on) | Optimize for build machine CPU. `1` or `0`; other values warn and mean off |
+| `GGML_OPENMP` | (upstream: on) | Enable OpenMP parallelism. `1` or `0`; other values warn and mean off |
 | `GGML_BLAS_VENDOR` | (auto) | BLAS vendor: `OpenBLAS`, `Intel10_64lp`, `Generic`, etc. |
 | `CMAKE_CUDA_ARCHITECTURES` | (auto) | CUDA compute capabilities, e.g. `"75;86"` |
 | `CMAKE_CUDA_COMPILER` | (auto) | Path to `nvcc` |

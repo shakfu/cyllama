@@ -53,6 +53,7 @@ asyncio.run(main())
 ### Using with FastAPI
 
 ```python
+from pathlib import Path
 from fastapi import FastAPI
 from cyllama.rag import AsyncRAG
 
@@ -66,7 +67,7 @@ async def startup():
         embedding_model="models/bge-small.gguf",
         generation_model="models/llama.gguf"
     )
-    await rag.add_documents(["knowledge_base/"])
+    await rag.add_documents(sorted(Path("knowledge_base").rglob("*.md")))
 
 @app.on_event("shutdown")
 async def shutdown():

@@ -148,13 +148,20 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
 | `--glob` | Glob pattern for directory loading (default: `**/*`) |
 | `-p, --prompt` | Single query (omit for interactive mode) |
 | `-s, --system` | System instruction |
-| `-n, --max-tokens` | Maximum tokens to generate (default: 200) |
+| `-n, --max-tokens` | Maximum tokens to generate (default: 512) |
 | `--temperature` | Generation temperature (default: 0.8) |
 | `-k, --top-k` | Number of chunks to retrieve (default: 5) |
 | `--threshold` | Minimum similarity threshold |
 | `-ngl, --n-gpu-layers` | GPU layers to offload (default: -1) |
 | `--stream` | Stream output tokens |
 | `--sources` | Show source chunks with similarity scores |
+| `--db PATH` | Persist the index to a SQLite file and reopen it on later runs |
+| `--rebuild` | Delete and recreate the `--db` index from the current `-f`/`-d` sources |
+| `--no-chat-template` | Use raw-completion prompting instead of the model's chat template |
+| `--show-think` | Show `<think>...</think>` reasoning blocks (stripped by default) |
+| `--repetition-threshold` | Stop after an n-gram repeats this many times; 0 disables (default: 2) |
+| `--repetition-ngram` | Word-level n-gram length for repetition detection (default: 5) |
+| `--repetition-window` | Recent words kept by the repetition detector (default: 300) |
 
 ### Other Commands
 
@@ -164,7 +171,7 @@ cyllama transcribe -m models/ggml-base.en.bin -f audio.wav
 cyllama tts -m models/tts.gguf -mv models/vocoder.gguf -p "Hello world"
 cyllama sd txt2img --model models/sd.gguf --prompt "a sunset"
 cyllama agent run -m models/llama.gguf -p "What is 25 * 4?"   # Run agents
-cyllama memory -m models/llama.gguf    # GPU memory estimation
+cyllama memory models/llama.gguf       # GPU memory estimation
 cyllama info                           # Build and backend info
 ```
 

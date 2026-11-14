@@ -112,12 +112,12 @@ with LLM("models/Llama-3.2-3B-Instruct-Q8_0.gguf") as llm:
 ## Mixing MCP Tools with Local Tools
 
 ```python
-from cyllama.agents import Tool
+from cyllama.agents import tool
 
 def add(a: int, b: int) -> int:
     return a + b
 
-local_tool = Tool.from_function(add)
+local_tool = tool(add)
 
 answer = llm.chat_with_tools(
     messages=[{"role": "user", "content": "What is 2+3, and what files are in /tmp?"}],

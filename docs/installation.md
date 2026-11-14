@@ -10,7 +10,7 @@ This guide covers installing cyllama on different platforms.
 
 - C++ compiler (clang or gcc)
 
-- CMake 3.21+
+- CMake 3.26+
 
 - Git
 
@@ -38,18 +38,18 @@ sudo dnf install -y gcc-c++ cmake git python3-devel
 ## Install from PyPI
 
 ```bash
-pip install cyllama
+pip install --pre cyllama
 ```
 
 ### GPU-Accelerated Variants
 
-GPU variants are available on PyPI as separate packages (dynamically linked, Linux x86_64 only):
+GPU variants are available on PyPI as separate packages (dynamically linked). All four cover Linux x86_64; CUDA and Vulkan also ship Windows x86_64 wheels, and Vulkan also covers macOS Intel:
 
 ```bash
-pip install cyllama-cuda12   # NVIDIA GPU (CUDA 12.4)
-pip install cyllama-rocm     # AMD GPU (ROCm 6.3, requires glibc >= 2.35)
-pip install cyllama-sycl     # Intel GPU (oneAPI SYCL 2025.3)
-pip install cyllama-vulkan   # Cross-platform GPU (Vulkan)
+pip install --pre cyllama-cuda12   # NVIDIA GPU (CUDA 12.4)
+pip install --pre cyllama-rocm     # AMD GPU (ROCm 6.3, requires glibc >= 2.35)
+pip install --pre cyllama-sycl     # Intel GPU (oneAPI SYCL 2025.3)
+pip install --pre cyllama-vulkan   # Cross-platform GPU (Vulkan)
 ```
 
 All GPU variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
@@ -100,7 +100,7 @@ cyllama info
 git clone https://github.com/shakfu/cyllama.git
 cd cyllama
 
-# Build everything (downloads llama.cpp, whisper.cpp, builds cyllama)
+# Build everything (downloads llama.cpp, whisper.cpp, stable-diffusion.cpp, builds cyllama)
 make
 
 # Download a test model
@@ -147,10 +147,10 @@ See [Building with Different Backends](build_backends.md) for detailed GPU setup
 
 ### Optional Components
 
-**Stable Diffusion support:**
+**Stable Diffusion support** (included by default):
 
 ```bash
-WITH_STABLEDIFFUSION=1 make build
+make build  # SD is built automatically; WITH_STABLEDIFFUSION=0 opts out
 
 # SD shares llama.cpp's ggml by default; opt into SD's vendored copy instead
 SD_USE_VENDORED_GGML=1 make build

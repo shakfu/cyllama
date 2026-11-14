@@ -88,6 +88,22 @@ A skipped patch was silent then, so this surfaced as nothing at all; a
 non-matching patch now fails the build. It was removed
 once whisper.cpp `v1.9.4`, the last tree on the old shape, adopted the new one.
 
+### `stable-diffusion.cpp-graph-view-unexported.patch`
+
+**Target:** `src/core/ggml_compat.cpp` (stable-diffusion.cpp `master-1094-3bad892`, shared ggml)
+
+**Problem:** with llama.cpp's ggml, SD's compat layer implements
+`ggml_backend_graph_compute_async_range` by calling `ggml_graph_view`. That
+function is internal to ggml (`ggml-impl.h`, no `GGML_API`). Static builds and
+ELF/Mach-O shared builds resolve it; a shared `ggml-base.dll` does not export
+it, so Windows dynamic builds fail to link `stable_diffusion.pyd` (LNK2019).
+
+**Fix:** build the view in place from the public `ggml_cgraph` fields, setting
+the same fields `ggml_graph_view` sets. The function's only caller,
+`sd_backend_graph_compute_with_eval_callback`, has no callers at this pin, so
+the change affects linking only. Upstreamable: any Windows `BUILD_SHARED_LIBS`
+build of SD against upstream ggml hits it.
+
 ### `stable-diffusion.cpp-diag-mask-inf-removed.patch`
 
 **Target:** `src/model/vae/minimax_h3_audio_vae.hpp` (stable-diffusion.cpp
@@ -130,13 +146,16 @@ An earlier llama.cpp patch is no longer carried: the gemma4a
 
 ### `sqlite-vector-cyllama.patch`
 
-**Target:** `src/sqlite-vector.c`, `src/distance-cpu.c` (sqlite-vector `1.2.0`)
+**Target:** `src/sqlite-vector.c`, `src/distance-cpu.c`, `src/distance-avx2.c` (sqlite-vector `1.2.0`)
 
-**Problem:** three build failures, each marked `cyllama:` in the source:
+**Problem:** four build failures, each marked `cyllama:` in the source:
 
 - glibc declares `strcasestr` only under `_GNU_SOURCE`, so manylinux (AlmaLinux 8) fails.
 - MSVC has no `strcasecmp` / `strncasecmp`.
 - MSVC has no `<cpuid.h>`; `__cpuidex` and `_xgetbv` come from `<intrin.h>`.
+- MSVC has no `__builtin_popcount`, used in the AVX2 Hamming tail. Upstream guards the same loop in `distance-sse2.c`. Unguarded, `vector.dll` fails to link with LNK2019.
+
+The 1.2.0 refresh first dropped the fourth fix: it was marked `cyllama patch:`, and the refresh searched for `cyllama:`. `tests/test_check_vendor_sqlite_vector.py` now fails on any `__builtin_*` call outside a `__GNUC__` / `__clang__` guard.
 
 **Applied twice:** `SqliteVectorBuilder` applies it to `build/sqlite-vector`.
 Wheels compile `thirdparty/sqlite-vector/`, which holds the patched files.

@@ -272,7 +272,7 @@ from typing import Annotated
 from cyllama.agents import Pattern, MinLen, MaxLen
 
 @tool
-def lookup(name: Annotated[str, MinLen(2), MaxLen(50), Pattern(r"\w+")]) -> ...: ...
+def lookup(name: Annotated[str, MinLen(2), MaxLen(50), Pattern(r"^\w+$")]) -> ...: ...  # Pattern uses re.search; anchor it
 ```
 
 The rule of thumb: **if the rule is about one argument's type/range/shape and you can write it in `Annotated[]`, do.** Reserve contracts for the things `Annotated[]` cannot reach.
@@ -285,4 +285,4 @@ The rule of thumb: **if the rule is about one argument's type/range/shape and yo
 
 - [`src/cyllama/agents/contract.py`](../../src/cyllama/agents/contract.py) — module docstring (the canonical `@pre` / `@post` reference)
 
-- [`src/cyllama/agents/tools.py`](../../src/cyllama/agents/tools.py) — `Annotated[]` constraint markers (`Ge`, `Le`, `Pattern`, ...) and `coerce_args`
+- [`src/cyllama/agents/tools/core.py`](../../src/cyllama/agents/tools/core.py) — `Annotated[]` constraint markers (`Ge`, `Le`, `Pattern`, ...) and `coerce_args`

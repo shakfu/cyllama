@@ -40,7 +40,7 @@ Image generation supports multiple model architectures:
 
 - **Image-to-Image**: Transform existing images with text guidance
 
-- **Video Generation**: Frame sequences with Wan/CogVideoX models
+- **Video Generation**: Frame sequences with Wan, MiniMax-H3, LTX-2, HunyuanVideo 1.5, and LingBot-Video models
 
 - **Upscaling**: ESRGAN-based resolution enhancement
 

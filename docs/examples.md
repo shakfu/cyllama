@@ -20,7 +20,7 @@ def ask(question: str) -> str:
         model_path=MODEL,
         temperature=0.3,
         max_tokens=200
-    )
+    ).text
 
 if __name__ == "__main__":
     print(ask("What is the capital of France?"))
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     answers = batch_qa(questions)
     for q, a in zip(questions, answers):
         print(f"Q: {q}")
-        print(f"A: {a.strip()}\n")
+        print(f"A: {a.text.strip()}\n")
 ```
 
 ## Chat Applications
@@ -112,7 +112,7 @@ class Chatbot:
             for m in self.history
         ) + "\nAssistant:"
 
-        response = self.llm(prompt, config=self.config)
+        response = self.llm(prompt, config=self.config).text
         self.history.append({"role": "assistant", "content": response})
         return response
 
@@ -232,7 +232,7 @@ async def generate(request: GenerateRequest):
             temperature=request.temperature
         )
         result = llm(request.prompt, config=config)
-        return GenerateResponse(text=result)
+        return GenerateResponse(text=result.text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

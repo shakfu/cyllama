@@ -1020,16 +1020,22 @@ asyncio.run(main())
 
 ### Async Agent Parameters
 
-Both `AsyncReActAgent` and `AsyncConstrainedAgent` accept the same parameters as their synchronous counterparts:
+`AsyncReActAgent` and `AsyncConstrainedAgent` take `model_path` instead of an `LLM` and forward a subset of the synchronous parameters. Extra keyword arguments go to `LLM(...)`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `model_path` | `str` | required | Path to GGUF model file |
 | `tools` | `List[Tool]` | `None` | Available tools |
 | `config` | `GenerationConfig` | `None` | LLM configuration |
+| `generation_config` | `ConstrainedGenerationConfig` | `None` | `AsyncConstrainedAgent` only |
 | `system_prompt` | `str` | default | Custom system prompt |
 | `max_iterations` | `int` | `10` | Maximum iterations |
 | `verbose` | `bool` | `False` | Print output |
+| `detect_loops` | `bool` | `True` | `AsyncReActAgent` only |
+| `max_consecutive_same_action` | `int` | `3` | `AsyncReActAgent` only (sync default: 2) |
+| `max_consecutive_same_tool` | `int` | `5` | `AsyncReActAgent` only (sync default: 4) |
+
+Not available on the async wrappers: `max_context_chars` (both), and `format`, `allow_reasoning`, `use_cache`, `detect_loops` and the loop thresholds on `AsyncConstrainedAgent`.
 
 ### Thread Safety
 

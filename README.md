@@ -41,7 +41,7 @@ It combines the performance of compiled Cython wrappers with a simple, high-leve
 ### From PyPI
 
 ```sh
-pip install cyllama
+pip install --pre cyllama
 ```
 
 This installs the cpu-backend for linux and windows. For MacOS, the Metal backend is installed by default to take advantage of Apple Silicon.
@@ -51,10 +51,10 @@ This installs the cpu-backend for linux and windows. For MacOS, the Metal backen
 GPU variants are available on PyPI as separate packages (dynamically linked). All four cover Linux x86_64; CUDA and Vulkan also ship Windows x86_64 wheels, and Vulkan additionally covers macOS Intel -- see the [availability table](#platform--gpu-availability) below:
 
 ```sh
-pip install cyllama-cuda12   # NVIDIA GPU (CUDA 12.4)
-pip install cyllama-rocm     # AMD GPU (ROCm 6.3, requires glibc >= 2.35)
-pip install cyllama-sycl     # Intel GPU (oneAPI SYCL 2025.3)
-pip install cyllama-vulkan   # Cross-platform GPU (Vulkan)
+pip install --pre cyllama-cuda12   # NVIDIA GPU (CUDA 12.4)
+pip install --pre cyllama-rocm     # AMD GPU (ROCm 6.3, requires glibc >= 2.35)
+pip install --pre cyllama-sycl     # Intel GPU (oneAPI SYCL 2025.3)
+pip install --pre cyllama-vulkan   # Cross-platform GPU (Vulkan)
 ```
 
 All variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
@@ -227,15 +227,10 @@ responses = batch_generate(prompts, model_path="model.gguf")
 
 **Speculative Decoding** - 2-3x speedup with draft models:
 
-```python
-from cyllama.llama.llama_cpp import Speculative, SpeculativeParams
+`Speculative` and `SpeculativeParams` are deprecated and will be removed in the next release. [`tests/examples/speculative_example.py`](tests/examples/speculative_example.py) implements the draft/verify loop on the public API:
 
-# n_max=3 / p_min=0.0 are the defaults, matching upstream llama.cpp
-params = SpeculativeParams(n_max=3, p_min=0.0)
-
-# A draft context is required -- it is the smaller model doing the drafting
-spec = Speculative(params, ctx_target, ctx_draft)
-draft_tokens = spec.draft(params, prompt_tokens, last_token)
+```sh
+python tests/examples/speculative_example.py --target models/Qwen3-4B-Q8_0.gguf --draft models/Qwen3-0.6B-Q8_0.gguf
 ```
 
 **Memory Optimization** - Smart GPU layer allocation:
@@ -529,7 +524,10 @@ rag = RAG(
 
 # Load all documents from a directory
 documents = load_directory("docs/", glob="**/*.md")
-rag.add_documents(documents)
+rag.add_texts([d.text for d in documents], metadata=[d.metadata for d in documents])
+
+# Or pass file paths directly
+rag.add_documents(["docs/intro.md", "docs/user_guide.md"])
 
 response = rag.query("How do I configure the system?")
 ```
@@ -537,15 +535,16 @@ response = rag.query("How do I configure the system?")
 **Hybrid Search** - Combine vector and keyword search:
 
 ```python
-from cyllama.rag import RAG, HybridStore, Embedder
+from cyllama.rag import HybridStore, Embedder
 
 embedder = Embedder("models/bge-small-en-v1.5-q8_0.gguf")
-store = HybridStore("knowledge.db", embedder)
+store = HybridStore(embedder.dimension, "knowledge.db")
 
-store.add_texts(["Document content..."])
+texts = ["Document content..."]
+store.add(embedder.embed_batch(texts), texts)
 
-# Hybrid search with configurable weights
-results = store.search("query", k=5, vector_weight=0.7, fts_weight=0.3)
+# alpha weights vector search; 1 - alpha weights keyword (FTS) search
+results = store.search(embedder.embed("query"), query_text="query", k=5, alpha=0.7)
 ```
 
 **Embedding Cache** - Speed up repeated queries with LRU caching:

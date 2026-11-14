@@ -39,19 +39,19 @@ The splitter uses a hierarchy of separators:
 
 2. `\n` - Line breaks
 
-3. `.` - Sentences
+3. `". "` - Sentences
 
-4. `!` - Exclamations
+4. `"! "` - Exclamations
 
-5. `?` - Questions
+5. `"? "` - Questions
 
-6. `;` - Semicolons
+6. `"; "` - Semicolons
 
-7. `,` - Commas
+7. `", "` - Commas
 
-8. `` - Words
+8. `" "` - Words
 
-9. `` - Characters
+9. `""` - Characters
 
 ### TokenTextSplitter
 
@@ -60,9 +60,9 @@ Split based on token count using a custom tokenizer:
 ```python
 from cyllama.rag import TokenTextSplitter
 
-# Define tokenizer function
+# Define tokenizer function: returns a token count
 def my_tokenizer(text):
-    return text.split()  # Simple word tokenizer
+    return len(text.split())  # Simple word tokenizer
 
 splitter = TokenTextSplitter(
     chunk_size=100,           # Tokens per chunk
@@ -77,7 +77,7 @@ chunks = splitter.split(long_text)
 
 Markdown-aware splitting that respects document structure:
 
-```python
+````python
 from cyllama.rag import MarkdownSplitter
 
 splitter = MarkdownSplitter(
@@ -103,20 +103,21 @@ code_block = "preserved"
 - List item 2 """
 
 chunks = splitter.split(markdown_text)
+````
 
-## Headers, code blocks, and lists are preserved where possible
+The MarkdownSplitter tries separators in this order:
 
-```text
+1. Headers (`##` to `######`)
 
-The MarkdownSplitter:
+2. Code fences (```` ``` ````)
 
-- Preserves code blocks (```)
+3. Horizontal rules and block quotes
 
-- Respects header hierarchy (#, ##, ###)
+4. List items (`-`, `*`, `+`, `1.`)
 
-- Keeps list items together
+5. The generic separators: paragraph, line, sentence, word, character
 
-- Maintains frontmatter
+It splits only when a section exceeds `chunk_size`. It does not parse frontmatter.
 
 ## Document Loaders
 
@@ -163,8 +164,8 @@ docs = loader.load("data.json")
 
 # With jq-like filtering for nested data
 loader = JSONLoader(
-    text_key="text",
-    jq_filter=".articles[].body"
+    text_key="body",
+    jq_filter=".articles"
 )
 docs = loader.load("nested.json")
 ```
@@ -181,21 +182,21 @@ loader = JSONLLoader(text_key="content")
 docs = loader.load("data.jsonl")
 
 # Lazy loading for large files
-for doc in loader.load_lazy("large.jsonl"):
+for doc in loader.lazy_load("large.jsonl"):
     # Process one at a time
     process(doc)
 ```
 
 #### PDFLoader
 
-Load PDF files (requires `docling` package):
+Load PDF files. Requires one backend: `pypdf`, `pymupdf`, `pdfminer.six`, or `docling`. The default `backend="auto"` picks the first installed one in that order.
 
 ```python
-# Install: uv sync --group pdf  (or: pip install docling)
+# Install: pip install pypdf  (or pymupdf, pdfminer.six, docling)
 
 from cyllama.rag import PDFLoader
 
-loader = PDFLoader()
+loader = PDFLoader()  # or PDFLoader(backend="docling")
 documents = loader.load("document.pdf")
 
 for doc in documents:
@@ -228,7 +229,7 @@ from cyllama.rag import load_document
 # Automatically uses correct loader
 docs = load_document("file.md")
 docs = load_document("data.json", text_key="content")
-docs = load_document("report.pdf")  # Requires docling
+docs = load_document("report.pdf")  # Requires a PDF backend
 ```
 
 #### load_directory()
@@ -296,8 +297,8 @@ from cyllama.rag import Chunk
 chunk = Chunk(
     text="Chunk content",
     metadata={"source": "file.txt"},
-    start=0,      # Start position in original
-    end=100       # End position in original
+    source_id="file.txt",  # ID of the source document
+    chunk_index=0          # Position of this chunk in the document
 )
 ```
 
@@ -309,6 +310,6 @@ chunk = Chunk(
 
 3. **Markdown**: Use `MarkdownSplitter` for structured documents
 
-4. **Large Files**: Use lazy loading with `JSONLLoader.load_lazy()`
+4. **Large Files**: Use lazy loading with `JSONLLoader.lazy_load()`
 
 5. **Metadata**: Preserve source information for citation

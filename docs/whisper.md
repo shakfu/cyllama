@@ -150,8 +150,10 @@ params = WhisperContextParams()
 params.use_gpu = True           # Use GPU acceleration
 params.flash_attn = True        # Use flash attention
 params.gpu_device = 0           # GPU device index
-params.dtw_token_timestamps = False  # Enable DTW for precise timestamps
+params.dtw_token_timestamps = False  # DTW timestamps; see note below
 ```
+
+`dtw_token_timestamps = True` alone does not enable DTW. With `flash_attn = True` (the default) whisper.cpp disables DTW. With `flash_attn = False`, init fails because cyllama has no setter for `dtw_aheads_preset`, which stays at NONE.
 
 ### WhisperFullParams
 
@@ -329,14 +331,11 @@ def transcribe_with_timestamps(audio_path: str, model_path: str) -> list:
 
 ```python
 def transcribe_with_word_timestamps(audio_path: str, model_path: str) -> list:
-    params = WhisperContextParams()
-    params.dtw_token_timestamps = True
-
-    ctx = WhisperContext(model_path, params)
+    ctx = WhisperContext(model_path)
     samples = load_audio(audio_path)
 
     fparams = WhisperFullParams()
-    fparams.token_timestamps = True
+    fparams.token_timestamps = True  # non-DTW token timestamps
 
     ctx.full(samples, fparams)
 

@@ -218,9 +218,9 @@ try:
     )
 except VectorStoreError as e:
     print(e)
-    # "vectors.db was indexed with chunk_size=512 but the caller is
-    #  opening it with chunk_size=1024. ... Either use the original
-    #  chunk_size or pass --rebuild to recreate the index."
+    # "VectorStore at 'vectors.db' was created with chunk_size=512 but
+    #  the caller is opening it with chunk_size=1024. ... Either use the
+    #  original chunk_size or pass --rebuild to recreate the index."
 ```
 
 This catches the silent-corruption case where mixing two embedding models or two chunk configurations into a single index would produce garbage retrieval. It is the mechanism behind the `cyllama rag --rebuild` flag (see [RAG Overview — Persistent Vector Store](rag_overview.md#persistent-vector-store-cli)).
@@ -272,9 +272,6 @@ with SqliteVectorStore(dimension=384, db_path="data.db") as store:
 ```python
 # Number of stored vectors
 print(f"Count: {len(store)}")
-
-# Or use count property
-print(f"Count: {store.count}")
 ```
 
 ## Example: Document Search System
@@ -348,7 +345,7 @@ Four adapters ship in `cyllama.rag.stores`, each lazy-imported so `import cyllam
 | `ChromaVectorStore` | `pip install chromadb` | Ephemeral, on-disk, or remote server |
 | `PgVectorStore` | `pip install "psycopg[binary]" pgvector` | PostgreSQL; needs a running server |
 
-Install the clients directly (`pip install qdrant-client chromadb sqlite-vec "psycopg[binary]" pgvector`) to un-skip `tests/test_rag_{qdrant,chroma,sqlite_vec}.py` locally — cyllama ships no extras or dependency groups for them and takes no position on their version pins. CI covers them through the `test-store-adapters` workflow, which runs those tests weekly against current releases to catch upstream drift.
+Install the clients directly (`pip install qdrant-client chromadb sqlite-vec "psycopg[binary]" pgvector`) to un-skip `tests/test_rag_{qdrant,chroma,sqlite_vec,pgvector}.py` locally — cyllama ships no extras or dependency groups for them and takes no position on their version pins. CI covers them through the `test-store-adapters` workflow, which runs those tests weekly against current releases to catch upstream drift.
 
 ### Qdrant
 

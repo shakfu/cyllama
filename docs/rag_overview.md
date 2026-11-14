@@ -139,7 +139,7 @@ Omit the argument to fall back to the defaults (`Embedder` over a local GGUF emb
 | `JSONLoader` | JSON with configurable extraction |
 | `JSONLLoader` | JSON Lines with lazy loading |
 | `DirectoryLoader` | Batch loading from directories |
-| `PDFLoader` | PDF files (requires `docling`) |
+| `PDFLoader` | PDF files (requires `pypdf`, `pymupdf`, `pdfminer.six`, or `docling`) |
 
 ### Advanced Features
 
@@ -231,8 +231,8 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
 | `-d, --dir` | Directory to index (repeatable) | |
 | `--glob` | Glob pattern for directory loading | `**/*` |
 | `-p, --prompt` | Single query (omit for interactive mode) | |
-| `-s, --system` | System instruction prepended to the prompt template | |
-| `-n, --max-tokens` | Maximum tokens to generate | 200 |
+| `-s, --system` | System instruction; sent as the system message, or prepended to the prompt template with `--no-chat-template` | |
+| `-n, --max-tokens` | Maximum tokens to generate | 512 |
 | `--temperature` | Generation temperature | 0.8 |
 | `-k, --top-k` | Number of chunks to retrieve | 5 |
 | `--threshold` | Minimum similarity threshold | (none) |

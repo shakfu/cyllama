@@ -15,7 +15,7 @@ make build
 **Using manage.py:**
 
 ```bash
-python3 scripts/manage.py build --llama-cpp
+python3 scripts/manage.py build --all
 ```
 
 ### Build with Specific Backend
@@ -77,8 +77,11 @@ You can fine-tune backend selection using environment variables (works with both
 
 **Using Makefile:**
 
+`make build` builds the native libraries only when `thirdparty/llama.cpp/lib/libllama.a` is missing. Otherwise it only reinstalls the extension, so a changed `GGML_*` flag has no effect. Run `make reset` first, or use a `build-*` target.
+
 ```bash
 # Enable specific backends
+make reset
 export GGML_CUDA=1
 export GGML_VULKAN=1
 make build
@@ -111,7 +114,7 @@ These flags apply uniformly to all components (llama.cpp, whisper.cpp, stable-di
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GGML_METAL` | `1` | Apple Metal (macOS GPU) |
+| `GGML_METAL` | `1` on macOS, `0` elsewhere | Apple Metal (macOS GPU) |
 | `GGML_CUDA` | `0` | NVIDIA CUDA |
 | `GGML_VULKAN` | `0` | Vulkan (cross-platform GPU) |
 | `GGML_SYCL` | `0` | Intel SYCL (oneAPI) |
@@ -162,8 +165,7 @@ nvcc --version
 **Build:**
 
 ```bash
-export GGML_CUDA=1
-make build
+make build-cuda
 ```
 
 ### Vulkan (Cross-platform GPU)
@@ -192,8 +194,7 @@ vulkaninfo --summary
 **Build:**
 
 ```bash
-export GGML_VULKAN=1
-make build
+make build-vulkan
 ```
 
 ### Metal (Apple Silicon/macOS)
@@ -211,8 +212,7 @@ make build
 ```bash
 make build
 # or explicitly:
-export GGML_METAL=1
-make build
+make build-metal
 ```
 
 ### SYCL (Intel GPUs)
@@ -240,8 +240,7 @@ source /opt/intel/oneapi/setvars.sh
 **Build:**
 
 ```bash
-export GGML_SYCL=1
-make build
+make build-sycl
 ```
 
 ### HIP/ROCm (AMD GPUs)
@@ -268,8 +267,7 @@ rocm-smi
 **Build:**
 
 ```bash
-export GGML_HIP=1
-make build
+make build-hip
 ```
 
 ## Multi-Backend Builds
@@ -277,11 +275,14 @@ make build
 You can build with multiple backends simultaneously:
 
 ```bash
+# Remove existing native libs first
+make reset
+
 # CUDA + Vulkan + Metal (on macOS)
 export GGML_METAL=1 GGML_CUDA=1 GGML_VULKAN=1
 make build
 
-# CUDA + Vulkan (on Linux)
+# CUDA + Vulkan (on Linux); run make reset first
 export GGML_CUDA=1 GGML_VULKAN=1
 make build
 ```
@@ -405,7 +406,7 @@ make build-cuda           # static
 make build-cuda-dynamic   # dynamic
 ```
 
-The `build-*` targets automatically run `clean` as a prerequisite, so switching backends is safe without manual cleanup.
+The `build-*` targets depend on `reset`, which deletes `build/`, `.venv`, and the `bin/`, `lib/` and `include/` directories under `thirdparty/`. Switching backends needs no manual cleanup.
 
 ## Performance Comparison
 
