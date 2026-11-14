@@ -2132,7 +2132,13 @@ def check_sqlite_vector_vendor(vendored: Path, upstream: Path, patches: list[Pat
     """
     problems: list[str] = []
     for patch in patches:
-        r = subprocess.run(["git", "apply", str(patch.resolve())], cwd=str(upstream), capture_output=True, text=True)
+        # autocrlf=true (Windows default) makes git apply write CRLF, breaking the byte compare.
+        r = subprocess.run(
+            ["git", "-c", "core.autocrlf=false", "apply", str(patch.resolve())],
+            cwd=str(upstream),
+            capture_output=True,
+            text=True,
+        )
         if r.returncode != 0:
             problems.append(f"{patch.name}: does not apply: {r.stderr.strip()}")
     if problems:
