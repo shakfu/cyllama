@@ -154,7 +154,7 @@ def _unguarded_builtins(text: str) -> list[int]:
 def test_vendored_sources_guard_gcc_builtins(name):
     # MSVC has no __builtin_*; an unguarded call links on gcc/clang and fails with
     # LNK2019 on Windows only. Upstream's distance-avx2.c does this; the patch guards it.
-    text = (MANAGE_PY.parent.parent / "thirdparty" / "sqlite-vector" / name).read_text()
+    text = (MANAGE_PY.parent.parent / "thirdparty" / "sqlite-vector" / name).read_text(encoding="utf-8")
     assert _unguarded_builtins(text) == []
 
 

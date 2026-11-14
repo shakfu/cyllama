@@ -2149,13 +2149,13 @@ def check_sqlite_vector_vendor(vendored: Path, upstream: Path, patches: list[Pat
         rel = committed.relative_to(vendored)
         candidates = [c for r in ("src", "libs", ".") if (c := upstream / r / rel).is_file()]
         if not candidates:
-            problems.append(f"{rel}: no counterpart in sqlite-vector checkout")
+            problems.append(f"{rel.as_posix()}: no counterpart in sqlite-vector checkout")
         elif candidates[0].read_bytes() != committed.read_bytes():
-            problems.append(f"{rel}: differs from upstream plus patches")
+            problems.append(f"{rel.as_posix()}: differs from upstream plus patches")
     for sub, base in (("src", "src"), ("libs/fp16", "libs")):
         for f in sorted((upstream / sub).glob("*")):
             if f.is_file() and not (vendored / f.relative_to(upstream / base)).exists():
-                problems.append(f"{f.relative_to(upstream)}: not vendored")
+                problems.append(f"{f.relative_to(upstream).as_posix()}: not vendored")
     return problems
 
 
