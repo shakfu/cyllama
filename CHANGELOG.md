@@ -20,14 +20,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
-## [Unreleased]
+## [1.0.0a0]
 
 ### Added
+
+- **SD generation metadata, per-context progress, and two context params.** `SDImage.generation_info` holds the upstream `sdcpp.generation/v1` JSON (seed, sampler, size) for each generated image. `SDContext.set_generation_progress_callback` receives `SDGenerationProgress(stage, detail, unit, sample_pass, completed, total)` events for that context only; the process-wide `set_progress_callback` lets two contexts overwrite each other and does not report stages. `SDContextParams.batched_cfg` (no effect on Metal, where upstream disables it) and `SDContextParams.conditioning_cache_size` expose the matching `sd_ctx_params_t` fields.
+
+- **Release notes link the upstream versions** ([#20](https://github.com/shakfu/cyllama/issues/20)). `scripts/release_notes.py` appends an `## Upstream versions` section that links the release tag of each pinned llama.cpp, whisper.cpp, stable-diffusion.cpp and sqlite-vector version.
 
 - **`SDContext.generate()` takes `vae_tile_size` and `vae_tile_overlap`.** `None` keeps the defaults (256 px, 0.5).
 - **`Embedder(pooling=...)` accepts a `PoolingType`** as well as its name. Passing the enum raised `AttributeError`.
 - **Whisper DTW token timestamps can be enabled.** `WhisperContextParams` gains `dtw_aheads_preset`, `dtw_n_top` and `dtw_mem_size`. Before, DTW could not be turned on: with `flash_attn` on (the default), whisper.cpp silently dropped it, and with `flash_attn` off, init failed on the unset preset. `WhisperContext` now raises `ValueError` in both cases, instead of a silent no-op or a generic load error. `WhisperAheadsPreset.CUSTOM` is rejected, because its heads array would have to outlive the context.
 - **`cyllama transcribe` gains `-fa`/`-nfa` and `--dtw MODEL`**, with upstream whisper-cli's names. `--dtw` turns flash attention off; combining it with `-fa` is an error. Upstream keeps flash attention on, so its `--dtw` has no effect. `-ojf` adds `t_dtw` in seconds per token.
+
+### Changed
+
+- **llama.cpp bumped to `b12359` (v1.0.0).** New `llama.h` functions (NextN / DFlash speculative-decoding API, `llama_batch_ext_add_embd_row`, `llama_batch_ext_set_embd_state_row`) are declared in the `.pxd` files only. `MtmdResampler` wraps `mtmd_helper_resampler_*`, a stateful mono float32 resampler for converting capture-rate audio to `MtmdContext.audio_sample_rate`. `LlamaContextParams.moe_cache_cpu_share`, `MtmdGenAudioType.DRAMA3` and a `temp` argument to `MtmdAudioGenerator.set_input` are exposed. Without `DRAMA3`, reading the gen-audio info of a Drama3 mmproj raised `ValueError`. Removed upstream and dropped from the `.pxd` files: `llama_context_params.defrag_thold`, `llama_vocab_cls`, and `GGML_OP_ADD1` / `GGML_OP_DIAG_MASK_INF` / `GGML_OP_DIAG_MASK_ZERO`. stable-diffusion.cpp needs a new patch to compile against this ggml; see `scripts/patches/README.md`.
+
+- **stable-diffusion.cpp bumped to `master-1094-3bad892`.** `SDImageGenParams.vae_tile_size` is now in image pixels (0 uses 256); it was in latent units. A value of 32 meant 256 px tiles and now means 32 px tiles. The documented 512x512 default used to exceed the latent and tile nothing, and now gives 512 px tiles. Generation results are freed with the upstream `free_sd_*_generation_result` instead of per-image `free()`. Its new shared-ggml compat layer calls `ggml_graph_view`, which `ggml-base.dll` does not export; `stable-diffusion.cpp-graph-view-unexported.patch` builds the view from public fields so dynamic Windows builds link. Not exposed: video upscaling, control types, the prompt-image callback, `flash_attn_mode` / `conv_direct_mode`, and LoRAs in `convert_with_components`.
+
+- **whisper.cpp bumped to `v1.9.5`.** `whisper.h` is unchanged.
+
+- **sqlite-vector bumped to `1.2.0`.** It bounds declared vector dimensions at 2^24 and skips NULL keys in `_sqliteai_vector`. It accepts `max_memory=0` (no cap) and rejects other unparseable sizes. The scalar int8/uint8 cosine kernels now use 64-bit accumulators; 32-bit ones wrapped past ~66k (uint8) and ~133k (int8) dimensions. `thirdparty/sqlite-vector/` was refreshed and its four local patches reapplied, including the MSVC `__builtin_popcount` fallback in `distance-avx2.c`. A test rejects unguarded `__builtin_*` calls in the sources MSVC compiles. Wheels compile that copy, not the `versions.toml` pin, so a bump must update both.
+
+- **`check_vendor` covers `thirdparty/sqlite-vector/`.** The vendored copy had no drift check, so it could stay at 1.1.2 while the pin said 1.2.0. Its four local fixes move into `scripts/patches/sqlite-vector-cyllama.patch`, and the check requires the vendored tree to equal the pinned clone plus that patch, byte for byte. An exact patch over a check that tolerates `cyllama:`-marked hunks, because a marker check misses an upstream change adjacent to a marked hunk. `SqliteVectorBuilder` applies the same patch in place of its inline `_GNU_SOURCE` edit.
+
+- **Upstream version pins moved to `scripts/versions.toml`.** `scripts/manage.py` and `scripts/release_notes.py` both read it. A TOML file over a `versions.py` module because it is data any tool can read with `tomllib`, without running code. Deps cache keys and the `check-vendor` and `build-cibw-abi3` path filters now include it, so a version bump still invalidates cached builds. The manylinux `before-all` interpreter moves from cp310 to cp312, because `tomllib` needs 3.11+.
+
+### Removed
+
+- **`STABLE_BUILD` environment variable.** Its two branches in `scripts/manage.py` held identical pins.
 
 ### Fixed
 
@@ -38,41 +60,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **`sd --vae-tile-size` and `--vae-tile-overlap` had no effect.** They were parsed but never passed to `generate()`. The `--vae-tile-size` default changes from a nominal `512x512` to unset, which keeps the 256 px tiles every run actually used.
 - **`GGML_NATIVE=ON` and `GGML_OPENMP=ON` meant OFF, silently.** Only `1` meant on. Values other than `0`/`1` now log a warning, as other `manage.py` boolean variables do.
 - **The shared-ggml build replaced MSVC's default compiler flags and skipped CUDA/HIP.** `GGML_MAX_NAME=160` went in as `-DCMAKE_{C,CXX}_FLAGS`. That replaces CMake's platform defaults instead of extending them, so Windows builds lost `/EHsc` and `/GR`; without `/EHsc`, exception unwinding may skip destructors. CUDA and HIP have separate flag sets, so `.cu` files compiled against the default 64 while the ggml library they link used 160. No current CUDA code reads the misplaced fields. The define now goes in through `CMAKE_<LANG>_FLAGS_INIT`, to which CMake appends its defaults, and also reaches CUDA and HIP when those backends are on. It applies only to a fresh build directory: run `make reset` once on Windows.
-- **Windows builds failed to link after the 1.0.0a0 bumps.** Two separate causes:
-  - The sqlite-vector 1.2.0 refresh dropped the MSVC `__builtin_popcount` fallback in `distance-avx2.c`, so `vector.dll` failed with LNK2019. The fix is restored in `sqlite-vector-cyllama.patch`, and a test now rejects unguarded `__builtin_*` calls in the MSVC-compiled sources.
-  - stable-diffusion.cpp's shared-ggml compat layer calls `ggml_graph_view`, which `ggml-base.dll` does not export, so `stable_diffusion.pyd` failed to link in dynamic Windows builds. The new `stable-diffusion.cpp-graph-view-unexported.patch` builds the view from public fields instead.
 - **whisper.cpp compiled against its bundled ggml headers but linked llama.cpp's ggml.** At v1.9.5 / b12359, 5 constants whisper uses differed, among them `GGML_TYPE_COUNT` (43 vs 44) and 4 `GGML_OP_*` values. None changed behavior at these pins, because whisper only compares those op values with each other and ggml asserts on bad ftypes first. A later bump could make one cross the boundary. `manage.py` now injects llama.cpp's ggml source as whisper's `ggml` target. `WHISPER_USE_SYSTEM_GGML` was the alternative, but its CMake package drops the `GGML_USE_<backend>` defines that whisper uses for flash-attention KV padding. A test requires the installed whisper ggml headers to match llama.cpp's.
 - **`cyllama transcribe -ng` had no effect.** The CLI built its context with default params, so the GPU stayed on.
 - `cyllama memory --help` showed examples for a nonexistent `cyllama.memory_cli` module. The scikit-build CMake minimum is now 3.26, matching `CMakeLists.txt`. The `LlamaBatchExt.set_embd_state` error no longer calls the upstream function unimplemented.
-
-## [1.0.0a0]
-
-### Added
-
-- **SD generation metadata, per-context progress, and two context params.** `SDImage.generation_info` holds the upstream `sdcpp.generation/v1` JSON (seed, sampler, size) for each generated image. `SDContext.set_generation_progress_callback` receives `SDGenerationProgress(stage, detail, unit, sample_pass, completed, total)` events for that context only; the process-wide `set_progress_callback` lets two contexts overwrite each other and does not report stages. `SDContextParams.batched_cfg` (no effect on Metal, where upstream disables it) and `SDContextParams.conditioning_cache_size` expose the matching `sd_ctx_params_t` fields.
-
-- **Release notes link the upstream versions** ([#20](https://github.com/shakfu/cyllama/issues/20)). `scripts/release_notes.py` appends an `## Upstream versions` section that links the release tag of each pinned llama.cpp, whisper.cpp, stable-diffusion.cpp and sqlite-vector version.
-
-### Changed
-
-- **llama.cpp bumped to `b12359` (v1.0.0).** New `llama.h` functions (NextN / DFlash speculative-decoding API, `llama_batch_ext_add_embd_row`, `llama_batch_ext_set_embd_state_row`) are declared in the `.pxd` files only. `MtmdResampler` wraps `mtmd_helper_resampler_*`, a stateful mono float32 resampler for converting capture-rate audio to `MtmdContext.audio_sample_rate`. `LlamaContextParams.moe_cache_cpu_share`, `MtmdGenAudioType.DRAMA3` and a `temp` argument to `MtmdAudioGenerator.set_input` are exposed. Without `DRAMA3`, reading the gen-audio info of a Drama3 mmproj raised `ValueError`. Removed upstream and dropped from the `.pxd` files: `llama_context_params.defrag_thold`, `llama_vocab_cls`, and `GGML_OP_ADD1` / `GGML_OP_DIAG_MASK_INF` / `GGML_OP_DIAG_MASK_ZERO`. stable-diffusion.cpp needs a new patch to compile against this ggml; see `scripts/patches/README.md`.
-
-- **stable-diffusion.cpp bumped to `master-1094-3bad892`.** `SDImageGenParams.vae_tile_size` is now in image pixels (0 uses 256); it was in latent units. A value of 32 meant 256 px tiles and now means 32 px tiles. The documented 512x512 default used to exceed the latent and tile nothing, and now gives 512 px tiles. Generation results are freed with the upstream `free_sd_*_generation_result` instead of per-image `free()`. Not exposed: video upscaling, control types, the prompt-image callback, `flash_attn_mode` / `conv_direct_mode`, and LoRAs in `convert_with_components`.
-
-- **whisper.cpp bumped to `v1.9.5`.** `whisper.h` is unchanged.
-
-- **sqlite-vector bumped to `1.2.0`.** It bounds declared vector dimensions at 2^24 and skips NULL keys in `_sqliteai_vector`. It accepts `max_memory=0` (no cap) and rejects other unparseable sizes. The scalar int8/uint8 cosine kernels now use 64-bit accumulators; 32-bit ones wrapped past ~66k (uint8) and ~133k (int8) dimensions. `thirdparty/sqlite-vector/` was refreshed and its three `cyllama:` patches reapplied. Wheels compile that copy, not the `versions.toml` pin, so a bump must update both.
-
-- **`check_vendor` covers `thirdparty/sqlite-vector/`.** The vendored copy had no drift check, so it could stay at 1.1.2 while the pin said 1.2.0. Its three local fixes move into `scripts/patches/sqlite-vector-cyllama.patch`, and the check requires the vendored tree to equal the pinned clone plus that patch, byte for byte. An exact patch over a check that tolerates `cyllama:`-marked hunks, because a marker check misses an upstream change adjacent to a marked hunk. `SqliteVectorBuilder` applies the same patch in place of its inline `_GNU_SOURCE` edit.
-
-- **Upstream version pins moved to `scripts/versions.toml`.** `scripts/manage.py` and `scripts/release_notes.py` both read it. A TOML file over a `versions.py` module because it is data any tool can read with `tomllib`, without running code. Deps cache keys and the `check-vendor` and `build-cibw-abi3` path filters now include it, so a version bump still invalidates cached builds. The manylinux `before-all` interpreter moves from cp310 to cp312, because `tomllib` needs 3.11+.
-
-### Removed
-
-- **`STABLE_BUILD` environment variable.** Its two branches in `scripts/manage.py` held identical pins.
-
-### Fixed
-
 - **Linux GPU `before-all` interpreter pinned to cp312.** The cuda, rocm, sycl and vulkan-linux workflows picked `ls -d /opt/python/cp3*/bin | head -1`, which sorts lexically and selects cp310. That has no `tomllib`, so `manage.py ci_before_all` would fail at import.
 
 ## [0.9.0]
