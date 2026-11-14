@@ -598,8 +598,7 @@ executor = ReActAgent(llm=worker_llm, tools=[read_file, edit_file])
 results = plan_and_execute(planner, executor, "Refactor module X.")
 ```
 
-Default plan parser handles `[...]` lists, `{"steps"|"plan"|"tasks": [...]}`
-dicts, and newline-split with bullet/number-prefix stripping. Pass `plan_parser=...` for custom formats. `stop_on_error=True` (default) halts after the first failing step.
+Default plan parser handles `[...]` lists, `{"steps"|"plan"|"tasks": [...]}` dicts, and newline-split with bullet/number-prefix stripping. Pass `plan_parser=...` for custom formats. `stop_on_error=True` (default) halts after the first failing step.
 
 #### `mcp_agent_tool` -- cross-process sub-agents
 

@@ -54,6 +54,16 @@ class TestEmbedderInit:
             assert emb.pooling == pooling
             emb.close()
 
+    def test_init_pooling_enum(self, model_path: str):
+        """PoolingType members are accepted as well as names."""
+        emb = Embedder(model_path, n_gpu_layers=0, pooling=PoolingType.CLS)
+        assert emb.pooling == "cls"
+        emb.close()
+
+    def test_init_non_string_pooling_rejected(self, model_path: str):
+        with pytest.raises(ValueError, match="Invalid pooling type"):
+            Embedder(model_path, pooling=1)
+
     def test_init_invalid_pooling(self, model_path: str):
         """Test that invalid pooling type raises error."""
         with pytest.raises(ValueError, match="Invalid pooling type"):

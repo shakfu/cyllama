@@ -100,8 +100,7 @@ code_block = "preserved"
 
 - List item 1
 
-- List item 2
-"""
+- List item 2 """
 
 chunks = splitter.split(markdown_text)
 

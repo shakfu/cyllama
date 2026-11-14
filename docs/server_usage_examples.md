@@ -7,12 +7,15 @@ Cyllama provides two server implementations, both offering the same OpenAI-compa
 ### 1. EmbeddedServer (default)
 
 - [cpp-httplib](https://github.com/yhirose/cpp-httplib) (MIT), compiled as part of `make build`.
+
 - Thread pool: requests beyond `--n-parallel` wait for a free slot.
+
 - Streams chat completions as server-sent events with `"stream": true`.
 
 ### 2. PythonServer
 
 - stdlib `http.server`; handles one request at a time.
+
 - Streams with `"stream": true`; the connection closes at the end of the stream.
 
 ## Basic Usage
@@ -57,6 +60,7 @@ CYLLAMA_API_KEY=... python -m cyllama.llama.server \
 With an API key set, every endpoint except `/health` requires `Authorization: Bearer <key>` and returns 401 otherwise. The server logs a warning when it binds a non-loopback address without a key.
 
 - `CYLLAMA_API_KEY` environment variable, or `--api-key-file PATH`, which takes precedence. There is no `--api-key` flag: command-line arguments are visible to other local users.
+
 - In Python: `ServerConfig(api_key=...)`.
 
 Request bodies over `ServerConfig.max_body_bytes` (default 2 MiB) get 413. `EmbeddedServer` checks the key and `Content-Length` before it reads the body.

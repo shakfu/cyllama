@@ -153,7 +153,7 @@ class Embedder(EmbedderProtocol):
         n_ctx: int = 512,
         n_batch: int = 512,
         n_gpu_layers: int = -1,
-        pooling: str = "mean",
+        pooling: str | PoolingType = "mean",
         normalize: bool = True,
         verbose: bool = False,
         cache_size: int = 0,
@@ -166,7 +166,7 @@ class Embedder(EmbedderProtocol):
             n_ctx: Context size (should match model's training)
             n_batch: Batch size for processing
             n_gpu_layers: GPU layers (-1 = all, 0 = CPU only)
-            pooling: Pooling strategy: "mean", "cls", "last", or "none"
+            pooling: Pooling strategy: "mean", "cls", "last", "none", or a PoolingType
             normalize: Whether to L2-normalize output vectors
             verbose: Whether to print model loading info
             cache_size: Max number of embeddings to cache (0 = disabled)
@@ -193,9 +193,14 @@ class Embedder(EmbedderProtocol):
             "cls": PoolingType.CLS,
             "last": PoolingType.LAST,
         }
-        if pooling.lower() not in pooling_map:
-            raise ValueError(f"Invalid pooling type: {pooling}. Must be one of: {list(pooling_map.keys())}")
-        self._pooling_type = pooling_map[pooling.lower()]
+        if isinstance(pooling, PoolingType):
+            self._pooling_type = pooling
+        elif isinstance(pooling, str) and pooling.lower() in pooling_map:
+            self._pooling_type = pooling_map[pooling.lower()]
+        else:
+            raise ValueError(
+                f"Invalid pooling type: {pooling!r}. Must be a PoolingType or one of: {list(pooling_map.keys())}"
+            )
 
         # Load model
         model_params = LlamaModelParams()

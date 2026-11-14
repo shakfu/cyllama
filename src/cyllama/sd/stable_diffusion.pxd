@@ -73,6 +73,9 @@ cdef extern from "stable-diffusion.h":
         SEFI_FLOW_PRED
         MINIT2I_FLOW_PRED
         SENSENOVA_U1_FLOW_PRED
+        FLUX3_FLOW_PRED
+        H3_AV_FLOW_PRED
+        MING_IMAGE_FLOW_PRED
         PREDICTION_COUNT
 
     ctypedef enum sd_type_t:

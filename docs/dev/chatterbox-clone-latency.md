@@ -38,6 +38,7 @@ Measured on an M1 MacBook Air (Metal), llama.cpp b12110 (`cd959ba`), `chatterbox
 A `sample` profile of `mtmd_encode_chunk` on the 38 s clip gives 3164 main-thread samples:
 
 - About 1600 are self time in one function called by `mtmd_encode_chunk`: `cbx_ref_encode`, with `cbx_ref_cond` inlined.
+
 - 1127 wait in `-[_MTLCommandBuffer waitUntilCompleted]`, reached from that function's first graph call.
 
 The extension has no symbols. Functions were matched by address offset against one shared start address. The 1127 Metal samples are attributed to the x-vector (entry 0) because `cbx_ref_xvec` is the first graph call in `cbx_ref_encode`. That attribution is an inference.
@@ -51,12 +52,15 @@ The extension has no symbols. Functions were matched by address offset against o
 For users, today:
 
 - Trim the reference to 10-15 s. Encode drops to 2.2-3.7 s per call. Past 15 s, only the averaged x-vector and voice-encoder embeddings use the extra audio. Quality impact not measured.
+
 - Synthesize paragraphs instead of sentences, to reduce `set_input` calls.
 
 Upstream candidates:
 
 - An API that returns a voice bitmap, with its gen-side data, from an encoded clip, so it can be encoded once.
+
 - Run the voice-encoder LSTM as a ggml graph, or batch the windows with `float` accumulators.
+
 - Cap entry 0 at 10 s. From memory, the reference Chatterbox computes the s3gen x-vector from the 10 s decoder clip. Not checked against the source.
 
 ## Reproducer

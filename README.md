@@ -994,8 +994,11 @@ cyllama is MIT-licensed. It wraps [llama.cpp](https://github.com/ggml-org/llama.
 Wheels also bundle code under other permissive licenses:
 
 - [sqlite-vector](https://github.com/sqliteai/sqlite-vector): Apache-2.0
+
 - [cpp-httplib](https://github.com/yhirose/cpp-httplib): MIT
+
 - code compiled into the libraries above: nlohmann/json, utf8proc and rotate-bits (MIT), xxHash and oniguruma (BSD-2-Clause), darts-clone (BSD-3-Clause)
+
 - vendored Python packages Jinja2 and MarkupSafe (BSD-3-Clause)
 
 Their license texts ship in the wheel under `*.dist-info/licenses/`, and in `cyllama/_vendor/` for Jinja2 and MarkupSafe.

@@ -1013,11 +1013,7 @@ print(vocab.n_vocab)       # Vocabulary size
 model.close()              # Free resources (or use `with LlamaModel(...) as model:`)
 ```
 
-`LlamaModel.from_fileobj(fileobj, offset=None, params=None)` loads from an open
-binary file or an int fd. The GGUF may be embedded in a larger file at `offset`
-(default: the current position). With mmap, the GGUF data section must sit at a
-32-byte aligned file offset; use `LLAMA_LOAD_MODE_NONE` otherwise. The caller's
-file position is unchanged.
+`LlamaModel.from_fileobj(fileobj, offset=None, params=None)` loads from an open binary file or an int fd. The GGUF may be embedded in a larger file at `offset` (default: the current position). With mmap, the GGUF data section must sit at a 32-byte aligned file offset; use `LLAMA_LOAD_MODE_NONE` otherwise. The caller's file position is unchanged.
 
 ```python
 with open("bundle.bin", "rb") as f:
@@ -1084,11 +1080,7 @@ token_id = sampler.sample(ctx, idx)
 sampler.reset()
 ```
 
-**Backend sampling [EXPERIMENTAL upstream].** A chain attached to a context runs
-inside the decode graph on the output device. `sample()` then returns the backend
-token, or finishes on the CPU from the first link that cannot be offloaded.
-Offloadable links: greedy, dist, top-k, top-p, min-p, temp, temp-ext, penalties,
-logit-bias.
+**Backend sampling [EXPERIMENTAL upstream].** A chain attached to a context runs inside the decode graph on the output device. `sample()` then returns the backend token, or finishes on the CPU from the first link that cannot be offloaded. Offloadable links: greedy, dist, top-k, top-p, min-p, temp, temp-ext, penalties, logit-bias.
 
 ```python
 chain = LlamaSampler()
@@ -1105,11 +1097,7 @@ ctx.sampled_probs_ith(-1)        # aligned with sampled_candidates_ith(-1), or N
 ctx.set_sampler(0, None)         # detach
 ```
 
-Attaching binds the chain to that context for life: llama.cpp never resets the
-chain's backend state. A bound chain cannot be attached again, sampled with
-another context, or modified, and cannot be closed while attached. Each case
-raises instead of aborting or sampling wrong. `chain.clone()` returns an unbound
-copy with the same configuration.
+Attaching binds the chain to that context for life: llama.cpp never resets the chain's backend state. A bound chain cannot be attached again, sampled with another context, or modified, and cannot be closed while attached. Each case raises instead of aborting or sampling wrong. `chain.clone()` returns an unbound copy with the same configuration.
 
 ---
 
@@ -1360,9 +1348,7 @@ cache.merge(NgramCache.load("patterns.bin"))
 
 ### LoRA Adapters
 
-Apply LoRA adapters to a context. Adapters are a binding-layer feature: the
-high-level `LLM` does not expose them, because it recreates its context when a
-prompt needs a larger one and adapters would silently stop applying.
+Apply LoRA adapters to a context. Adapters are a binding-layer feature: the high-level `LLM` does not expose them, because it recreates its context when a prompt needs a larger one and adapters would silently stop applying.
 
 ```python
 from cyllama.llama.llama_cpp import LlamaModel, LlamaContext, LlamaContextParams
@@ -1389,10 +1375,7 @@ ctx.set_adapters_lora({adapter: 0.8, second: 0.5})
 ctx.set_adapters_lora()
 ```
 
-`set_adapters_lora()` replaces the whole set on each call rather than adding to
-it, matching the llama.cpp call it wraps. A scale of `0.0` drops an adapter.
-Passing the same adapter twice raises `ValueError`, because llama.cpp keys its
-set by pointer and would otherwise keep only one of the two scales.
+`set_adapters_lora()` replaces the whole set on each call rather than adding to it, matching the llama.cpp call it wraps. A scale of `0.0` drops an adapter. Passing the same adapter twice raises `ValueError`, because llama.cpp keys its set by pointer and would otherwise keep only one of the two scales.
 
 **Methods:**
 
@@ -1410,8 +1393,7 @@ set by pointer and would otherwise keep only one of the two scales.
 | `LlamaAdapterLora.n_alora_invocation_tokens` | Length of the aLoRA invocation sequence, 0 for a plain LoRA |
 | `LlamaAdapterLora.alora_invocation_tokens` | Token sequence that activates an aLoRA |
 
-An activated LoRA (aLoRA) only takes effect once its invocation tokens appear in
-the prompt. `alora_invocation_tokens` is empty for a plain LoRA.
+An activated LoRA (aLoRA) only takes effect once its invocation tokens appear in the prompt. `alora_invocation_tokens` is empty for a plain LoRA.
 
 From the CLI, `--lora` and `--lora-scaled` do the same thing and are repeatable:
 
@@ -1495,8 +1477,7 @@ if Speculative.is_compat(ctx_target):
 | `accept(n_accepted)` | Accept the first `n_accepted` verified draft tokens |
 | `print_stats()` | Print speculative decoding performance statistics |
 
-`tests/examples/speculative_example.py` shows the full draft/verify loop, with
-`--bench` to compare against plain greedy decoding.
+`tests/examples/speculative_example.py` shows the full draft/verify loop, with `--bench` to compare against plain greedy decoding.
 
 ---
 
@@ -1523,12 +1504,19 @@ result["answers"]["angry"]["noul"]     # 0.79
 ```
 
 - Supported types: `laya` (including Julia-1), `lev`, `kev`, `pplx-decider`, `vllm-d3`, `lfm2-d1` and `lfm2-d1-omni`. `get_decision_type(model)` reads the `<arch>.decision.type` metadata and returns `None` for other models.
+
 - `<arch>.decision.score_bias.<n_levels>.<level>` metadata adds an offset to that level's score before the softmax, for score questions with `n_levels` levels.
+
 - Not supported yet: `openjev` and `nimble`, which raise `NotImplementedError`. `clef` and `vllm-decision2` need a batch API that is not in `llama.h`; use `LlamaServer` (an upstream `llama-server` process) for them.
+
 - Text only. A request with images or audio (`files`, `images`, or `image_url`/`input_audio` parts in chat-message state) raises `NotImplementedError`, and the servers return 501.
+
 - `make llama-server` builds upstream `llama-server` from the same llama.cpp tree, then checks that `DecisionModel` answers match it for every decision model present in `models/`, and for synthetic `pplx-decider`, `vllm-d3` and `lfm2-d1` models.
+
 - The whole prompt of a question is evaluated in one batch, so it must fit in `n_ctx`. An invalid request raises `ValueError`.
+
 - `cache_prompt=True` (default) follows `llama-server`: a causal model keeps the KV cache of the prefix shared with the previous prompt, across requests too. Answers then depend on earlier questions by float rounding. `cache_prompt=False` evaluates every prompt from the start, so the same request always gets the same answer.
+
 - `PythonServer` and `EmbeddedServer` serve `POST /v1/systemone` when their model is a supported decision model. They return 400 for an invalid request and 501 for other models, as `llama-server` does. `/v1/models` then reports `architecture.output_modalities: ["decisions"]`.
 
 ---

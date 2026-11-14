@@ -22,6 +22,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **`SDContext.generate()` takes `vae_tile_size` and `vae_tile_overlap`.** `None` keeps the defaults (256 px, 0.5).
+- **`Embedder(pooling=...)` accepts a `PoolingType`** as well as its name. Passing the enum raised `AttributeError`.
+
+### Fixed
+
+- **`SDContextParams().sampler_rng_type` raised `ValueError` on default params.** Upstream's default is `RNG_TYPE_COUNT`, meaning "same as `rng_type`", and `RngType` had no member for it. It is now `RngType.COUNT`.
+- **SD enums were missing upstream values.** `Prediction` lacked `FLUX3_FLOW`, `H3_AV_FLOW` and `MING_IMAGE_FLOW`, so reading `prediction` for those models raised. `SDType` lacked 22 weight types (the IQ, integer, F64, TQ, MXFP4/NVFP4, Q1_0/Q2_0 and F8 types).
+- **`sd --prediction sd3_flow` selected `EPS`.** The name map used `flow`. The choices are now upstream's 11 prediction names.
+- **`sd --sampler` / `--scheduler` rejected upstream names**, such as `dpm++2m`, and `dpmpp2mv2`. Both upstream names and lowercase member names are accepted.
+- **`sd --vae-tile-size` and `--vae-tile-overlap` had no effect.** They were parsed but never passed to `generate()`. The `--vae-tile-size` default changes from a nominal `512x512` to unset, which keeps the 256 px tiles every run actually used.
+- **`GGML_NATIVE=ON` and `GGML_OPENMP=ON` meant OFF, silently.** Only `1` meant on. Values other than `0`/`1` now log a warning, as other `manage.py` boolean variables do.
+- `cyllama memory --help` showed examples for a nonexistent `cyllama.memory_cli` module. The scikit-build CMake minimum is now 3.26, matching `CMakeLists.txt`. The `LlamaBatchExt.set_embd_state` error no longer calls the upstream function unimplemented.
+
 ## [1.0.0a0]
 
 ### Added
@@ -117,16 +132,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **`scripts/audit_wheel.py` checks built wheels' external dependencies,** ported from inferna. On Windows it reads the import and delay-import tables of every `.dll`/`.pyd` in the wheel directly from the PE headers, so it needs neither pefile nor dumpbin. Each imported DLL must be one of:
 
   - a file of exactly that name in the wheel;
+
   - a Windows system DLL;
+
   - `python3*.dll` or `vcruntime140*.dll`, which the interpreter supplies;
+
   - a driver runtime the backend expects (`vulkan-1.dll` for vulkan, `nvcuda.dll` plus `_WIN_EXCLUDES` for cuda).
 
   It ignores delvewheel's `-<hash>.dll` suffixes on purpose, so a plugin still importing a renamed DLL (the 0.4.2 `ggml-base.dll` bug in `docs/dev/windows-dll-mangling.md`) fails the audit. Visual C++ redistributables never count as system DLLs, even when present in System32. The existing `ctypes.WinDLL()` smoke test cannot catch that case, because the runner it runs on has the redistributable. A new "Audit built wheels" step runs the script in `_gpu-build-vulkan-windows.yml` and `_gpu-build-cuda-windows.yml` before upload. The Linux (`readelf`) and macOS (`otool`) checks came along with the port but are not wired into any workflow yet; they have not been run against cyllama's wheels. Covered by `tests/test_audit_wheel.py`.
 
 - **Decision models: `score_bias` and four more types.** `DecisionModel` now reads `<arch>.decision.score_bias.<n_levels>.<level>` and adds it to the level's score before the softmax, as upstream does. Without it, a model that ships a bias would answer score questions differently from `llama-server`. New types:
   - `pplx-decider` and `vllm-d3` use lev's label tokens.
+
   - `vllm-d3` also accepts a null `state` and a missing `instructions`, returns non-text score legends as canonical JSON, and computes confidence from entropy.
+
   - `lfm2-d1` takes the maximum logit over each option's label tokens.
+
   - `lfm2-d1-omni` reads laya-style embedding rows from a prompt cut to per-piece token budgets.
 
   All match upstream `llama-server` b11669 to 1e-5: d1-omni on `d1-omni-600M-Q8_0.gguf`, the others on synthetic models. `vllm-decision2`, like `clef`, needs `llama_batch_ext_set_decision_order`, which is not in `llama.h`. Requests with images or audio now raise `NotImplementedError` (501 from the servers) instead of being answered without them.
@@ -213,10 +234,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **Seven Python inputs crashed the process or read or wrote out of bounds in the whisper and sd bindings.** The C++ libraries check none of them; each is now handled before the call:
 
   - `convert_model()` and `convert_model_with_components()` without `tensor_type_rules` segfaulted on every call: sd.cpp builds a `std::string` from the rules pointer, which was `NULL`. It is now `""`.
+
   - `load_imatrix()` passed sd.cpp a file whose name and value lengths it trusts. A negative name length wrote before its buffer, and a huge one allocated without bound. The file is now walked first and a bad length raises `ValueError`. `save_imatrix()` now raises `OSError` for an unwritable path; sd.cpp ignored write errors.
+
   - A whisper transcription model passed to `WhisperVadContext`, or as `WhisperFullParams.vad_model_path`, aborted in `GGML_ASSERT`. Both formats share the ggml magic, so the old check passed; the VAD check now also requires the model-type string that follows it. Both raise `ValueError`.
+
   - `WhisperContext.encode()` with a negative offset read before the mel buffer; whisper.cpp clamps the offset only from above. It raises `ValueError`.
+
   - The segment and token result getters read past their vectors for an out-of-range index. They raise `IndexError`. `full_get_segment_text()` was documented to return `""` there.
+
   - Every `WhisperContext` method that uses the context passed `NULL` to whisper.cpp after `close()`, as did `WhisperState(ctx)`. They raise `RuntimeError`. `full()` and `full_parallel()` also read the pointer before taking the lock that `close()` takes, so a `close()` from another thread in between freed it before the call.
 
 ---

@@ -5,4 +5,3 @@
 - [TTS.cpp](https://github.com/mmwillet/TTS.cpp): TTS support with GGML
 
 - [CrispASR](https://github.com/CrispStrobe/CrispASR): C++ ggml runtime hub for multilingual ASR and TTS models: Cohere Transcribe, Parakeet TDT, Voxtral, Canary 1B v2, etc, plus universal forced alignment, and more
-

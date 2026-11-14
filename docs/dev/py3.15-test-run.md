@@ -19,8 +19,11 @@ The pass-count gap is mostly langchain tests, which skip on 3.15 (see below).
 ## Setup
 
 - `.venv-315` is a separate venv; `.venv`, `uv.lock` and `make test` are untouched. Build output goes to `build/cp315-cp315-macosx_26_0_arm64/`.
+
 - uv 0.12.24 (Homebrew, 2026-10-08) only offers `3.15.0rc3`. The final build is in python-build-standalone release `20261009`, which this uv does not know. The interpreter was fetched from that release, checked against its `SHA256SUMS`, and passed to `uv venv --python`. Once a newer uv ships, use `uv python install 3.15` instead.
+
 - Install: `uv pip install -p .venv-315 -e . pytest pytest-asyncio pytest-cov pytest-memray pytest-mock numpy requests`.
+
 - Run: `.venv-315/bin/python -m pytest`.
 
 This tested an editable cp315 build, not the published cp312-abi3 wheel loaded on 3.15. `pyproject.toml` classifiers stop at 3.14.
@@ -40,6 +43,7 @@ This tested an editable cp315 build, not the published cp312-abi3 wheel loaded o
 Two separate failures, both on 3.13 and 3.15:
 
 1. `lev` and `kev` (4.2 GB Q8_0) fail with `kIOGPUCommandBufferCallbackErrorOutOfMemory` (`llama_process failed with code -3`). After that, every later model load in the same process fails ("Failed to load model from file"). This causes all of the ~190 failures and errors from `test_generate.py` onward. GPU in-use memory was 66 MB and system memory 86% free before the run, so the cause is not leftover memory pressure.
+
 2. `laya` `angry` drifts outside `TOL = 2e-3`. It fails `TestModels::test_matches_reference[laya]` and `test_server_systemone[embedded|python]`. Every other laya probability is within tolerance.
 
 | Source | `angry` |
@@ -73,8 +77,12 @@ Still open: the new reference comes from an M1, which has no I8MM. If the I8MM i
 Run on the M5 Pro (or any non-M1 machine with more RAM) and record results here:
 
 1. `uv run pytest tests/test_decision.py -m slow` with `lev` and `kev` present. Do they pass, and is GPU memory sufficient?
+
 2. Laya CPU check: `DecisionModel('models/Laya-Q8_0.gguf', n_gpu_layers=0).answer(README_REQUEST)["answers"]["angry"]`.
    - Compare with the b11960 M1 CPU value, 0.783158. A difference beyond float rounding means the CPU reference depends on the hardware. Decide: per-machine reference, or a CPU tolerance.
+
 3. Same check with `n_gpu_layers=-1` (Metal).
+
 4. Decide the skip condition: keep `Apple M1` prefix, or gate on memory (`hw.memsize` or Metal `recommendedMaxWorkingSetSize`).
+
 5. Still open from the 3.15 run: replace `asyncio.iscoroutinefunction` in `src/cyllama/agents/workflow.py`; retry langchain on 3.15 once `ormsgpack` ships cp315 wheels; test the cp312-abi3 wheel on 3.15.

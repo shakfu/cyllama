@@ -37,7 +37,7 @@ requires = ["scikit-build-core", "cython", "cython-cmake"]
 build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
-cmake.version = ">=3.21"
+cmake.version = ">=3.26"
 cmake.build-type = "Release"
 install.strip = true
 wheel.packages = ["src/cyllama"]

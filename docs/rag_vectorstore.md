@@ -467,6 +467,9 @@ Sqlite-specific features (quantization, FTS5 `HybridStore`, raw `store.conn` acc
 | `quantize()` + `preload_quantization()` | 0.49 | 97.4% |
 
 - Exact search reads every row from SQLite, so its cost grows linearly with row count. Upstream reports 484 ms/query for an exact scan of 1M x 768 vectors in a file-backed database, and 37.6 ms for a preloaded quantized scan ([sqlite-vector CHANGELOG](https://github.com/sqliteai/sqlite-vector/blob/main/CHANGELOG.md)).
+
 - `quantize(max_memory=...)` bounds the memory the quantization pass uses. `preload_quantization()` holds the quantized vectors in memory.
+
 - No index build step: search works as soon as rows are inserted.
+
 - SIMD kernels for SSE2, AVX2, AVX-512, NEON and RISC-V V; the extension picks one at load time. `SELECT vector_backend()` on `store.conn` reports which.

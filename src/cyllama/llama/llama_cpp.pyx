@@ -1015,7 +1015,7 @@ cdef class LlamaBatchExt:
             raise ValueError(f"cannot set embedding at index {idx} (bad index, size, or already set)")
 
     def set_embd_state(self, int idx, data, int n_rows=1):
-        """Attach extra hidden state (MTP, deepstack); not yet implemented upstream."""
+        """Attach extra hidden state (MTP, deepstack) to the entry at ``idx``."""
         cdef const float[::1] view = _as_float_view(data)
         cdef llama.llama_embd embd
         if n_rows <= 0 or view.shape[0] % n_rows:
@@ -1024,7 +1024,10 @@ cdef class LlamaBatchExt:
         embd.n_rows = n_rows
         embd.n_embd = view.shape[0] // n_rows
         if not llama.llama_batch_ext_set_embd_state(self.ptr, idx, embd):
-            raise RuntimeError("llama_batch_ext_set_embd_state failed (unimplemented in this llama.cpp)")
+            raise RuntimeError(
+                "llama_batch_ext_set_embd_state failed: bad index, size mismatch, state already set, "
+                "or the context takes no state embeddings"
+            )
 
     def set_output(self, int idx, bint value=True):
         """Request logits and embeddings for the entry at ``idx``."""

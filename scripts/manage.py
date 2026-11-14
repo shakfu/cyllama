@@ -1206,7 +1206,7 @@ class GgmlBuilder(Builder):
         """Honour GGML_OPENMP override (upstream default is ON)."""
         openmp = os.environ.get("GGML_OPENMP")
         if openmp is not None:
-            options["GGML_OPENMP"] = "ON" if openmp == "1" else "OFF"
+            options["GGML_OPENMP"] = "ON" if getenv("GGML_OPENMP") else "OFF"
             self.log.info(f"  GGML_OPENMP={options['GGML_OPENMP']}")
 
     def takes_ggml_patches(self) -> bool:
@@ -1281,7 +1281,7 @@ class LlamaCppBuilder(GgmlBuilder):
         # for portable/CI wheels and when GGML_CPU_ALL_VARIANTS is used.
         ggml_native = os.environ.get("GGML_NATIVE")
         if ggml_native is not None:
-            options["GGML_NATIVE"] = "ON" if ggml_native == "1" else "OFF"
+            options["GGML_NATIVE"] = "ON" if getenv("GGML_NATIVE") else "OFF"
             self.log.info(f"  GGML_NATIVE={options['GGML_NATIVE']}")
 
         # CPU all-variants: build ggml-cpu for multiple x86 ISAs (AVX, AVX2,

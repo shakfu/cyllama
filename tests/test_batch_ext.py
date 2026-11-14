@@ -140,7 +140,8 @@ class TestBatchErrors:
         with pytest.raises(ValueError):
             batch.add_seq(0, 0)
 
-    def test_embd_state_unimplemented_upstream(self, model):
+    def test_embd_state_rejected_without_state_input(self, model):
+        # Llama-3.2-1B takes no state embeddings, so upstream returns false.
         batch = cy.LlamaBatchExt(_ctx(model))
         idx = batch.add_token(1, 0)
         with pytest.raises(RuntimeError, match="set_embd_state"):

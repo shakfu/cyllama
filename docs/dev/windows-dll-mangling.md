@@ -211,8 +211,11 @@ That is also why the `ctypes.WinDLL()` smoke test cannot catch it: it runs on a 
 `scripts/audit_wheel.py` (ported from inferna, which shipped the `ggml-base.dll` bug in its own 0.6.1 vulkan wheel) now checks this without loading anything. It reads the import tables of every `.dll`/`.pyd` in the wheel and fails if an import is not one of:
 
 - a file of exactly that name in the wheel;
+
 - a Windows system DLL;
+
 - `python3*.dll` or `vcruntime140*.dll`, which the interpreter supplies;
+
 - a driver runtime the backend expects (`vulkan-1.dll`, `nvcuda.dll`, `_WIN_EXCLUDES`).
 
 Visual C++ redistributables never count as system DLLs, even when present in System32. The audit runs in both Windows GPU workflows before the upload step.

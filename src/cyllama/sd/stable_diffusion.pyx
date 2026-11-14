@@ -11,7 +11,7 @@ import os
 import logging
 import traceback
 from collections import namedtuple
-from typing import Optional, List, Callable, Union
+from typing import Optional, List, Callable, Tuple, Union
 from enum import IntEnum
 
 _logger = logging.getLogger(__name__)
@@ -58,6 +58,7 @@ class RngType(IntEnum):
     STD_DEFAULT = STD_DEFAULT_RNG
     CUDA = CUDA_RNG
     CPU = CPU_RNG
+    COUNT = RNG_TYPE_COUNT
 
 
 class SampleMethod(IntEnum):
@@ -118,6 +119,9 @@ class Prediction(IntEnum):
     SEFI_FLOW = SEFI_FLOW_PRED
     MINIT2I_FLOW = MINIT2I_FLOW_PRED
     SENSENOVA_U1_FLOW = SENSENOVA_U1_FLOW_PRED
+    FLUX3_FLOW = FLUX3_FLOW_PRED
+    H3_AV_FLOW = H3_AV_FLOW_PRED
+    MING_IMAGE_FLOW = MING_IMAGE_FLOW_PRED
     COUNT = PREDICTION_COUNT
 
 
@@ -148,7 +152,29 @@ class SDType(IntEnum):
     Q5_K = SD_TYPE_Q5_K
     Q6_K = SD_TYPE_Q6_K
     Q8_K = SD_TYPE_Q8_K
+    IQ2_XXS = SD_TYPE_IQ2_XXS
+    IQ2_XS = SD_TYPE_IQ2_XS
+    IQ3_XXS = SD_TYPE_IQ3_XXS
+    IQ1_S = SD_TYPE_IQ1_S
+    IQ4_NL = SD_TYPE_IQ4_NL
+    IQ3_S = SD_TYPE_IQ3_S
+    IQ2_S = SD_TYPE_IQ2_S
+    IQ4_XS = SD_TYPE_IQ4_XS
+    I8 = SD_TYPE_I8
+    I16 = SD_TYPE_I16
+    I32 = SD_TYPE_I32
+    I64 = SD_TYPE_I64
+    F64 = SD_TYPE_F64
+    IQ1_M = SD_TYPE_IQ1_M
     BF16 = SD_TYPE_BF16
+    TQ1_0 = SD_TYPE_TQ1_0
+    TQ2_0 = SD_TYPE_TQ2_0
+    MXFP4 = SD_TYPE_MXFP4
+    NVFP4 = SD_TYPE_NVFP4
+    Q1_0 = SD_TYPE_Q1_0
+    Q2_0 = SD_TYPE_Q2_0
+    F8_E4M3 = SD_TYPE_F8_E4M3
+    F8_E5M2 = SD_TYPE_F8_E5M2
     COUNT = SD_TYPE_COUNT
 
 
@@ -1363,7 +1389,7 @@ cdef class SDContextParams:
 
     @property
     def sampler_rng_type(self) -> RngType:
-        """RNG type for sampler (if different from main RNG)."""
+        """RNG type for the sampler; RngType.COUNT (the default) uses rng_type."""
         return RngType(self._params.sampler_rng_type)
 
     @sampler_rng_type.setter
@@ -2980,6 +3006,8 @@ cdef class SDContext:
                  slg_scale: float = 0.0,
                  flow_shift: float = float('inf'),
                  vae_tiling: bool = False,
+                 vae_tile_size: Optional[Tuple[int, int]] = None,
+                 vae_tile_overlap: Optional[float] = None,
                  hires_fix: bool = False,
                  hires_scale: float = 2.0) -> List[SDImage]:
         """
@@ -3006,6 +3034,8 @@ cdef class SDContext:
             slg_scale: Skip layer guidance scale (0 = disabled)
             flow_shift: Flow shift for SD3.x/Wan models
             vae_tiling: Enable VAE tiling for large images
+            vae_tile_size: (width, height) tile size in pixels; None keeps the default (256)
+            vae_tile_overlap: Tile overlap fraction; None keeps the default (0.5)
             hires_fix: Enable hires-fix two-pass generation (latent upscale)
             hires_scale: Hires-fix upscale factor (default 2.0)
 
@@ -3045,6 +3075,10 @@ cdef class SDContext:
         gen_params.sample_params.slg_scale = slg_scale
         gen_params.sample_params.flow_shift = flow_shift
         gen_params.vae_tiling_enabled = vae_tiling
+        if vae_tile_size is not None:
+            gen_params.vae_tile_size = vae_tile_size
+        if vae_tile_overlap is not None:
+            gen_params.vae_tile_overlap = vae_tile_overlap
         if hires_fix:
             gen_params.set_hires_fix(enabled=True, scale=hires_scale)
 
