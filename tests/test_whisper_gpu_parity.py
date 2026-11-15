@@ -17,16 +17,14 @@ class. Background:
   encoder, `ne00*ne01 > 1024`) to `kernel_im2col_ext`, whose dispatch geometry
   disagrees with the base kernel's, so it mis-indexes and writes garbage. The
   base `kernel_im2col` is correct in both snapshots; llama's own LLMs never use
-  im2col, so the regression is invisible upstream. cyllama pins llama.cpp
-  b9505, whose `ggml-metal-device.cpp` contains exactly this size-based
-  selection.
+  im2col, so the regression is invisible upstream. Pins up to and including
+  llama.cpp b9505 carry this size-based selection.
 
-CURRENT STATE on cyllama: NOT yet fixed. whisper links llama's ggml on every
-platform, so on Apple Metal this gate is expected to FAIL (empty transcript) --
-that failure is the confirmation that the defect is present. The fix (port from
-inferna) is a platform-split linkage: link whisper against its OWN ggml on
-macOS, keep llama's shared ggml on Linux (where the defect does not apply).
-Once that lands, this gate should turn green on macOS.
+CURRENT STATE: fixed upstream (ggml#1532) as of llama.cpp b12359 / whisper.cpp
+v1.9.5, which select `_ext` on `KH*KW > 1024` to match the dispatch grid.
+whisper links llama's ggml on every platform and this gate passes on Metal.
+Do not reintroduce a macOS-only whisper/ggml link split; inferna dropped its
+split at 1.0.0a0. Keep this test as the regression gate.
 
 Note on cyllama's API: `WhisperContext.full()` raises on a non-zero return
 code, so a hard native error surfaces as an exception. The im2col defect is NOT
