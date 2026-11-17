@@ -20,6 +20,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **CUDA wheels target `75-real;80-virtual` instead of `75`.** Ampere and newer GPUs JIT-compiled `compute_75` PTX, which compiles out ggml's Ampere+ kernels. Prompt processing with flash attention at 4096 context is 12-25% faster on an RTX 4060; Turing keeps native SASS. Wheel size is unchanged. Benchmarks and rejected options: [docs/dev/cuda-wheel.md](docs/dev/cuda-wheel.md).
+
 ## [1.0.0a0]
 
 ### Added

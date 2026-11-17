@@ -55,12 +55,12 @@ A local `make build-cuda-dynamic` with no env vars:
 CI workflows already set both variables explicitly:
 
 ```yaml
-# .github/workflows/build-gpu-wheels-abi3.yml:144,158,552
-CMAKE_CUDA_ARCHITECTURES="75"
+# .github/workflows/_gpu-build-cuda.yml, _gpu-build-cuda-windows.yml
+CMAKE_CUDA_ARCHITECTURES="75-real;80-virtual"
 GGML_NATIVE=OFF
 ```
 
-This has been `"75"` (sm_75 / Turing) since the first CUDA CI workflow. Any new defaults must not override these explicit settings.
+This was `"75"` (sm_75 SASS plus compute_75 PTX) until 1.0.0; see [cuda-wheel.md](cuda-wheel.md) for the change. Any new defaults must not override these explicit settings.
 
 ---
 
@@ -86,7 +86,7 @@ Measured on an RTX 4060 (sm_89) with CUDA 12.0, dynamic build, `SD_USE_VENDORED_
 
 ### CI builds: no change needed
 
-CI already sets `GGML_NATIVE=OFF` and `CMAKE_CUDA_ARCHITECTURES="75"` explicitly. These override any defaults.
+CI already sets `GGML_NATIVE=OFF` and `CMAKE_CUDA_ARCHITECTURES="75-real;80-virtual"` explicitly. These override any defaults.
 
 ### Implementation
 
