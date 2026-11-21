@@ -8,7 +8,7 @@ Analysis behind the `CMAKE_CUDA_ARCHITECTURES` change in `_gpu-build-cuda.yml` a
 - `libggml-cuda` is ~80% of each wheel. Its GPU code (fatbin) dominates.
 - CI built with `"75"`. Ampere and newer GPUs ran Turing-level kernels, JIT-compiled at first load.
 - New setting: `"75-real;80-virtual"`. Same size, 12-25% faster long-context prompt processing on Ada, Turing unchanged.
-- The wheels still need the PyPI file-size increase.
+- PyPI raised the `cyllama-cuda12` file-size limit to 200 MB (granted 2026-11-21).
 
 ## Terms
 
@@ -107,7 +107,7 @@ Static `llama-bench` builds. "GPU code" is the `.nv_fatbin` section.
 
 - One SASS arch adds 34-36 MB gzipped. One PTX arch adds 50-52 MB.
 - The rest of the 1.0.0a0 wheel is ~25 MB (113.1 - 88.1).
-- Wheel estimates below assume wheel size = 25 MB + GPU code gzip size. No wheels were built for the new settings.
+- Wheel estimates below assume wheel size = 25 MB + GPU code gzip size. Only `75-real;80-virtual` was later built; see [Built wheels](#built-wheels-75-real80-virtual).
 
 ## Options
 
@@ -127,7 +127,7 @@ Static `llama-bench` builds. "GPU code" is the `.nv_fatbin` section.
 - Turing keeps native SASS: no JIT stall, and CUDA 12 minor-version compatibility keeps the driver floor at 525+.
 - Every Ampere+ GPU gets `compute_80` kernels, JIT-compiled for its own architecture.
 - Turing was kept because it is the oldest architecture CUDA 13 still targets ([CUDA features archive](https://docs.nvidia.com/cuda/cuda-features-archive/index.html)), and T4 instances are common in cloud and Colab use.
-- Size does not change, so it depends on the PyPI file-size increase.
+- Size does not change. It fits under the 200 MB `cyllama-cuda12` limit.
 
 ### Rejected
 
@@ -138,11 +138,22 @@ Static `llama-bench` builds. "GPU code" is the `.nv_fatbin` section.
 - **Separate wheel for `libggml-cuda`**: 91 MB alone leaves ~9% headroom under 100 MB, and adds cross-package pinning and library-path work.
 - **`GGML_CUDA_FA=OFF`**: removes ~40% of GPU code and CUDA flash attention with it.
 
+## Built wheels: `75-real;80-virtual`
+
+CI run [44034241213](https://github.com/shakfu/cyllama/actions/runs/44034241213) on `94b05ce`. Fatbin entries counted by walking the fatbin headers in each wheel's CUDA library (no `cuobjdump` on macOS).
+
+| Wheel | Size | CUDA lib raw / in wheel | Fatbin entries |
+|-|-|-|-|
+| Linux | 110.6 MB | 255.7 / 88.5 MB | 149 `sm_75` ELF, 149 `compute_80` PTX |
+| Windows | 107.2 MB | 246.2 / 87.4 MB | 149 `sm_75` ELF, 149 `compute_80` PTX |
+
+- No `compute_75` PTX and no `sm_80` SASS, as the setting intends.
+- The ~110 MB estimate held. Both fit the 200 MB `cyllama-cuda12` limit.
+
 ## Not measured
 
 - Turing, Ampere, Hopper and Blackwell hardware.
 - CUDA 12.4, the CI toolkit. Local builds used 12.0.
-- Wheels built with the new setting.
 - `-compress-mode=size`: the sandbox blocked running a downloaded NVIDIA `fatbinary`.
 
 ## Reproduction
