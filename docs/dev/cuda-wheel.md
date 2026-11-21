@@ -7,7 +7,7 @@ Analysis behind the `CMAKE_CUDA_ARCHITECTURES` change in `_gpu-build-cuda.yml` a
 - The 1.0.0a0 `cyllama_cuda12` wheels exceed PyPI's 100 MB file limit: 113.1 MB (Linux), 109.6 MB (Windows).
 - `libggml-cuda` is ~80% of each wheel. Its GPU code (fatbin) dominates.
 - CI built with `"75"`. Ampere and newer GPUs ran Turing-level kernels, JIT-compiled at first load.
-- New setting: `"75-real;80-virtual"`. Same size, 12-25% faster long-context prompt processing on Ada, Turing unchanged.
+- New setting: `"75-real;80-virtual"`. About 2.5 MB smaller, 12-25% faster long-context prompt processing on Ada, Turing unchanged.
 - PyPI raised the `cyllama-cuda12` file-size limit to 200 MB (granted 2026-11-21).
 
 ## Terms
@@ -127,7 +127,7 @@ Static `llama-bench` builds. "GPU code" is the `.nv_fatbin` section.
 - Turing keeps native SASS: no JIT stall, and CUDA 12 minor-version compatibility keeps the driver floor at 525+.
 - Every Ampere+ GPU gets `compute_80` kernels, JIT-compiled for its own architecture.
 - Turing was kept because it is the oldest architecture CUDA 13 still targets ([CUDA features archive](https://docs.nvidia.com/cuda/cuda-features-archive/index.html)), and T4 instances are common in cloud and Colab use.
-- Size does not change. It fits under the 200 MB `cyllama-cuda12` limit.
+- Wheels are about 2.5 MB smaller. They fit under the 200 MB `cyllama-cuda12` limit.
 
 ### Rejected
 
