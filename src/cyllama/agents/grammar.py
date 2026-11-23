@@ -201,6 +201,17 @@ def generate_answer_or_tool_schema(tools: List[Tool], allow_reasoning: bool = Tr
         }
     """
     tool_names = [tool.name for tool in tools]
+    answer: Dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "type": {"const": "answer"},
+            "content": {"type": "string", "description": "The final answer to the question"},
+        },
+        "required": ["type", "content"],
+    }
+    if not tool_names:
+        # An empty tool_name enum let the grammar emit `"tool_name":  ,`, which is not JSON
+        return answer
 
     # Using oneOf to allow either answer or tool_call
     schema: Dict[str, Any] = {

@@ -175,6 +175,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **ACP fixes from a first run in Zed.**
+  - A failed tool call no longer ends the turn. ACP stopped on any agent error, including parse errors the ReAct agent recovers from, and showed the error as the reply. `ConstrainedAgent`'s recoverable tool error is now tagged like ReAct's so the same rule applies.
+  - ReAct steps under ACP get 2048 tokens instead of 512. A `write_file` holding a whole file was cut off mid-call; the parse error now tells the model its output may have been cut off.
+  - ReAct takes the last `Answer:` block. Qwen3 answered, kept reasoning, then answered again, and all of it became the reply.
+  - `agentInfo.version` reports the package version instead of a stale "0.2.0".
+  - New `edit_file(path, old_text, new_text)` tool replaces one exact occurrence of `old_text`. In Zed, Qwen3-4B rewrote whole files through `write_file` to change a few lines and dropped the rest; an edit sends only the changed text. A call whose `old_text` is missing or ambiguous fails before the permission prompt.
+  - `cyllama agent acp --inner-agent constrained` selects `ConstrainedAgent`, whose grammar-constrained tool calls always parse. `ACPAgent` supported it; the CLI did not expose it.
+  - `ConstrainedAgent` with no tools failed every turn. The grammar's empty `tool_name` enum allowed `"tool_name":  ,`, which is not JSON. With no tools the schema now allows only an answer. ACP hits this when a client advertises no fs or terminal capability.
+  - An action that failed to parse gets a tool-call title from its text. The title was `null`, Zed dropped the call, and then showed "Tool call not found" for its result.
+
 - **Server `top_p` is applied, and `finish_reason` reports `"length"`.** Both servers parsed `top_p` but always sampled with 1.0, and always returned `finish_reason: "stop"`, so a client could not tell a truncated answer from a finished one. `top_p` now defaults to 1.0 (OpenAI's default) rather than the unused 0.9, so requests that omit it sample as before.
 
 - **Server scope is documented, and unsupported features get 400.** `docs/server_usage_examples.md` lists the OpenAI fields the built-in servers support, and points to `LlamaServer` (upstream `llama-server`) for tools, JSON mode and logprobs. Building those into the built-in servers would duplicate an API upstream already maintains. A request with non-empty `tools`/`functions`, a non-text `response_format`, `n` > 1 or `logprobs: true` now gets 400; before, the field was ignored and the client got plain text it could not tell from a real answer. Empty or default values still pass, since some clients send them on every request.

@@ -24,7 +24,7 @@ import sys
 import uuid
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from .jsonrpc import JsonRpcServer, StdioTransport
 from .mcp import McpClient, McpServerConfig, McpTransportType
@@ -38,8 +38,16 @@ logger = logging.getLogger(__name__)
 # The ACP protocol version this agent implements (an integer in the spec).
 ACP_PROTOCOL_VERSION = 1
 
+
+def _package_version() -> str:
+    # Lazy: cyllama/__init__ imports the agents package. Not importlib.metadata: GPU wheels use other dist names.
+    from .. import __version__
+
+    return __version__
+
+
 # ACP ToolKind of the editor-backed tools; a UI hint for the client.
-_TOOL_KINDS = {"read_file": "read", "write_file": "edit", "run_command": "execute"}
+_TOOL_KINDS = {"read_file": "read", "write_file": "edit", "edit_file": "edit", "run_command": "execute"}
 
 # Characters of earlier turns given to the inner agent with each prompt.
 HISTORY_CHARS = 8000
@@ -190,7 +198,7 @@ class ACPAgent:
     Agent Client Protocol over stdio.
     """
 
-    VERSION = "0.2.0"
+    STEP_MAX_TOKENS = 2048  # per ReAct step
 
     def __init__(
         self,
@@ -253,23 +261,28 @@ class ACPAgent:
             all_tools.extend(self._mcp_client.get_tools_for_agent())
         all_tools.extend(self._create_acp_tools())
 
+        agent: Any
         if self.inner_agent_type == "constrained":
             from .constrained import ConstrainedAgent
 
-            return ConstrainedAgent(
+            agent = ConstrainedAgent(
                 llm=self.llm,
                 tools=all_tools,
                 system_prompt=self.system_prompt,
                 max_iterations=self.max_iterations,
                 verbose=self.verbose,
             )
-        return ReActAgent(
-            llm=self.llm,
-            tools=all_tools,
-            system_prompt=self.system_prompt,
-            max_iterations=self.max_iterations,
-            verbose=self.verbose,
-        )
+        else:
+            agent = ReActAgent(
+                llm=self.llm,
+                tools=all_tools,
+                system_prompt=self.system_prompt,
+                max_iterations=self.max_iterations,
+                verbose=self.verbose,
+            )
+        # write_file carries a whole file in one action; 512 tokens cut it off mid-call
+        agent.generation_config.max_tokens = self.STEP_MAX_TOKENS
+        return cast(AgentProtocol, agent)
 
     @staticmethod
     def _with_history(session: Session, task: str) -> str:
@@ -324,7 +337,8 @@ class ACPAgent:
             tools.append(
                 Tool(
                     name="write_file",
-                    description="Write content to a file in the workspace",
+                    description="Create a new file, or replace a whole file. To change part of an existing file, "
+                    "use edit_file",
                     func=write_file,
                     parameters={
                         "type": "object",
@@ -333,6 +347,30 @@ class ACPAgent:
                             "content": {"type": "string", "description": "Content to write"},
                         },
                         "required": ["path", "content"],
+                    },
+                )
+            )
+
+        if self._client_fs_read and self._client_fs_write:
+
+            def edit_file(path: str, old_text: str, new_text: str) -> str:
+                """Replace one exact occurrence of old_text with new_text in a file."""
+                return self._acp_edit_file(path, old_text, new_text)
+
+            tools.append(
+                Tool(
+                    name="edit_file",
+                    description="Change part of an existing file: replace old_text, which must occur exactly once, "
+                    "with new_text. Copy old_text exactly from read_file output; use an empty new_text to delete it",
+                    func=edit_file,
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string", "description": "Path to the file to edit"},
+                            "old_text": {"type": "string", "description": "Exact text to replace"},
+                            "new_text": {"type": "string", "description": "Replacement text"},
+                        },
+                        "required": ["path", "old_text", "new_text"],
                     },
                 )
             )
@@ -370,24 +408,51 @@ class ACPAgent:
         """``path`` made absolute against the session's cwd; ACP requires absolute paths."""
         return os.path.normpath(path if os.path.isabs(path) else os.path.join(self._session_cwd(), path))
 
+    def _acp_read_text(self, path: str) -> str:
+        """Read a file through the editor; raise on failure."""
+        if not self._server:
+            raise RuntimeError("ACP server not running")
+        response = self._server.send_request(
+            "fs/read_text_file",
+            {"sessionId": self._current_session_id, "path": self._abs_path(path)},
+            timeout=30.0,
+        )
+        if response.is_error:
+            assert response.error is not None
+            raise RuntimeError(response.error.message)
+        return str((response.result or {}).get("content", ""))
+
     def _acp_read_file(self, path: str) -> str:
-        """Request file read from editor via ACP."""
+        """Request file read from editor via ACP; errors come back as text for the model."""
         if not self._server:
             raise RuntimeError("ACP server not running")
         try:
-            response = self._server.send_request(
-                "fs/read_text_file",
-                {"sessionId": self._current_session_id, "path": self._abs_path(path)},
-                timeout=30.0,
-            )
-            if response.is_error:
-                assert response.error is not None
-                return f"Error reading file: {response.error.message}"
-            return str((response.result or {}).get("content", ""))
+            return self._acp_read_text(path)
         except TimeoutError:
             return "Error: File read timed out"
         except Exception as e:
             return f"Error reading file: {e}"
+
+    def _acp_edit_file(self, path: str, old_text: str, new_text: str) -> str:
+        """Replace the one occurrence of ``old_text`` in ``path``, after asking the user."""
+        if not old_text:
+            return "Error: old_text is empty; copy the exact text to replace from the file"
+        try:
+            content = self._acp_read_text(path)
+        except TimeoutError:
+            return "Error: File read timed out"
+        except Exception as e:
+            return f"Error reading file: {e}"
+        # Checked before asking: a call that cannot apply should not reach the user
+        count = content.count(old_text)
+        if count == 0:
+            return f"Error: old_text not found in {path}; read the file and copy the text exactly"
+        if count > 1:
+            return f"Error: old_text occurs {count} times in {path}; include surrounding lines so it occurs once"
+        if not self._request_permission("edit_file", {"path": path, "old_text": old_text, "new_text": new_text}):
+            return "Error: permission denied by the user"
+        result = self._acp_write_file(path, content.replace(old_text, new_text, 1))
+        return result if result.startswith("Error") else f"Edited {path}"
 
     def _acp_write_file(self, path: str, content: str) -> str:
         """Request file write from editor via ACP."""
@@ -560,7 +625,7 @@ class ACPAgent:
                 "promptCapabilities": {"image": False, "audio": False, "embeddedContext": True},
                 "mcpCapabilities": {"http": False, "sse": False},
             },
-            "agentInfo": {"name": "cyllama", "version": self.VERSION},
+            "agentInfo": {"name": "cyllama", "version": _package_version()},
             "authMethods": [],
         }
 
@@ -671,6 +736,9 @@ class ACPAgent:
             if event.type == EventType.ACTION:
                 n_calls += 1
                 self._current_tool_call_id = f"{prefix}_{n_calls}"
+            if event.type == EventType.ERROR and "error_type" in event.metadata:
+                # A failed tool call: the agent continues, and its observation marks the call failed
+                continue
             update = self._event_to_update(session.id, event, self._current_tool_call_id)
             if update:
                 self._send_update(update)
@@ -696,7 +764,8 @@ class ACPAgent:
             return SessionUpdate.text(session_id, "agent_thought_chunk", event.content)
 
         if event.type == EventType.ACTION:
-            tool_name = event.metadata.get("tool_name", "unknown")
+            # None for an action that failed to parse; a null title made Zed drop the call
+            tool_name = event.metadata.get("tool_name") or event.content.split("(", 1)[0].strip()[:60] or "tool call"
             call = ToolCallUpdate(
                 tool_call_id=tool_call_id or "call_0",
                 status=ToolCallStatus.IN_PROGRESS,

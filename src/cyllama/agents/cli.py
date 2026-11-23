@@ -118,6 +118,7 @@ def cmd_acp(args: argparse.Namespace) -> int:
     # Create and start ACP agent
     agent = ACPAgent(
         llm=llm,
+        inner_agent_type=args.inner_agent,
         mcp_servers=mcp_servers if mcp_servers else None,
         session_storage=args.session_storage,
         session_path=args.session_path,
@@ -297,6 +298,13 @@ def main() -> int:
         "--model",
         required=True,
         help="Path to the model file (GGUF format)",
+    )
+    acp_parser.add_argument(
+        "--inner-agent",
+        choices=["react", "constrained"],
+        default="react",
+        help="Agent behind the protocol: react (free text, default) or constrained "
+        "(grammar-constrained JSON tool calls, which cannot be malformed)",
     )
     acp_parser.add_argument(
         "--mcp-stdio",

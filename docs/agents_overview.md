@@ -1074,8 +1074,14 @@ async def parallel_agents():
 
 - The agent sees earlier turns of the session with each prompt, up to 8000 characters.
 
-- `read_file`, `write_file` and `run_command` are offered only when the client advertises `fs.readTextFile`, `fs.writeTextFile` and `terminal`. Writes and commands ask the user through `session/request_permission` first; relative paths resolve against the session's `cwd`.
+- `read_file`, `write_file` and `run_command` are offered only when the client advertises `fs.readTextFile`, `fs.writeTextFile` and `terminal`. `edit_file` needs both fs capabilities. Writes, edits and commands ask the user through `session/request_permission` first; relative paths resolve against the session's `cwd`.
+
+- `edit_file(path, old_text, new_text)` replaces one exact occurrence of `old_text`. It fails without asking the user when `old_text` is missing or occurs more than once. `write_file` replaces the whole file, so any line the model fails to reproduce is lost; its description steers the model to `edit_file` for existing files.
+
+- The inner agent is `ReActAgent` by default. `--inner-agent constrained` (`inner_agent_type="constrained"`) uses `ConstrainedAgent`, whose tool calls are grammar-constrained JSON and so always parse. Small models often write ReAct actions that do not.
 
 - Not supported: image and audio prompts, plans, HTTP MCP servers, authentication methods.
 
-The message shapes are tested against the schema, but not against a real editor client yet. Treat the API as experimental until it has been.
+The message shapes are tested against the schema, and the protocol has been run in Zed: streaming, `@` file mentions, `read_file`, and permission-gated writes. Commands, cancel and `session/load` have not been tried in an editor yet.
+
+Small local models are unreliable as editing agents. In Zed, Qwen3-4B (Q8_0) wrote files when asked only to propose changes, and replaced a 579-line README with 2 lines through `write_file`. Read the permission request before approving a write. `--inner-agent constrained` removes malformed tool calls, but not wrong decisions.

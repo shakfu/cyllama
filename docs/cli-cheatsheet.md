@@ -605,6 +605,7 @@ cyllama agent acp -m models/llama.gguf --mcp-http "api:http://localhost:3000"
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `-m, --model` | string | (required) | Path to GGUF model |
+| `--inner-agent` | choice | react | `react` (free-text actions) or `constrained` (grammar-constrained JSON tool calls) |
 | `--mcp-stdio` | string | | MCP server via stdio `name:command:arg1:...` (repeatable) |
 | `--mcp-http` | string | | MCP server via HTTP `name:url` (repeatable) |
 | `--session-storage` | choice | memory | Session storage: `memory`, `file`, `sqlite` |

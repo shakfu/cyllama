@@ -342,3 +342,14 @@ def test_schema_is_valid_json():
     # Should round-trip correctly
     parsed = json.loads(json_str)
     assert parsed == schema
+
+
+def test_answer_or_tool_without_tools_allows_only_answers():
+    # An empty tool_name enum let the grammar emit `"tool_name":  ,`; ACP offers no tools
+    # when the client advertises no fs or terminal capability
+    from cyllama.agents.grammar import generate_answer_or_tool_grammar, generate_answer_or_tool_schema
+
+    schema = generate_answer_or_tool_schema([])
+    assert schema["properties"]["type"] == {"const": "answer"}
+    assert "oneOf" not in schema
+    assert "tool_call" not in generate_answer_or_tool_grammar([])

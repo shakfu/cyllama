@@ -91,6 +91,24 @@ def test_extract_answer():
     assert answer == "The capital of France is Paris"
 
 
+def test_extract_answer_stops_at_second_answer():
+    # Qwen3 in Zed: answered, kept reasoning, answered again; all of it became the reply
+    agent = ReActAgent(llm=MockLLM(), tools=[])
+    text = "Answer: Hello! How can I help?\nOkay, the user said hello, no tools needed.\nAnswer: Hello! How can I help?"
+    assert agent._extract_answer(text) == "Hello! How can I help?"
+    assert agent._extract_answer("Answer: draft\nreasoning\nFinal Answer: final") == "final"
+    multi = "Answer: line one\nline two"
+    assert agent._extract_answer(multi) == "line one\nline two"
+
+
+def test_truncated_action_suggests_cut_off():
+    from cyllama.agents.react import ActionParseError
+
+    agent = ReActAgent(llm=MockLLM(), tools=[])
+    with pytest.raises(ActionParseError, match="cut off"):
+        agent._parse_action('write_file({"path": "README.md", "content": "long')
+
+
 def test_parse_action_with_kwargs():
     """Test parsing action with keyword arguments."""
     llm = MockLLM()

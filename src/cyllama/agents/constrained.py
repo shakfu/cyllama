@@ -446,7 +446,10 @@ Use tools when needed, then provide a helpful final answer based on the results.
                         last_action_had_error = True  # Allow retry without loop detection
                         logger.error("Tool %s failed: %s", tool_name, str(e))
                         error_event = AgentEvent(
-                            type=EventType.ERROR, content=str(e), metadata={"tool_name": tool_name}
+                            type=EventType.ERROR,
+                            content=str(e),
+                            # recoverable, as in ReActAgent: the run continues with this observation
+                            metadata={"tool_name": tool_name, "error_type": "execution_error"},
                         )
                         yield error_event
 

@@ -636,9 +636,11 @@ Begin!"""
         """Extract final answer from agent response."""
         # At the start of a line: "the answer: is unclear" inside a thought is not
         # a final answer, and used to end the run before its Action ran.
-        match = re.search(r"^\s*(?:Final\s+)?Answer:\s*(.+)", text, re.IGNORECASE | re.MULTILINE | re.DOTALL)
-        if match:
-            answer = match.group(1).strip()
+        # The last one: a model that answers, keeps reasoning and answers again (seen with Qwen3) means the last.
+        markers = re.finditer(r"^[ \t]*(?:Final\s+)?Answer:\s*", text, re.IGNORECASE | re.MULTILINE)
+        blocks = [b for b in (text[m.end() :].strip() for m in markers) if b]
+        if blocks:
+            answer = blocks[-1]
             # Truncate at common continuation markers that indicate hallucination
             # These patterns suggest the model is generating new questions/content
             stop_patterns = [
@@ -722,7 +724,10 @@ Begin!"""
                 )
             if not action_str.rstrip().endswith(")"):
                 raise ActionParseError(
-                    "Missing closing parenthesis", action_str, suggestion="Ensure action ends with )"
+                    "Missing closing parenthesis",
+                    action_str,
+                    suggestion="Ensure action ends with ). Long arguments may have been cut off by the output limit; "
+                    "pass less per call",
                 )
             raise ActionParseError(
                 "Invalid action format",

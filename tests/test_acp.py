@@ -92,6 +92,9 @@ class TestHandlers:
     def test_initialize(self, agent):
         result = agent._handle_initialize({"protocolVersion": 1, "clientInfo": {"name": "test", "version": "1.0"}})
         assert result["protocolVersion"] == ACP_PROTOCOL_VERSION == 1
+        import cyllama
+
+        assert result["agentInfo"] == {"name": "cyllama", "version": cyllama.__version__}  # was a stale "0.2.0"
         caps = result["agentCapabilities"]
         assert caps["loadSession"] is True
         assert caps["promptCapabilities"] == {"image": False, "audio": False, "embeddedContext": True}
@@ -103,7 +106,9 @@ class TestHandlers:
         agent._handle_initialize({"clientCapabilities": {"fs": {"readTextFile": True}}})
         assert [t.name for t in agent._create_acp_tools()] == ["read_file"]
         agent._handle_initialize({"clientCapabilities": ALL_CLIENT_CAPS})
-        assert [t.name for t in agent._create_acp_tools()] == ["read_file", "write_file", "run_command"]
+        assert [t.name for t in agent._create_acp_tools()] == ["read_file", "write_file", "edit_file", "run_command"]
+        agent._handle_initialize({"clientCapabilities": {"fs": {"writeTextFile": True}}})
+        assert [t.name for t in agent._create_acp_tools()] == ["write_file"]  # edit_file must read first
 
     def test_authenticate(self, agent):
         assert agent._handle_authenticate({}) == {}
@@ -201,6 +206,27 @@ class TestPromptTurn:
         result, _, _ = self._run(agent, events)
         assert result == {"stopReason": "max_turn_requests"}
 
+    def test_tool_error_does_not_end_turn(self, agent):
+        # ReAct recovers from a parse error; ending the turn there showed the error as the reply
+        events = [
+            AgentEvent(type=EventType.ACTION, content="write_file(", metadata={"tool_name": None, "tool_args": {}}),
+            AgentEvent(
+                type=EventType.ERROR, content="Missing closing parenthesis", metadata={"error_type": "parse_error"}
+            ),
+            AgentEvent(type=EventType.OBSERVATION, content="Error: Missing closing parenthesis", metadata={}),
+            AgentEvent(type=EventType.ANSWER, content="done"),
+        ]
+        result, updates, _ = self._run(agent, events)
+        assert result == {"stopReason": "end_turn"}
+        assert [u["sessionUpdate"] for u in updates] == ["tool_call", "tool_call_update", "agent_message_chunk"]
+        assert updates[1]["status"] == "failed"
+        assert updates[2]["content"]["text"] == "done"
+
+    def test_inner_react_step_budget(self, agent):
+        # 512 tokens cut a whole-file write_file off mid-call
+        inner = agent._create_inner_agent(Session(id="s9"))
+        assert inner.generation_config.max_tokens == ACPAgent.STEP_MAX_TOKENS == 2048
+
     def test_missing_prompt_rejected(self, agent):
         agent._session_store.save(Session(id="s2"))
         with pytest.raises(ValueError, match="No text"):
@@ -219,6 +245,12 @@ class TestEventToUpdate:
     def test_text_events(self, agent, event_type, kind):
         update = agent._event_to_update("s1", AgentEvent(type=event_type, content="x"))
         assert update.to_dict()["update"]["sessionUpdate"] == kind
+
+    @pytest.mark.parametrize("content,title", [('write_file({"path": "a', "write_file"), ("", "tool call")])
+    def test_unparsed_action_has_a_title(self, agent, content, title):
+        # tool_name is None when the action failed to parse; Zed dropped a tool_call with a null title
+        event = AgentEvent(type=EventType.ACTION, content=content, metadata={"tool_name": None, "tool_args": {}})
+        assert agent._event_to_update("s1", event, "c1").to_dict()["update"]["title"] == title
 
     def test_failed_observation(self, agent):
         update = agent._event_to_update("s1", AgentEvent(type=EventType.OBSERVATION, content="Error: no"), "c1")
@@ -278,6 +310,38 @@ class TestToolPermission:
         tools, sent = self._agent({"outcome": "selected", "optionId": "allow_once"})
         tools[name](**args)
         assert sent[0] == "session/request_permission" and effect in sent
+
+    def test_edit_replaces_only_old_text(self):
+        tools, sent = self._agent({"outcome": "selected", "optionId": "allow_once"})
+        assert tools["edit_file"](path="a.txt", old_text="text", new_text="body") == "Edited a.txt"
+        assert sent == ["fs/read_text_file", "session/request_permission", "fs/write_text_file"]
+        assert self._params("fs/write_text_file")["content"] == "file body"
+        raw = self._params("session/request_permission")["toolCall"]["rawInput"]
+        assert raw == {"path": "a.txt", "old_text": "text", "new_text": "body"}
+
+    def test_edit_can_delete(self):
+        tools, _ = self._agent({"outcome": "selected", "optionId": "allow_once"})
+        tools["edit_file"](path="a.txt", old_text=" text", new_text="")
+        assert self._params("fs/write_text_file")["content"] == "file"
+
+    @pytest.mark.parametrize(
+        "old_text,error,sent",
+        [
+            ("missing", "not found", ["fs/read_text_file"]),
+            ("t", "occurs 2 times", ["fs/read_text_file"]),  # "file text"
+            ("", "old_text is empty", []),
+        ],
+    )
+    def test_edit_that_cannot_apply_asks_nothing(self, old_text, error, sent):
+        # whole-file writes lost every line a small model failed to copy; edits change only old_text
+        tools, actual = self._agent({"outcome": "selected", "optionId": "allow_once"})
+        assert error in tools["edit_file"](path="a.txt", old_text=old_text, new_text="x")
+        assert actual == sent
+
+    def test_edit_denied_does_not_write(self):
+        tools, sent = self._agent({"outcome": "selected", "optionId": "reject_once"})
+        assert "permission denied" in tools["edit_file"](path="a.txt", old_text="text", new_text="body")
+        assert "fs/write_text_file" not in sent
 
     def test_permission_request_matches_schema(self):
         tools, _ = self._agent({"outcome": "selected", "optionId": "allow_once"})
@@ -354,3 +418,27 @@ def test_end_to_end_over_stdio():
     to_agent.close()
     t.join(timeout=5)
     assert not t.is_alive()
+
+
+class TestInnerAgentFlag:
+    @pytest.mark.parametrize("argv,expected", [([], "react"), (["--inner-agent", "constrained"], "constrained")])
+    def test_cli_passes_inner_agent(self, argv, expected):
+        from unittest.mock import patch
+
+        from cyllama.agents import cli
+
+        with (
+            patch("sys.argv", ["cyllama-agents", "acp", "-m", "m.gguf", *argv]),
+            patch("cyllama.api.LLM"),
+            patch("cyllama.agents.acp.ACPAgent") as acp_cls,
+        ):
+            assert cli.main() == 0
+        assert acp_cls.call_args.kwargs["inner_agent_type"] == expected
+
+    def test_constrained_inner_agent_gets_step_budget(self):
+        from cyllama.agents.constrained import ConstrainedAgent
+
+        agent = ACPAgent(llm=Mock(), inner_agent_type="constrained")
+        inner = agent._create_inner_agent(Session(id="s1"))
+        assert isinstance(inner, ConstrainedAgent)
+        assert inner.generation_config.max_tokens == ACPAgent.STEP_MAX_TOKENS
