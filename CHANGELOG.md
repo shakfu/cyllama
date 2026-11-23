@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [1.0.0a1]
+
 ### Security
 
 - **Servers without an API key refuse foreign `Host` headers.** A web page could reach `127.0.0.1:8080` through DNS rebinding and read the model's responses. Without a key, both servers answer 403 unless `Host` is loopback or the bind address; a server bound to all interfaces accepts any host, and its protection is the key.
@@ -175,12 +177,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **CI publishes to PyPI by trusted publishing, behind an off switch.** Both `publish_to_pypi` jobs referenced a `PYPI_API_TOKEN` secret that was never set, so CI publishing could not have worked. They now use OIDC trusted publishing and run only when the repository variable `PYPI_TRUSTED_PUBLISHING` is `true`. The GPU workflow publishes one job per distribution, since PyPI documents the minted token as project-scoped. Setup steps are in `docs/dev/pypi-deployment.md`.
+
 - **ACP fixes from a first run in Zed.**
   - A failed tool call no longer ends the turn. ACP stopped on any agent error, including parse errors the ReAct agent recovers from, and showed the error as the reply. `ConstrainedAgent`'s recoverable tool error is now tagged like ReAct's so the same rule applies.
   - ReAct steps under ACP get 2048 tokens instead of 512. A `write_file` holding a whole file was cut off mid-call; the parse error now tells the model its output may have been cut off.
   - ReAct takes the last `Answer:` block. Qwen3 answered, kept reasoning, then answered again, and all of it became the reply.
   - `agentInfo.version` reports the package version instead of a stale "0.2.0".
-  - New `edit_file(path, old_text, new_text)` tool replaces one exact occurrence of `old_text`. In Zed, Qwen3-4B rewrote whole files through `write_file` to change a few lines and dropped the rest; an edit sends only the changed text. A call whose `old_text` is missing or ambiguous fails before the permission prompt.
+  - New `edit_file(path, old_text, new_text)` tool replaces one exact occurrence of `old_text`, and `write_file` now refuses existing files. In Zed, Qwen3-4B rewrote whole files through `write_file` to change a few lines and dropped the rest; an edit sends only the changed text. A call that cannot apply fails before the permission prompt.
   - `cyllama agent acp --inner-agent constrained` selects `ConstrainedAgent`, whose grammar-constrained tool calls always parse. `ACPAgent` supported it; the CLI did not expose it.
   - `ConstrainedAgent` with no tools failed every turn. The grammar's empty `tool_name` enum allowed `"tool_name":  ,`, which is not JSON. With no tools the schema now allows only an answer. ACP hits this when a client advertises no fs or terminal capability.
   - An action that failed to parse gets a tool-call title from its text. The title was `null`, Zed dropped the call, and then showed "Tool call not found" for its result.

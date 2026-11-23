@@ -1076,12 +1076,14 @@ async def parallel_agents():
 
 - `read_file`, `write_file` and `run_command` are offered only when the client advertises `fs.readTextFile`, `fs.writeTextFile` and `terminal`. `edit_file` needs both fs capabilities. Writes, edits and commands ask the user through `session/request_permission` first; relative paths resolve against the session's `cwd`.
 
-- `edit_file(path, old_text, new_text)` replaces one exact occurrence of `old_text`. It fails without asking the user when `old_text` is missing or occurs more than once. `write_file` replaces the whole file, so any line the model fails to reproduce is lost; its description steers the model to `edit_file` for existing files.
+- `write_file` creates new files only; it refuses a path that exists. `edit_file(path, old_text, new_text)` changes existing files by replacing one exact occurrence of `old_text`. Both fail without asking the user when they cannot apply: `old_text` missing or occurring more than once, or the file existing. A client that advertises write but not read gets `write_file` unchecked, since existence cannot be tested.
 
 - The inner agent is `ReActAgent` by default. `--inner-agent constrained` (`inner_agent_type="constrained"`) uses `ConstrainedAgent`, whose tool calls are grammar-constrained JSON and so always parse. Small models often write ReAct actions that do not.
 
 - Not supported: image and audio prompts, plans, HTTP MCP servers, authentication methods.
 
 The message shapes are tested against the schema, and the protocol has been run in Zed: streaming, `@` file mentions, `read_file`, and permission-gated writes. Commands, cancel and `session/load` have not been tried in an editor yet.
+
+`tests/test_acp_e2e.py` drives the agent process as a scripted client, with a scripted model (`tests/acp_scripted.py`), so every protocol path runs without a model or an editor. The same launcher works in an editor: point the editor's agent command at `tests/acp_scripted.py SCRIPT` to replay fixed model replies.
 
 Small local models are unreliable as editing agents. In Zed, Qwen3-4B (Q8_0) wrote files when asked only to propose changes, and replaced a 579-line README with 2 lines through `write_file`. Read the permission request before approving a write. `--inner-agent constrained` removes malformed tool calls, but not wrong decisions.

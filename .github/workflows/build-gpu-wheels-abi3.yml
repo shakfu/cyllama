@@ -316,13 +316,18 @@ jobs:
         # of failing on the assets already attached by the other.
         run: gh release upload "$TAG" dist/*.whl --clobber
 
+  # Trusted publishing (OIDC), off until the repository variable
+  # PYPI_TRUSTED_PUBLISHING is 'true'. One job per distribution: each mints its
+  # own token, since PyPI documents the minted token as project-scoped and the
+  # action as one upload per job. See docs/dev/pypi-deployment.md.
   publish_to_pypi:
-    name: Publish abi3 wheels to PyPI
+    name: Publish ${{ matrix.package }} to PyPI
     needs: [verify_tag, collect, smoke_test]
     # The release job's gates, since PyPI files cannot be replaced: a tag build,
     # dynamic wheels only (static ones share their filenames), no failed smoke test.
     if: >-
-      inputs.publish_to_pypi
+      vars.PYPI_TRUSTED_PUBLISHING == 'true'
+      && inputs.publish_to_pypi
       && github.ref_type == 'tag'
       && (inputs.link_mode || 'dynamic') == 'dynamic'
       && !cancelled()
@@ -332,16 +337,33 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     environment: pypi
+    permissions:
+      id-token: write  # trusted publishing; job-level, as PyPI recommends
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [cyllama-cuda12, cyllama-rocm, cyllama-sycl, cyllama-vulkan]
     steps:
       - name: Download collected wheels
         uses: actions/download-artifact@v8
         with:
           name: gpu-wheels-abi3-all
-          path: dist
+          path: all
+
+      - name: Select ${{ matrix.package }} wheels
+        id: select
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          # Wheel filenames normalise '-' to '_'. A dispatch may not build every backend.
+          mkdir dist
+          find all -name "${PACKAGE//-/_}-*.whl" -exec cp {} dist/ \;
+          ls dist
+          echo "found=$(find dist -name '*.whl' | wc -l | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
       - name: Publish to PyPI
+        if: steps.select.outputs.found != '0'
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: dist
-          password: ${{ secrets.PYPI_API_TOKEN }}
           skip-existing: true

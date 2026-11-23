@@ -1,6 +1,6 @@
 # PyPI Deployment
 
-How cyllama and its GPU variants are published to PyPI, how to configure the publishing token, and how to harden the publish jobs with a GitHub environment.
+How cyllama and its GPU variants are published to PyPI, how to enable trusted publishing from CI, and how to harden the publish jobs with a GitHub environment.
 
 ## What gets published
 
@@ -17,84 +17,60 @@ Each project has its own 10 GB PyPI size quota, which is the main reason for the
 
 ## Two ways to publish
 
-### 1. CI workflows (recommended for releases)
+### 1. CI workflows, by trusted publishing
 
-Each of the four wheel workflows has an **optional** `publish_to_pypi` job, gated behind a `workflow_dispatch` input (default `false`). It is inert on normal CI runs; publishing only happens when you explicitly enable it at dispatch time.
+Both wheel workflows have a `publish_to_pypi` job. It uploads with [trusted publishing](https://docs.pypi.org/trusted-publishers/): GitHub issues the job an OIDC token, and PyPI exchanges it for an upload token valid for 15 minutes. No PyPI credential is stored in GitHub.
 
-The job downloads the collected-wheels artifact and uploads via `pypa/gh-action-pypi-publish` using an API token:
+The job runs only when all of these hold:
 
-```yaml
-- name: Publish to PyPI
-  uses: pypa/gh-action-pypi-publish@release/v1
-  with:
-    packages-dir: dist
-    password: ${{ secrets.PYPI_API_TOKEN }}
-    skip-existing: true
-```
+- the repository variable `PYPI_TRUSTED_PUBLISHING` is `true` (the off switch; unset means off);
+- the run is a tag build;
+- the `publish_to_pypi` dispatch input is ticked;
+- the build and smoke-test jobs passed.
 
-`skip-existing: true` makes a re-run after a partial multi-wheel upload idempotent (PyPI forbids overwriting an existing version regardless).
+The GPU workflow publishes with one job per distribution (a matrix over the four names). PyPI documents the minted token as project-scoped and the publish action as one upload per job, so each job mints its own token and uploads only its own wheels. A backend that was not built in the run is skipped.
 
-To cut a release: trigger the workflow via **Actions -> (workflow) -> Run workflow**, set `publish_to_pypi` (and, if desired, `upload_release` for the GitHub Release) to `true`.
+To cut a release: push the tag, then run each workflow via **Actions -> (workflow) -> Run workflow** on the tag, with `publish_to_pypi` (and, if desired, `upload_release` for the GitHub Release) ticked.
 
 ### 2. Local manual publish
 
-`make publish` runs `twine upload dist/*.whl` against whatever is in `dist/`. `make check` (a prerequisite of `publish`) refuses any non-abi3 wheel, so a stray per-version build cannot be uploaded by mistake. Because a single machine can only build one platform's wheels, the local path is mainly for quick single-platform fixes; full releases come from CI.
+`make publish` runs `twine upload dist/*.whl` against whatever is in `dist/`, with the PyPI credentials configured on your machine. `make check` (a prerequisite of `publish`) refuses any non-abi3 wheel, so a stray per-version build cannot be uploaded by mistake. Because a single machine can only build one platform's wheels, the local path is mainly for quick single-platform fixes.
 
-## Creating the PyPI API token
+## Enabling trusted publishing
 
-Authentication is via an **API token** (consistently — we do not use OIDC trusted publishing; see the note at the end for why).
+Do the PyPI side first. Until it is done, a publish job would fail authentication.
 
-1. Log in at <https://pypi.org> -> **Account settings** -> **API tokens** -> **Add API token**.
+1. For each of the 5 projects, add a trusted publisher on PyPI: the project's **Settings** -> **Publishing** -> **Add a new publisher** -> **GitHub**. For a project that does not exist yet, add a *pending* publisher from your account's **Publishing** page; it creates the project on first upload, but does not reserve the name until then.
 
-2. Name it, e.g. `cyllama-github-actions`.
+   | PyPI project | Workflow filename |
+   |-|-|
+   | `cyllama` | `build-cibw-abi3.yml` |
+   | `cyllama-cuda12`, `cyllama-rocm`, `cyllama-sycl`, `cyllama-vulkan` | `build-gpu-wheels-abi3.yml` |
 
-3. **Scope** — choose **"Entire account"** (account-wide). This is required because the GPU workflows upload several distinct projects (`cyllama-cuda12`, `cyllama-vulkan`, ...) in a single step, so one account-scoped token must cover them all. Project-scoped tokens are more restrictive but would need one token per project and could not drive the GPU single-step upload from one secret.
+   For all five: owner `shakfu`, repository `cyllama`, environment `pypi`. The workflow must be the top-level file named above; trusted publishing does not work from a reusable workflow.
 
-4. Copy the token — it is shown **once** and looks like `pypi-AgEIcHlwaS5vcmc...`.
+2. Create the `pypi` environment in GitHub and add required reviewers (next section).
 
-A project-scoped token can only be created after the project already exists on PyPI. An account-scoped token avoids this chicken-and-egg for new projects.
+3. Turn the switch on:
 
-## Adding the token as a GitHub secret
+   ```sh
+   gh variable set PYPI_TRUSTED_PUBLISHING --body true
+   ```
 
-The secret name **must be exactly `PYPI_API_TOKEN`** — that is what all four workflows reference.
-
-- **Web UI**: repository -> **Settings** -> **Secrets and variables** -> **Actions** -> **New repository secret**. Name `PYPI_API_TOKEN`, value = the full `pypi-...` string.
-
-- **gh CLI** (prompts for the value, so it stays out of shell history):
-
-  ```sh
-  gh secret set PYPI_API_TOKEN
-  ```
-
-You do **not** set a username: `pypa/gh-action-pypi-publish` uses `__token__` automatically when the token is passed as `password:`.
+   To turn it off again: `gh variable delete PYPI_TRUSTED_PUBLISHING`.
 
 ## Hardening: the `pypi` environment
 
-Each `publish_to_pypi` job runs in the GitHub Actions **`pypi` environment** (`environment: pypi`). This lets you gate every PyPI upload behind environment protection rules:
+Each `publish_to_pypi` job runs in the GitHub Actions **`pypi` environment** (`environment: pypi`), which the trusted publishers above also name. This lets you gate every PyPI upload behind environment protection rules:
 
 1. Repository -> **Settings** -> **Environments** -> **New environment** -> name it `pypi`.
 
-2. Add **Required reviewers** so a human must approve before any publish job runs. Optionally restrict to specific branches/tags via a deployment branch rule.
+2. Add **Required reviewers** so a human must approve before any publish job runs. Optionally restrict deployments to tags via a deployment rule.
 
-3. (Optional, more restrictive) Move the `PYPI_API_TOKEN` secret from a repository secret to an **environment secret** scoped to `pypi`, so the token is only readable by jobs that target that environment.
-
-The environment is referenced by name in the workflows; if it does not exist yet, GitHub creates it on first use with no protection rules, so configure the reviewers before relying on the gate.
+If the environment does not exist yet, GitHub creates it on first use with no protection rules, so configure the reviewers before turning on the switch.
 
 ## TestPyPI dry runs
 
-The workflows publish to real PyPI (no `repository-url` set). To rehearse against TestPyPI instead, add a separate TestPyPI token and point the action at the test index:
+The workflows publish to real PyPI (no `repository-url` set). To rehearse, register the same trusted publishers on TestPyPI and add `repository-url: https://test.pypi.org/legacy/` to the publish step.
 
-```yaml
-- uses: pypa/gh-action-pypi-publish@release/v1
-  with:
-    packages-dir: dist
-    password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-    repository-url: https://test.pypi.org/legacy/
-    skip-existing: true
-```
-
-Locally, `make publish-test` already targets TestPyPI (`twine upload --repository testpypi`).
-
-## Why token auth, not OIDC
-
-PyPI's OIDC trusted publishing converts cleanly for the single-project CPU workflows, but not for the GPU workflows: OIDC mint tokens are project-scoped, so the one mixed-`dist/` upload of four distinct projects would have to be split into per-project upload steps, each with its own trusted-publisher registration (per project x per workflow filename). A single account-scoped API token uploads everything in one step, so we use tokens consistently across all four workflows.
+Locally, `make publish-test` targets TestPyPI (`twine upload --repository testpypi`).

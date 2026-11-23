@@ -331,7 +331,7 @@ wheels = [
 
 [[package]]
 name = "cyllama"
-version = "1.0.0a0"
+version = "1.0.0a1"
 source = { editable = "." }
 
 [package.dev-dependencies]

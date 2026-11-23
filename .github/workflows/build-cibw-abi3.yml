@@ -487,18 +487,21 @@ jobs:
         run: gh release upload "$TAG" dist/*.whl --clobber
 
   # ---------------------------------------------------------------------------
-  # Optional: publish abi3 wheels to PyPI. Requires the PYPI_API_TOKEN repo
-  # secret (account- or project-scoped). Opt-in via the publish_to_pypi input.
+  # Optional: publish abi3 wheels to PyPI by trusted publishing (OIDC), with no
+  # stored token. Off until the repository variable PYPI_TRUSTED_PUBLISHING is
+  # 'true'; then opt-in via the publish_to_pypi input. See docs/dev/pypi-deployment.md.
   # ---------------------------------------------------------------------------
   publish_to_pypi:
     name: Publish abi3 wheels to PyPI
     # Plain `if`, so collect_wheels and every smoke test must succeed. PyPI files
     # cannot be replaced, so only a verified tag publishes.
     needs: [verify_tag, collect_wheels, cross_version_smoke_test]
-    if: inputs.publish_to_pypi && github.ref_type == 'tag'
+    if: vars.PYPI_TRUSTED_PUBLISHING == 'true' && inputs.publish_to_pypi && github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     environment: pypi
+    permissions:
+      id-token: write  # trusted publishing; job-level, as PyPI recommends
     steps:
       - name: Download collected abi3 wheels
         uses: actions/download-artifact@v8
@@ -510,5 +513,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: dist
-          password: ${{ secrets.PYPI_API_TOKEN }}
           skip-existing: true

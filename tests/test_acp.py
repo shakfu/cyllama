@@ -20,7 +20,7 @@ from cyllama.agents.acp import (
     ToolCallUpdate,
     _prompt_text,
 )
-from cyllama.agents.jsonrpc import JsonRpcResponse
+from cyllama.agents.jsonrpc import JsonRpcError, JsonRpcResponse
 from cyllama.agents.session import MemorySessionStore, Session
 from cyllama.agents.types import AgentEvent, EventType
 
@@ -277,6 +277,10 @@ class TestToolPermission:
             if method == "terminal/output":
                 return JsonRpcResponse(id=3, result={"output": "ran", "truncated": False})
             if method == "fs/read_text_file":
+                if params["path"].endswith("new.txt"):  # the editor reports a missing file as an error
+                    return JsonRpcResponse(id=5, error=JsonRpcError(code=-32002, message="not found"))
+                if params["path"].endswith("slow.txt"):
+                    raise TimeoutError
                 return JsonRpcResponse(id=5, result={"content": "file text"})
             return JsonRpcResponse(id=4, result={})
 
@@ -292,24 +296,48 @@ class TestToolPermission:
 
     @pytest.mark.parametrize(
         "name,args",
-        [("run_command", {"command": "rm -rf x"}), ("write_file", {"path": "a", "content": "b"})],
+        [("run_command", {"command": "rm -rf x"}), ("write_file", {"path": "new.txt", "content": "b"})],
     )
     def test_denied_does_not_act(self, name, args):
         tools, sent = self._agent({"outcome": "selected", "optionId": "reject_once"})
         assert "permission denied" in tools[name](**args)
-        assert sent == ["session/request_permission"]
+        assert sent[-1] == "session/request_permission"
+        assert "fs/write_text_file" not in sent and "terminal/create" not in sent
 
     @pytest.mark.parametrize(
         "name,args,effect",
         [
             ("run_command", {"command": "ls"}, "terminal/create"),
-            ("write_file", {"path": "a", "content": "b"}, "fs/write_text_file"),
+            ("write_file", {"path": "new.txt", "content": "b"}, "fs/write_text_file"),
         ],
     )
     def test_allowed_acts(self, name, args, effect):
         tools, sent = self._agent({"outcome": "selected", "optionId": "allow_once"})
         tools[name](**args)
-        assert sent[0] == "session/request_permission" and effect in sent
+        assert sent.index("session/request_permission") < sent.index(effect)
+
+    @pytest.mark.parametrize("path,error", [("a.txt", "exists; use edit_file"), ("slow.txt", "could not check")])
+    def test_write_refuses_existing_or_unchecked(self, path, error):
+        # Qwen3-4B replaced a 579-line README through write_file; existing files go through edit_file
+        tools, sent = self._agent({"outcome": "selected", "optionId": "allow_once"})
+        assert error in tools["write_file"](path=path, content="x")
+        assert sent == ["fs/read_text_file"]  # no prompt, no write
+
+    def test_write_without_read_capability_is_unchecked(self):
+        agent = ACPAgent(llm=Mock())
+        agent._handle_initialize({"clientCapabilities": {"fs": {"writeTextFile": True}}})
+        agent._server = Mock()
+        agent._server.send_request.return_value = JsonRpcResponse(
+            id=1, result={"outcome": {"outcome": "selected", "optionId": "allow_once"}}
+        )
+        agent._session_store.save(Session(id="s1", metadata={"cwd": "/work"}))
+        agent._current_session_id = "s1"
+        (write_file,) = agent._create_acp_tools()
+        write_file(path="a.txt", content="x")
+        assert [c.args[0] for c in agent._server.send_request.call_args_list] == [
+            "session/request_permission",
+            "fs/write_text_file",
+        ]
 
     def test_edit_replaces_only_old_text(self):
         tools, sent = self._agent({"outcome": "selected", "optionId": "allow_once"})
@@ -366,10 +394,10 @@ class TestToolPermission:
         tools, _ = self._agent({"outcome": "selected", "optionId": "allow_once"})
         assert tools["read_file"](path="src/a.py") == "file text"
         assert self._params("fs/read_text_file") == {"sessionId": "s1", "path": os.path.normpath("/work/src/a.py")}
-        tools["write_file"](path="/abs/b.txt", content="x")
+        tools["write_file"](path="/abs/new.txt", content="x")  # write_file only creates files
         assert self._params("fs/write_text_file") == {
             "sessionId": "s1",
-            "path": os.path.normpath("/abs/b.txt"),
+            "path": os.path.normpath("/abs/new.txt"),
             "content": "x",
         }
 

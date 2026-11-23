@@ -329,7 +329,10 @@ class ACPAgent:
         if self._client_fs_write:
 
             def write_file(path: str, content: str) -> str:
-                """Write content to a file in the editor's workspace."""
+                """Create a new file in the editor's workspace."""
+                refusal = self._refuse_existing(path)
+                if refusal:
+                    return refusal
                 if not self._request_permission("write_file", {"path": path}):
                     return "Error: permission denied by the user"
                 return self._acp_write_file(path, content)
@@ -337,8 +340,7 @@ class ACPAgent:
             tools.append(
                 Tool(
                     name="write_file",
-                    description="Create a new file, or replace a whole file. To change part of an existing file, "
-                    "use edit_file",
+                    description="Create a new file. Fails if the file exists; change existing files with edit_file",
                     func=write_file,
                     parameters={
                         "type": "object",
@@ -432,6 +434,22 @@ class ACPAgent:
             return "Error: File read timed out"
         except Exception as e:
             return f"Error reading file: {e}"
+
+    def _refuse_existing(self, path: str) -> Optional[str]:
+        """An error for write_file if ``path`` exists, else None.
+
+        Whole-file writes lost every line a small model failed to reproduce, so existing
+        files go through edit_file. A client without fs read cannot be checked.
+        """
+        if not self._client_fs_read:
+            return None
+        try:
+            self._acp_read_text(path)
+        except TimeoutError:
+            return f"Error: could not check whether {path} exists (read timed out); not written"
+        except Exception:
+            return None  # the editor reports a missing file as a read error
+        return f"Error: {path} exists; use edit_file to change it"
 
     def _acp_edit_file(self, path: str, old_text: str, new_text: str) -> str:
         """Replace the one occurrence of ``old_text`` in ``path``, after asking the user."""
