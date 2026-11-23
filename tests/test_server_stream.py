@@ -50,6 +50,7 @@ class _Fake:
 
     pieces = ["Hel", "lo"]
     delay = 0.0
+    reason = None
 
     def load_model(self):
         self.started = threading.Event()
@@ -62,6 +63,7 @@ class _Fake:
             for p in self.pieces:
                 time.sleep(self.delay)
                 yield p
+            return self.reason
         finally:
             self.closed.set()
 
@@ -88,9 +90,9 @@ def fake_server(request):
     servers = []
     base = _FakeEmbedded if request.param == "embedded" else _FakePython
 
-    def start(pieces=None, delay=0.0):
+    def start(pieces=None, delay=0.0, reason=None):
         port = _free_port()
-        server = type("Fake", (base,), {"pieces": pieces or _Fake.pieces, "delay": delay})(
+        server = type("Fake", (base,), {"pieces": pieces or _Fake.pieces, "delay": delay, "reason": reason})(
             ServerConfig(model_path="unused.gguf", port=port)
         )
         server.port = port
@@ -140,6 +142,16 @@ def test_stream_events(fake_server):
     assert "".join(d.get("content", "") for d in deltas) == "Hello"
     assert chunks[-1]["choices"][0]["finish_reason"] == "stop"
     assert server.closed.wait(2)
+
+
+def test_stream_reports_length(fake_server):
+    server = fake_server(reason="length")
+    conn, resp = _post_stream(server.port, {"messages": [{"role": "user", "content": "hi"}], "stream": True})
+    try:
+        events = _events(resp.read())
+    finally:
+        conn.close()
+    assert json.loads(events[-2])["choices"][0]["finish_reason"] == "length"
 
 
 def test_client_disconnect_closes_generator(fake_server):

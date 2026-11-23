@@ -517,7 +517,7 @@ class TestServerIntegration:
         try:
             server = LlamaServer(config)
         except FileNotFoundError as e:
-            if "llama-server binary" in str(e) or "Could not find llama-server binary" in str(e):
+            if "Could not find llama-server" in str(e):
                 pytest.skip("llama-server binary not found")
             raise
 
@@ -559,7 +559,7 @@ class TestServerIntegration:
         try:
             server = LlamaServer(config)
         except FileNotFoundError as e:
-            if "llama-server binary" in str(e) or "Could not find llama-server binary" in str(e):
+            if "Could not find llama-server" in str(e):
                 pytest.skip("llama-server binary not found")
             raise
 

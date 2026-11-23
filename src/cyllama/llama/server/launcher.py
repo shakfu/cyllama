@@ -198,7 +198,10 @@ class LlamaServer:
         if on_path:
             return Path(on_path)
 
-        raise FileNotFoundError("Could not find llama-server binary")
+        raise FileNotFoundError(
+            "Could not find llama-server on PATH. Install it from a llama.cpp release or "
+            "`brew install llama.cpp`, or pass server_binary=. See docs/server_usage_examples.md#scope."
+        )
 
     def start(self, wait_for_ready: bool = True, timeout: float = 30.0) -> None:
         """

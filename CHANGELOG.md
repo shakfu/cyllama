@@ -175,6 +175,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **Server `top_p` is applied, and `finish_reason` reports `"length"`.** Both servers parsed `top_p` but always sampled with 1.0, and always returned `finish_reason: "stop"`, so a client could not tell a truncated answer from a finished one. `top_p` now defaults to 1.0 (OpenAI's default) rather than the unused 0.9, so requests that omit it sample as before.
+
+- **Server scope is documented, and unsupported features get 400.** `docs/server_usage_examples.md` lists the OpenAI fields the built-in servers support, and points to `LlamaServer` (upstream `llama-server`) for tools, JSON mode and logprobs. Building those into the built-in servers would duplicate an API upstream already maintains. A request with non-empty `tools`/`functions`, a non-text `response_format`, `n` > 1 or `logprobs: true` now gets 400; before, the field was ignored and the client got plain text it could not tell from a real answer. Empty or default values still pass, since some clients send them on every request.
+
 - **`check_vendor` checks whisper.cpp's ggml headers against llama.cpp.** Since whisper builds against llama.cpp's ggml, its committed `ggml*.h` are llama.cpp's copies; the check still compared them with whisper's bundled ggml and failed on every push.
 
 - **`VectorStoreProtocol` declares `delete` and the shared semantics.** Every store implemented `delete(ids)`; the protocol left it out. Its docstring now states the rules the conformance suite checks:

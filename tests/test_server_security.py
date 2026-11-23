@@ -319,6 +319,7 @@ def test_500_body_does_not_carry_exception_text(serve, monkeypatch):
         ({"messages": [{"role": "user", "content": "x"}], "max_tokens": "10"}, "max_tokens"),
         ({"messages": [{"role": "user", "content": "x"}], "stop": [1]}, "stop"),
         ({"messages": [{"role": "user", "content": "x"}], "temperature": "hot"}, "temperature"),
+        ({"messages": [{"role": "user", "content": "x"}], "tools": [{"type": "function"}]}, "tools"),
     ],
 )
 def test_bad_request_fields_get_400(serve, payload, field):

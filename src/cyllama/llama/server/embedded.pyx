@@ -17,7 +17,7 @@ from .http_shim cimport *
 
 from .python import (ServerConfig, ServerSlot, ChatMessage, ChatRequest, ChatResponse, ChatChoice, RequestError, SlotsBusy,
                      check_request, exposed_without_auth, model_params, parse_chat_request, render_chat,
-                     sse_chunks, stop_at)
+                     sse_chunks, stop_at, resolve_finish_reason)
 
 # Global shutdown flag for signal handling
 _shutdown_requested = False
@@ -461,7 +461,8 @@ cdef class EmbeddedServer:
             slot.task_id = str(uuid.uuid4())
             slot.is_processing = True
             with closing(slot.stream(prompt, request.max_tokens or 100, request)) as pieces:
-                yield from stop_at(pieces, request.stop)
+                stopped = yield from stop_at(pieces, request.stop)
+            return resolve_finish_reason(slot.finish_reason, stopped)
         finally:
             slot.reset()
             self._free_slots.put(slot)
@@ -469,8 +470,16 @@ cdef class EmbeddedServer:
     def _process_chat_completion(self, request: ChatRequest) -> ChatResponse:
         """Generate a complete, non-streamed chat response."""
         prompt = self._messages_to_prompt(request.messages)
+        parts = []
+        reason = "stop"
         with closing(self._generate(prompt, request)) as pieces:
-            generated_text = "".join(pieces)
+            while True:
+                try:
+                    parts.append(next(pieces))
+                except StopIteration as done:
+                    reason = done.value or "stop"
+                    break
+        generated_text = "".join(parts)
 
         vocab = self._model.get_vocab()
         prompt_tokens = len(vocab.tokenize(prompt, add_special=True, parse_special=True))
@@ -480,7 +489,7 @@ cdef class EmbeddedServer:
             id=str(uuid.uuid4()),
             model=request.model,
             choices=[ChatChoice(index=0, message=ChatMessage(role="assistant", content=generated_text),
-                                finish_reason="stop")],
+                                finish_reason=reason)],
             usage={
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,

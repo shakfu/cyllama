@@ -147,12 +147,15 @@ def exposed_without_auth(config: ServerConfig) -> bool:
         return True  # a hostname may resolve to any interface
 
 
-def stop_at(pieces: Iterable[str], stop: Union[str, List[str], None]) -> Generator[str, None, None]:
-    """Yield `pieces` up to the earliest stop string, holding back text that may begin one."""
+def stop_at(pieces: Iterable[str], stop: Union[str, List[str], None]) -> Generator[str, None, bool]:
+    """Yield `pieces` up to the earliest stop string, holding back text that may begin one.
+
+    Returns True if a stop string ended the text.
+    """
     stops = [s for s in ([stop] if isinstance(stop, str) else stop or []) if s]
     if not stops:
         yield from pieces
-        return
+        return False
     buf = ""
     for piece in pieces:
         buf += piece
@@ -160,7 +163,7 @@ def stop_at(pieces: Iterable[str], stop: Union[str, List[str], None]) -> Generat
         if hits:
             if min(hits):
                 yield buf[: min(hits)]
-            return
+            return True
         # Longest suffix of buf that is a proper prefix of some stop string.
         hold = max((k for s in stops for k in range(1, min(len(s), len(buf) + 1)) if buf.endswith(s[:k])), default=0)
         if len(buf) > hold:
@@ -168,10 +171,19 @@ def stop_at(pieces: Iterable[str], stop: Union[str, List[str], None]) -> Generat
             buf = buf[len(buf) - hold :]
     if buf:
         yield buf
+    return False
 
 
-def sse_chunks(model: str, pieces: Generator[str, None, None]) -> Generator[bytes, None, None]:
-    """Encode `pieces` as OpenAI chat.completion.chunk server-sent events, then [DONE]. Closes `pieces`."""
+def resolve_finish_reason(slot_reason: str, stopped: bool) -> str:
+    """OpenAI ``finish_reason``: a matched stop string wins over the slot's own reason."""
+    return "stop" if stopped else slot_reason
+
+
+def sse_chunks(model: str, pieces: Generator[str, None, Optional[str]]) -> Generator[bytes, None, None]:
+    """Encode `pieces` as OpenAI chat.completion.chunk server-sent events, then [DONE]. Closes `pieces`.
+
+    The final chunk's ``finish_reason`` is the value `pieces` returns, or "stop".
+    """
     chunk_id = f"chatcmpl-{uuid.uuid4()}"
     created = int(time.time())
 
@@ -185,11 +197,17 @@ def sse_chunks(model: str, pieces: Generator[str, None, None]) -> Generator[byte
         }
         return b"data: " + json.dumps(chunk).encode("utf-8") + b"\n\n"
 
+    reason = None
     with closing(pieces):
         yield event({"role": "assistant"})
-        for piece in pieces:
+        while True:
+            try:
+                piece = next(pieces)
+            except StopIteration as done:
+                reason = done.value
+                break
             yield event({"content": piece})
-    yield event({}, "stop")
+    yield event({}, reason or "stop")
     yield b"data: [DONE]\n\n"
 
 
@@ -266,10 +284,29 @@ def _number(data: Dict[str, Any], key: str, default: float, lo: float, hi: float
     return float(value)
 
 
+def _reject_unsupported(data: Dict[str, Any]) -> None:
+    """Refuse fields that ask for a feature these servers lack; empty or default values pass.
+
+    Ignoring them returned plain text the client could not tell from a real answer.
+    """
+    rf = data.get("response_format")
+    demands = {
+        "tools": bool(data.get("tools")),
+        "functions": bool(data.get("functions")),
+        "response_format": rf is not None and not (isinstance(rf, dict) and rf.get("type", "text") == "text"),
+        "n": data.get("n") not in (None, 1),
+        "logprobs": bool(data.get("logprobs")),
+    }
+    for field_name, demanded in demands.items():
+        if demanded:
+            raise RequestError(f"{field_name} is not supported by this server; use LlamaServer (upstream llama-server)")
+
+
 def parse_chat_request(data: Any, config: ServerConfig) -> "ChatRequest":
     """Validate an OpenAI chat-completion body; raise :class:`RequestError` naming the bad field."""
     if not isinstance(data, dict):
         raise RequestError("request body must be a JSON object")
+    _reject_unsupported(data)
     raw = data.get("messages")
     if not isinstance(raw, list) or not raw:
         raise RequestError("messages must be a non-empty array")
@@ -306,7 +343,7 @@ def parse_chat_request(data: Any, config: ServerConfig) -> "ChatRequest":
         model=model,
         max_tokens=max_tokens,
         temperature=_number(data, "temperature", 0.8, 0.0, 2.0),
-        top_p=_number(data, "top_p", 0.9, 0.0, 1.0),
+        top_p=_number(data, "top_p", 1.0, 0.0, 1.0),
         min_p=_number(data, "min_p", 0.05, 0.0, 1.0),
         stream=stream,
         stop=stop,
@@ -330,7 +367,7 @@ class ChatRequest:
     model: str = "gpt-3.5-turbo"
     max_tokens: Optional[int] = None
     temperature: float = 0.8
-    top_p: float = 0.9
+    top_p: float = 1.0
     min_p: float = 0.05
     stream: bool = False
     stop: Optional[List[str]] = None
@@ -389,22 +426,24 @@ class ServerSlot:
         # Processing state
         self.generated_tokens: List[int] = []
         self.response_text = ""
+        # "length" when the last stream() ran out of max_tokens or context, else "stop"
+        self.finish_reason = "stop"
 
     def _build_sampler(
         self,
         temperature: float = 0.8,
         min_p: float = 0.05,
         seed: Optional[int] = None,
+        top_p: float = 1.0,
     ) -> None:
         """Build (or rebuild) the sampler chain with the given parameters.
 
-        top_k=0 and top_p=1.0 disable those links, as before; which request
-        fields to honour is still open.
+        top_k=0 disables that link; the OpenAI API has no top_k.
         """
         from ...api import GenerationConfig
 
         config = GenerationConfig(
-            temperature=temperature, min_p=min_p, top_k=0, top_p=1.0, seed=seed if seed is not None else 1337
+            temperature=temperature, min_p=min_p, top_k=0, top_p=top_p, seed=seed if seed is not None else 1337
         )
         self.sampler = build_sampler(self.model.get_vocab(), config, self.config.n_ctx)
 
@@ -414,6 +453,7 @@ class ServerSlot:
         self.task_id = None
         self.generated_tokens.clear()
         self.response_text = ""
+        self.finish_reason = "stop"
         # Reset the context state. The next prompt decodes from position 0, which
         # llama_decode rejects while the previous request's KV entries remain.
         self.context.n_tokens = 0
@@ -431,32 +471,47 @@ class ServerSlot:
 
     def stream(
         self, prompt: str, max_tokens: int = 100, request: Optional["ChatRequest"] = None
-    ) -> Generator[str, None, None]:
-        """Yield generated text as it is produced. Yields nothing for an empty or over-long prompt."""
+    ) -> Generator[str, None, str]:
+        """Yield generated text as it is produced. Yields nothing for an empty or over-long prompt.
+
+        Returns, and sets ``finish_reason`` to, "length" if generation ran out of
+        ``max_tokens`` or context, else "stop".
+        """
         # Rebuild sampler with per-request parameters when provided
         if request is not None:
             self._build_sampler(
                 temperature=request.temperature,
                 min_p=request.min_p,
                 seed=request.seed,
+                top_p=request.top_p,
             )
 
         context = self.context
         vocab = self.model.get_vocab()
         prompt_tokens = vocab.tokenize(prompt, add_special=True, parse_special=True)
-        if not prompt_tokens or len(prompt_tokens) >= self.config.n_ctx:
-            return
+        self.finish_reason = "stop"
+        if not prompt_tokens:
+            return self.finish_reason
+        if len(prompt_tokens) >= self.config.n_ctx:
+            self.finish_reason = "length"
+            return self.finish_reason
 
         decode_prompt(context, prompt_tokens)
         assert self.sampler is not None
         decoder = TokenDecoder(vocab)  # a multi-byte character can span tokens
+        n = 0
         for token in sample_tokens(context, self.sampler, vocab, len(prompt_tokens), max_tokens):
+            n += 1
             piece = decoder.decode(token)
             if piece:
                 yield piece
         tail = decoder.flush()
         if tail:
             yield tail
+        # sample_tokens also ends on an end-of-generation token or a cancel; only these two are "length"
+        if n >= max_tokens or len(prompt_tokens) + n >= self.config.n_ctx:
+            self.finish_reason = "length"
+        return self.finish_reason
 
     def get_generated_text(self) -> str:
         """Get the generated text."""
@@ -581,8 +636,9 @@ class PythonServer:
             # Use the new simplified approach
             max_tokens = request.max_tokens or 100
             generated_text = slot.process_and_generate(prompt, max_tokens, request=request)
-
-            generated_text = "".join(stop_at([generated_text], request.stop))
+            truncated = "".join(stop_at([generated_text], request.stop))
+            reason = resolve_finish_reason(slot.finish_reason, truncated != generated_text)
+            generated_text = truncated
 
             # Estimate token counts (simplified)
             assert self.model is not None
@@ -592,7 +648,7 @@ class PythonServer:
 
             # Create response
             choice = ChatChoice(
-                index=0, message=ChatMessage(role="assistant", content=generated_text), finish_reason="stop"
+                index=0, message=ChatMessage(role="assistant", content=generated_text), finish_reason=reason
             )
 
             response = ChatResponse(
@@ -611,15 +667,16 @@ class PythonServer:
         finally:
             self._release_slot(slot)
 
-    def stream_chat_completion(self, request: ChatRequest) -> Generator[str, None, None]:
-        """Yield generated text for `request`. Closing the generator frees the slot."""
+    def stream_chat_completion(self, request: ChatRequest) -> Generator[str, None, str]:
+        """Yield generated text for `request`; return its finish_reason. Closing the generator frees the slot."""
         slot = self._acquire_slot()
         try:
             slot.task_id = str(uuid.uuid4())
             slot.is_processing = True
             prompt = self._messages_to_prompt(request.messages)
             with closing(slot.stream(prompt, request.max_tokens or 100, request)) as pieces:
-                yield from stop_at(pieces, request.stop)
+                stopped = yield from stop_at(pieces, request.stop)
+            return resolve_finish_reason(slot.finish_reason, stopped)
         finally:
             self._release_slot(slot)
 
@@ -829,7 +886,7 @@ class PythonServer:
                     server_instance.logger.error(f"Chat completion error: {e}")
                     self._send_error(500, "Internal Server Error")
 
-            def _stream(self, pieces: Generator[str, None, None], model: str) -> None:
+            def _stream(self, pieces: Generator[str, None, Optional[str]], model: str) -> None:
                 """Send `pieces` as server-sent events; the connection closes at the end."""
                 self.close_connection = True  # the body has no length, so its end is the close
                 self.send_response(200)

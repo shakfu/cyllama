@@ -409,6 +409,7 @@ class TestPythonServer:
         mock_slot.is_processing = False
         mock_slot.task_id = None
         mock_slot.process_and_generate.return_value = " Hello there!"
+        mock_slot.finish_reason = "stop"
 
         server.slots = [mock_slot]
 

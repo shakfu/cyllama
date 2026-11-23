@@ -14,9 +14,27 @@ Cyllama provides two server implementations, both offering the same OpenAI-compa
 
 ### 2. PythonServer
 
-- stdlib `http.server`; handles one request at a time.
+- stdlib `http.server` with a thread per connection; requests beyond `--n-parallel` wait for a free slot.
 
 - Streams with `"stream": true`; the connection closes at the end of the stream.
+
+## Scope
+
+Both servers serve a model from your Python process, for local scripts and tools. They implement the core of the OpenAI chat API:
+
+- `messages`, `max_tokens` / `max_completion_tokens`, `stop`, `stream`, `seed`
+- `temperature`, `top_p`, `min_p`
+- `finish_reason`: `"length"` when generation ran out of `max_tokens` or context, otherwise `"stop"`
+
+They do not implement `tools` / `tool_calls`, `response_format` (JSON mode), `logprobs`, `n` > 1, or `/v1/completions`. A request that asks for one of these gets 400 naming the field. Empty or default values pass, such as `"tools": []`, `"response_format": {"type": "text"}`, `"n": 1` or `"logprobs": false`.
+
+For a client that needs those features, run upstream `llama-server` through [`LlamaServer`](api_reference.md#llamaserver). It is a separate process with the full llama.cpp server API. cyllama does not ship the binary. Get it from one of:
+
+- a [llama.cpp release](https://github.com/ggml-org/llama.cpp/releases) for your platform and GPU backend
+- Homebrew: `brew install llama.cpp`
+- `make llama-server` in a cyllama checkout (CPU only, built from cyllama's pinned llama.cpp)
+
+`LlamaServer` finds the binary on `PATH`, or takes `server_binary=`.
 
 ## Basic Usage
 
@@ -204,7 +222,7 @@ with EmbeddedServer(config) as server:
 | | EmbeddedServer | PythonServer |
 |-|-|-|
 | HTTP layer | cpp-httplib thread pool | stdlib `http.server` |
-| Concurrent requests | queued onto `n_parallel` slots | one at a time |
+| Concurrent requests | queued onto `n_parallel` slots | queued onto `n_parallel` slots |
 | Streaming (`"stream": true`) | chunked SSE | SSE, connection closes at end |
 | Requires compiled extension | yes | no |
 
