@@ -139,7 +139,8 @@ jobs:
             client: qdrant-client
             test_file: tests/test_rag_qdrant.py
           - adapter: pgvector
-            client: '"psycopg[binary]" pgvector'
+            # No inner quotes: CLIENT reaches the shell through env, so quotes stay literal
+            client: 'psycopg[binary] pgvector'
             test_file: tests/test_rag_pgvector.py
 
     services:
@@ -214,7 +215,9 @@ jobs:
           # Unpinned by default: testing against the current release is
           # the point. pip_args lets a dispatch pin a version to
           # reproduce a specific failure.
-          # word-split on purpose: PIP_ARGS may hold several arguments
+          # word-split on purpose: PIP_ARGS may hold several arguments.
+          # set -f stops `[binary]` matching as a glob.
+          set -f
           python -m pip install $CLIENT $PIP_ARGS
 
       - name: Record resolved versions
