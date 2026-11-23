@@ -29,6 +29,7 @@ the in-tree reference set.
 # ---------------------------------------------------------------------------
 from .core import (
     # Public errors
+    AgentTermination,
     ToolArgumentError,
     ToolTimeoutError,
     # Constraint markers
@@ -44,6 +45,7 @@ from .core import (
     Tool,
     ToolRegistry,
     # Public functions
+    call_tool,
     coerce_args,
     tool,
     # Module logger (kept public for callers that wire their own handler)
@@ -109,8 +111,10 @@ __all__ = [
     # Framework
     "Tool",
     "ToolRegistry",
+    "AgentTermination",
     "ToolArgumentError",
     "ToolTimeoutError",
+    "call_tool",
     "Ge",
     "Gt",
     "Le",

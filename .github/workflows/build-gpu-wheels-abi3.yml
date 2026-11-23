@@ -318,8 +318,17 @@ jobs:
 
   publish_to_pypi:
     name: Publish abi3 wheels to PyPI
-    needs: [collect, smoke_test]
-    if: inputs.publish_to_pypi && always() && !cancelled() && needs.collect.result == 'success'
+    needs: [verify_tag, collect, smoke_test]
+    # The release job's gates, since PyPI files cannot be replaced: a tag build,
+    # dynamic wheels only (static ones share their filenames), no failed smoke test.
+    if: >-
+      inputs.publish_to_pypi
+      && github.ref_type == 'tag'
+      && (inputs.link_mode || 'dynamic') == 'dynamic'
+      && !cancelled()
+      && needs.verify_tag.result == 'success'
+      && needs.collect.result == 'success'
+      && needs.smoke_test.result != 'failure'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     environment: pypi
@@ -331,7 +340,7 @@ jobs:
           path: dist
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: dist
           password: ${{ secrets.PYPI_API_TOKEN }}

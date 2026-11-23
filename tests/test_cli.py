@@ -432,13 +432,14 @@ def test_generate_text_basic(cli, mocker: MockerFixture):
     mock_vocab.detokenize.return_value = "Hello world"
 
     mock_ctx.n_ctx = 4096
+    mock_ctx.n_batch = 4
     mock_ctx.decode.return_value = None
 
     mock_sampler.sample.return_value = 2
     mock_sampler.print_perf_data.return_value = None
 
     mock_cy.ggml_time_us.return_value = 1000000
-    mock_cy.llama_batch_get_one.return_value = mocker.Mock()
+    mocker.patch("cyllama.llama.generation.llama_batch_get_one", return_value=mocker.Mock())
 
     # Set up CLI state
     cli.vocab = mock_vocab

@@ -117,6 +117,23 @@ class TestWhisperParams:
 class TestAudioProcessing:
     """Test audio file processing functions."""
 
+    @pytest.mark.parametrize("sampwidth,fmt,scale", [(2, "h", 32768.0), (4, "i", 2147483648.0)])
+    def test_load_wav_file_downmixes_stereo(self, tmp_path, sampwidth, fmt, scale):
+        import struct
+        import wave
+
+        path = tmp_path / "stereo.wav"
+        # two frames, (L, R) = (0.5, -0.5) and (0.25, 0.75)
+        raw = [0.5, -0.5, 0.25, 0.75]
+        with wave.open(str(path), "wb") as w:
+            w.setnchannels(2)
+            w.setsampwidth(sampwidth)
+            w.setframerate(16000)
+            w.writeframes(struct.pack(f"<{len(raw)}{fmt}", *(int(v * scale) for v in raw)))
+        samples, rate = cli.load_wav_file(str(path))
+        assert rate == 16000
+        assert list(samples) == pytest.approx([0.0, 0.5], abs=1e-4)
+
     def test_load_wav_file(self, sample_audio_path):
         """Test WAV file loading."""
         samples, sample_rate = cli.load_wav_file(sample_audio_path)
@@ -621,3 +638,74 @@ class TestContextFlags:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+class TestCliFlagsApplied:
+    """Flags the CLI parsed and then dropped."""
+
+    def test_default_threads_are_physical_cores(self):
+        from cyllama.utils.platform import resolve_n_threads
+
+        # min(4, threading.active_count()) was 1 in a plain process
+        assert cli.WhisperParams().n_threads == resolve_n_threads(-1)
+
+    def test_decoding_flags_reach_full_params(self):
+        params = cli.WhisperParams()
+        params.beam_size = 3
+        params.best_of = 2
+        params.max_len = 40
+        params.max_context = 64
+        params.entropy_thold = 2.0
+        params.logprob_thold = -0.5
+        params.no_fallback = True
+        params.prompt = "names: Ada"
+        wp = cli.create_whisper_params_from_args(params)
+        assert wp.strategy == cli.wh.WhisperSamplingStrategy.BEAM_SEARCH
+        assert wp.beam_size == 3 and wp.greedy_best_of == 2
+        assert wp.max_len == 40 and wp.n_max_text_ctx == 64
+        assert wp.entropy_thold == pytest.approx(2.0) and wp.logprob_thold == pytest.approx(-0.5)
+        assert wp.temperature_inc == 0.0
+        assert wp.initial_prompt == "names: Ada"
+
+    def test_beam_size_one_is_greedy(self):
+        params = cli.WhisperParams()
+        params.beam_size = 1
+        assert cli.create_whisper_params_from_args(params).strategy == cli.wh.WhisperSamplingStrategy.GREEDY
+
+    def test_unsupported_flags_warn(self, capsys):
+        params = cli.WhisperParams()
+        params.n_processors = 4
+        params.print_colors = True
+        cli.warn_unsupported(params)
+        err = capsys.readouterr().err
+        assert "--processors" in err and "--print-colors" in err
+
+    def test_clashing_output_names_rejected(self, monkeypatch, tmp_path):
+        model = tmp_path / "m.bin"
+        model.write_bytes(b"")
+        monkeypatch.setattr(
+            "sys.argv",
+            ["whisper", "-m", str(model), "-f", str(tmp_path / "a" / "x.wav"), "-f", str(tmp_path / "b" / "x.wav")],
+        )
+        with pytest.raises(SystemExit):
+            cli.main()
+
+
+@pytest.mark.parametrize("sampwidth", [1, 2, 3, 4])
+def test_load_wav_file_sample_widths(tmp_path, sampwidth):
+    import wave
+
+    values = [0.5, -0.25, 0.0]
+    if sampwidth == 1:
+        raw = bytes(int(v * 128) + 128 for v in values)
+    else:
+        raw = b"".join(int(v * 2 ** (8 * sampwidth - 1)).to_bytes(sampwidth, "little", signed=True) for v in values)
+    path = tmp_path / f"w{sampwidth}.wav"
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(sampwidth)
+        w.setframerate(16000)
+        w.writeframes(raw)
+    samples, rate = cli.load_wav_file(str(path))
+    assert samples.typecode == "f" and rate == 16000
+    assert list(samples) == pytest.approx(values, abs=1e-2)

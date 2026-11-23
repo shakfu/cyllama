@@ -11,12 +11,12 @@ import sys
 import os
 import json
 import wave
-import struct
 from array import array
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, List, Tuple
-import threading
+
+from ..utils.platform import resolve_n_threads
+from typing import Any, List, Optional, Tuple
 
 # Import the whisper module (use: python -m cyllama.whisper.cli).
 # whisper_cpp is a Cython-compiled extension; the runtime import works
@@ -34,7 +34,8 @@ class WhisperParams:
 
     def __init__(self) -> None:
         # Basic parameters
-        self.n_threads = min(4, threading.active_count())
+        # Physical cores; threading.active_count() counted Python threads, usually 1.
+        self.n_threads = resolve_n_threads(-1)
         self.n_processors = 1
         self.offset_t_ms = 0
         self.offset_n = 0
@@ -121,32 +122,35 @@ def load_wav_file(filepath: str) -> Tuple["array[float]", int]:
         frames = wav_file.readframes(-1)
         sound_info = wav_file.getparams()
 
-        samples_f: List[float]
+    # Decode into a typed array: a list of Python floats is ~32 bytes per
+    # sample (57.6M objects for an hour at 16 kHz) before the float32 copy.
+    width = sound_info.sampwidth
+    raw: Any
+    if width == 1:
+        raw, offset, scale = array("B", frames), 128, 1 / 128.0
+    elif width == 2:
+        raw, offset, scale = array("h"), 0, 1 / 32768.0
+        raw.frombytes(frames)
+    elif width == 3:
+        # no 24-bit array type; widen to 32 bits with the sample in the high bytes
+        raw, offset, scale = array("i"), 0, 1 / 2147483648.0
+        raw.frombytes(b"".join(b"\x00" + frames[i : i + 3] for i in range(0, len(frames) - 2, 3)))
+    elif width == 4:
+        raw, offset, scale = array("i"), 0, 1 / 2147483648.0
+        raw.frombytes(frames)
+    else:
+        raise ValueError(f"Unsupported sample width: {width}")
+    if width > 1 and sys.byteorder == "big":
+        raw.byteswap()  # WAV data is little-endian
 
-        # Convert to float32 normalized to [-1, 1]
-        if sound_info.sampwidth == 1:
-            fmt = f"{len(frames)}B"
-            raw = struct.unpack(fmt, frames)
-            samples_f = [(s - 128) / 128.0 for s in raw]
-        elif sound_info.sampwidth == 2:
-            fmt = f"{len(frames) // 2}h"
-            raw = struct.unpack(fmt, frames)
-            samples_f = [s / 32768.0 for s in raw]
-        elif sound_info.sampwidth == 3:
-            # 24-bit samples
-            samples_f = []
-            for i in range(0, len(frames), 3):
-                if i + 2 < len(frames):
-                    sample = int.from_bytes(frames[i : i + 3], byteorder="little", signed=True)
-                    samples_f.append(sample / 8388608.0)  # 2^23
-        elif sound_info.sampwidth == 4:
-            fmt = f"{len(frames) // 4}i"
-            raw = struct.unpack(fmt, frames)
-            samples_f = [s / 2147483648.0 for s in raw]  # 2^31
-        else:
-            raise ValueError(f"Unsupported sample width: {sound_info.sampwidth}")
-
-        return array("f", samples_f), sound_info.framerate
+    # Samples are interleaved per frame; whisper takes mono, so average the channels.
+    n_ch = sound_info.nchannels
+    if n_ch > 1:
+        n_frames = len(raw) // n_ch
+        samples = array("f", ((sum(raw[f * n_ch : (f + 1) * n_ch]) / n_ch - offset) * scale for f in range(n_frames)))
+    else:
+        samples = array("f", ((x - offset) * scale for x in raw))
+    return samples, sound_info.framerate
 
 
 def resample_audio(samples: Sequence[float], orig_sr: int, target_sr: int = 16000) -> "array[float]":
@@ -406,6 +410,32 @@ def create_whisper_params_from_args(params: WhisperParams) -> wh.WhisperFullPara
     whisper_params.token_timestamps = not params.no_timestamps
     whisper_params.temperature = params.temperature
 
+    # Decoding and threshold flags, as upstream whisper-cli applies them; these
+    # were parsed and dropped. beam_size > 1 selects beam search there too.
+    whisper_params.strategy = (
+        wh.WhisperSamplingStrategy.BEAM_SEARCH if params.beam_size > 1 else wh.WhisperSamplingStrategy.GREEDY
+    )
+    whisper_params.beam_size = params.beam_size
+    whisper_params.greedy_best_of = params.best_of
+    if params.max_context >= 0:
+        whisper_params.n_max_text_ctx = params.max_context
+    whisper_params.max_len = params.max_len
+    whisper_params.split_on_word = params.split_on_word
+    whisper_params.thold_pt = params.word_thold
+    whisper_params.entropy_thold = params.entropy_thold
+    whisper_params.logprob_thold = params.logprob_thold
+    whisper_params.no_speech_thold = params.no_speech_thold
+    whisper_params.temperature_inc = 0.0 if params.no_fallback else params.temperature_inc
+    whisper_params.detect_language = params.detect_language
+    whisper_params.audio_ctx = params.audio_ctx
+    whisper_params.tdrz_enable = params.tinydiarize
+    whisper_params.suppress_nst = params.suppress_nst
+    whisper_params.debug_mode = params.debug_mode
+    if params.prompt:
+        whisper_params.initial_prompt = params.prompt
+    if params.suppress_regex:
+        whisper_params.suppress_regex = params.suppress_regex
+
     # Set language if specified
     if params.language:
         whisper_params.language = params.language
@@ -413,8 +443,41 @@ def create_whisper_params_from_args(params: WhisperParams) -> wh.WhisperFullPara
     return whisper_params
 
 
-def process_file(input_file: str, params: WhisperParams) -> None:
-    """Process a single audio file."""
+def warn_unsupported(params: WhisperParams) -> None:
+    """Say which parsed flags this CLI does not implement, instead of ignoring them silently."""
+    unsupported = {
+        "--processors": params.n_processors != 1,
+        "--offset-n": params.offset_n != 0,
+        "--output-words": params.output_wts,
+        "--print-colors": params.print_colors,
+    }
+    for flag, used in unsupported.items():
+        if used:
+            print(f"Warning: {flag} is not supported by this CLI and is ignored", file=sys.stderr)
+
+
+def load_context(params: WhisperParams) -> Any:
+    """Load the Whisper model; print the error and return None if that fails."""
+    if not params.verbose:
+        wh.disable_logging()
+    wh.ggml_backend_load_all()
+    try:
+        ctx = wh.WhisperContext(params.model, create_context_params(params))
+    except Exception as e:
+        print(f"Error loading model {params.model}: {e}", file=sys.stderr)
+        return None
+    if not params.no_prints:
+        print(f"Model loaded: {params.model}")
+    return ctx
+
+
+def process_file(input_file: str, params: WhisperParams, ctx: Any = None, output_base: Optional[str] = None) -> None:
+    """Process a single audio file.
+
+    ``ctx`` is a loaded WhisperContext to reuse; one is loaded when it is None.
+    Output files are ``output_base`` (from ``-o``) plus the format's suffix,
+    defaulting to the input's stem in the working directory.
+    """
     if not params.no_prints:
         print(f"Processing: {input_file}")
 
@@ -431,22 +494,10 @@ def process_file(input_file: str, params: WhisperParams) -> None:
             print(f"Resampling from {sample_rate}Hz to {wh.WHISPER.SAMPLE_RATE}Hz")
         samples = resample_audio(samples, sample_rate, wh.WHISPER.SAMPLE_RATE)
 
-    # Suppress C-level log noise by default
-    if not params.verbose:
-        wh.disable_logging()
-
-    # Load GPU backends before creating context
-    wh.ggml_backend_load_all()
-
-    # Initialize Whisper context
-    try:
-        ctx = wh.WhisperContext(params.model, create_context_params(params))
-    except Exception as e:
-        print(f"Error loading model {params.model}: {e}", file=sys.stderr)
-        return
-
-    if not params.no_prints:
-        print(f"Model loaded: {params.model}")
+    if ctx is None:
+        ctx = load_context(params)
+        if ctx is None:
+            return
 
     # Create whisper parameters
     whisper_params = create_whisper_params_from_args(params)
@@ -466,7 +517,7 @@ def process_file(input_file: str, params: WhisperParams) -> None:
         print("Transcription completed")
 
     # Generate output files
-    base_name = Path(input_file).stem
+    base_name = output_base or Path(input_file).stem
 
     if params.output_txt:
         output_path = f"{base_name}.txt"
@@ -734,14 +785,33 @@ def main() -> None:
         print(f"Error: Model file not found: {params.model}", file=sys.stderr)
         sys.exit(1)
 
+    if "-" in params.fname_inp:
+        print("Error: reading audio from stdin ('-') is not supported; pass a WAV file", file=sys.stderr)
+        sys.exit(1)
+    warn_unsupported(params)
+
+    # Default outputs are <stem>.<ext> in the working directory, so a/x.wav and
+    # b/x.wav would overwrite each other; -o names them apart.
+    stems = [Path(f).stem for i, f in enumerate(params.fname_inp) if i >= len(params.fname_out)]
+    clashes = sorted({s for s in stems if stems.count(s) > 1})
+    if clashes:
+        print(f"Error: inputs share the output name {', '.join(clashes)}; give each an -o", file=sys.stderr)
+        sys.exit(1)
+
+    # Load the model once for all inputs; it was reloaded for every file.
+    ctx = load_context(params)
+    if ctx is None:
+        sys.exit(1)
+
     # Process each input file
-    for input_file in params.fname_inp:
-        if input_file != "-" and not os.path.exists(input_file):
+    for i, input_file in enumerate(params.fname_inp):
+        if not os.path.exists(input_file):
             print(f"Error: Input file not found: {input_file}", file=sys.stderr)
             continue
 
         try:
-            process_file(input_file, params)
+            out = params.fname_out[i] if i < len(params.fname_out) else None
+            process_file(input_file, params, ctx=ctx, output_base=out)
         except KeyboardInterrupt:
             print("\nInterrupted by user", file=sys.stderr)
             sys.exit(1)

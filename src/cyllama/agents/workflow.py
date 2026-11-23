@@ -57,7 +57,9 @@ property), so they plug into :func:`agent_as_tool`,
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import inspect
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -79,7 +81,81 @@ from typing import (
 )
 
 from .contract import ContractPolicy, ContractViolation
+from .tools import Tool, call_tool
 from .types import AgentEvent, AgentMetrics, AgentResult, EventType
+
+
+class _EventSink:
+    """Where one running node publishes its sub-events: the step's queue, until the node ends."""
+
+    def __init__(self, loop: asyncio.AbstractEventLoop, queue: "asyncio.Queue[Any]", source: str, parent_id: str):
+        self.loop = loop
+        self.queue = queue
+        self.source = source
+        self.parent_id = parent_id
+        self.open = True
+
+    def _stamp(self, ev: AgentEvent) -> AgentEvent:
+        if ev.source is None:
+            ev.source = self.source
+        if ev.parent_event_id is None:
+            ev.parent_event_id = self.parent_id
+        return ev
+
+    def publish_threadsafe(self, ev: AgentEvent) -> None:
+        # Dropped once the node has ended, e.g. a timed-out body still running on its thread.
+        if self.open:
+            try:
+                self.loop.call_soon_threadsafe(self._put, self._stamp(ev))
+            except RuntimeError:
+                pass  # loop closed: the run is over
+
+    def _put(self, ev: AgentEvent) -> None:
+        if self.open:
+            self.queue.put_nowait(ev)
+
+    async def publish(self, ev: AgentEvent) -> None:
+        if self.open:
+            await self.queue.put(self._stamp(ev))
+
+
+# The sink of the node running in this context. A ContextVar, not an attribute
+# on the node body: one compiled workflow may run concurrently, and asyncio
+# tasks and worker threads each get a copy of the context.
+_EVENT_SINK: "contextvars.ContextVar[Optional[_EventSink]]" = contextvars.ContextVar("_EVENT_SINK", default=None)
+
+
+async def _to_daemon_thread(fn: Callable[..., Any], *args: Any) -> Any:
+    """``asyncio.to_thread`` on a daemon thread.
+
+    A node that times out keeps running on its thread. In the default executor
+    that thread made ``asyncio.run`` wait up to 300 s at shutdown, and blocked
+    interpreter exit after that.
+    """
+    loop = asyncio.get_running_loop()
+    future: "asyncio.Future[Any]" = loop.create_future()
+    ctx = contextvars.copy_context()
+
+    def _set(setter: Callable[[Any], None], value: Any) -> None:
+        if not future.done():
+            setter(value)
+
+    def _deliver(setter: Callable[[Any], None], value: Any) -> None:
+        try:
+            loop.call_soon_threadsafe(_set, setter, value)
+        except RuntimeError:
+            pass  # the loop closed while this abandoned node ran; nobody awaits it
+
+    def _run() -> None:
+        try:
+            result = ctx.run(fn, *args)
+        except BaseException as e:  # noqa: BLE001 -- delivered to the awaiting task
+            _deliver(future.set_exception, e)
+        else:
+            _deliver(future.set_result, result)
+
+    threading.Thread(target=_run, name="workflow-node", daemon=True).start()
+    return await future
 
 
 __all__ = [
@@ -1555,54 +1631,23 @@ class CompiledWorkflow(Generic[StateT]):
                         },
                     )
 
-                # Set up real-time sub-event forwarding. Each node body
-                # that supports streaming (``_StreamingAgentNodeBody`` /
-                # ``_SubWorkflowNodeBody``) gets an ``_event_sink``
-                # attribute pointing at a shared queue; the runtime
-                # drains the queue concurrently with the node tasks so
-                # sub-events appear in the outer stream in real time
-                # rather than batched after each node completes.
-                #
-                # Each ready node gets a unique done-marker object. For
-                # streaming bodies the marker is pushed by the body
-                # itself through the same channel as its events
-                # (``call_soon_threadsafe`` for thread-running bodies,
-                # ``await queue.put`` for loop-running bodies), so it
-                # is guaranteed to arrive after all of that body's
-                # forwarded events even when the body runs on a worker
-                # thread. For non-streaming nodes (plain functions),
-                # ``_run_with_signal`` pushes the marker after the node
-                # completes.
+                # Real-time sub-event forwarding. Each ready node gets a sink
+                # (task-local, through _EVENT_SINK) on one shared queue, and a
+                # done marker that _run_with_signal pushes when the node ends,
+                # however it ends. Events a body publishes from its thread are
+                # queued before its result reaches the loop, so before the marker.
                 event_queue: "asyncio.Queue[Any]" = asyncio.Queue()
                 event_loop = asyncio.get_running_loop()
-                streaming_bodies: List[Any] = []
                 node_done_markers: Dict[str, object] = {n: object() for n in ready}
-                streaming_names: Set[str] = set()
-                for node_name in ready:
-                    body = self.nodes[node_name].fn
-                    if hasattr(body, "_event_sink"):
-                        body._event_sink = (
-                            event_loop,
-                            event_queue,
-                            node_name,
-                            node_event_ids[node_name],
-                            node_done_markers[node_name],
-                        )
-                        streaming_bodies.append(body)
-                        streaming_names.add(node_name)
 
                 async def _run_with_signal(name: str) -> Dict[str, Any]:
+                    sink = _EventSink(event_loop, event_queue, name, node_event_ids[name])
+                    _EVENT_SINK.set(sink)  # this task's own context
                     try:
                         return await self._run_one(name, state)
                     finally:
-                        # Streaming bodies emit their own done marker on
-                        # the same FIFO channel as their published events
-                        # (see ``_StreamingAgentNodeBody.__call__`` /
-                        # ``_SubWorkflowNodeBody.__call__``). Plain
-                        # nodes have no events to publish, so we emit
-                        # the marker here.
-                        if name not in streaming_names:
-                            await event_queue.put(node_done_markers[name])
+                        sink.open = False
+                        await event_queue.put(node_done_markers[name])
 
                 tasks: Dict[str, "asyncio.Task[Dict[str, Any]]"] = {
                     name: asyncio.create_task(_run_with_signal(name)) for name in ready
@@ -1612,15 +1657,22 @@ class CompiledWorkflow(Generic[StateT]):
                 # arrived. Forwarded sub-events yield as they arrive;
                 # markers decrement the pending set.
                 pending_markers = set(node_done_markers.values())
-                while pending_markers:
-                    item = await event_queue.get()
-                    # Identity-based discard so we never confuse a
-                    # marker with an event (events are ``AgentEvent``).
-                    matched = next((m for m in pending_markers if m is item), None)
-                    if matched is not None:
-                        pending_markers.discard(matched)
-                    else:
-                        yield item
+                try:
+                    while pending_markers:
+                        item = await event_queue.get()
+                        # Identity-based discard so we never confuse a
+                        # marker with an event (events are ``AgentEvent``).
+                        matched = next((m for m in pending_markers if m is item), None)
+                        if matched is not None:
+                            pending_markers.discard(matched)
+                        elif isinstance(item, AgentEvent):
+                            yield item
+                finally:
+                    # Leaving early (consumer closed the stream, or cancellation):
+                    # stop the step's other nodes rather than leave them running.
+                    for task in tasks.values():
+                        if not task.done():
+                            task.cancel()
 
                 # All tasks have completed (their `finally` ran). Collect
                 # results; capture exceptions for the ERROR path below.
@@ -1630,11 +1682,6 @@ class CompiledWorkflow(Generic[StateT]):
                         results.append(await tasks[node_name])
                     except BaseException as e:
                         results.append(e)
-
-                # Clear the sink attribute so a re-run of the same node
-                # (cycle case) doesn't carry stale state.
-                for body in streaming_bodies:
-                    body._event_sink = None
 
                 # Process results in declaration order; emit NODE_END per
                 # node (or ERROR + raise on the first failure).
@@ -1804,7 +1851,7 @@ class CompiledWorkflow(Generic[StateT]):
                     "nodes_run": nodes_run,
                 },
             )
-        except BaseException as e:  # user node body raised
+        except Exception as e:  # user node body raised; CancelledError and GeneratorExit propagate
             metrics.total_time_ms = (time.perf_counter() - start) * 1000.0
             metrics.error_count += 1
             yield AgentEvent(
@@ -1969,7 +2016,7 @@ class CompiledWorkflow(Generic[StateT]):
             # the result-shape check here to keep _invoke's logic in
             # one place.
             async def _sync_invoke() -> Dict[str, Any]:
-                result = await asyncio.to_thread(node.fn, snapshot)
+                result = await _to_daemon_thread(node.fn, snapshot)
                 if result is None:
                     return {}
                 if not isinstance(result, dict):
@@ -2202,7 +2249,7 @@ class _StreamingAgentNodeBody:
     Used by :func:`agent_node` when ``forward_events=True``. While the
     sub-agent's stream is consumed (synchronously on a worker thread),
     each event is pushed in real time to the workflow runtime's event
-    queue via :attr:`_event_sink` -- the outer stream observes
+    queue via the node's event sink -- the outer stream observes
     sub-events as they happen rather than batched after the node
     completes. ``source`` and ``parent_event_id`` are stamped here so
     the runtime can yield the event unmodified.
@@ -2216,74 +2263,48 @@ class _StreamingAgentNodeBody:
     # unique object pushed via the same FIFO channel after all events
     # so the runtime can detect when this body has finished publishing
     # without racing against task completion.
-    _event_sink: Optional[Tuple[Any, Any, str, str, Any]]
 
     def __init__(self, agent: Any, name: str, task_param: str) -> None:
         self._agent = agent
         self._name = name
         self._task_param = task_param
-        self._event_sink = None
         self.__name__ = name
 
     def _publish(self, ev: AgentEvent) -> None:
-        """Stamp source/parent_event_id and push the event to the sink.
-
-        Called from a worker thread (this body runs via
-        ``asyncio.to_thread``), so we use ``call_soon_threadsafe`` to
-        hand the event to the event-loop-owned queue.
-        """
-        sink = self._event_sink
-        if sink is None:
-            return
-        loop, queue, source, parent_id, _ = sink
-        if ev.source is None:
-            ev.source = source
-        if ev.parent_event_id is None:
-            ev.parent_event_id = parent_id
-        loop.call_soon_threadsafe(queue.put_nowait, ev)
+        """Push the event to the running node's sink; this body runs on a worker thread."""
+        sink = _EVENT_SINK.get()
+        if sink is not None:
+            sink.publish_threadsafe(ev)
 
     def __call__(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        sink = self._event_sink
+        if self._task_param not in state:
+            raise WorkflowExecutionError(f"agent_node({self._name!r}): state missing required key {self._task_param!r}")
+        task = state[self._task_param]
+        if not isinstance(task, str):
+            raise WorkflowExecutionError(
+                f"agent_node({self._name!r}): state[{self._task_param!r}] must be a str, got {type(task).__name__}"
+            )
+
+        # Consume the agent's event stream; the final ANSWER event's
+        # content (or the last yielded event's content) becomes the
+        # state update value. Each event is published to the sink as
+        # soon as it's produced.
+        answer = ""
         try:
-            if self._task_param not in state:
-                raise WorkflowExecutionError(
-                    f"agent_node({self._name!r}): state missing required key {self._task_param!r}"
-                )
-            task = state[self._task_param]
-            if not isinstance(task, str):
-                raise WorkflowExecutionError(
-                    f"agent_node({self._name!r}): state[{self._task_param!r}] must be a str, got {type(task).__name__}"
-                )
+            for ev in self._agent.stream(task):
+                self._publish(ev)
+                if ev.type == EventType.ANSWER:
+                    answer = ev.content
+        except Exception:
+            # Stream-based path failed; fall back to ``run`` so the node
+            # still produces an answer (and stream-incompatible agents
+            # don't break the workflow). We surface the synchronous
+            # ``run`` result as a single ANSWER event to the consumer.
+            result = self._agent.run(task)
+            answer = getattr(result, "answer", "") or ""
+            self._publish(AgentEvent(type=EventType.ANSWER, content=answer))
 
-            # Consume the agent's event stream; the final ANSWER event's
-            # content (or the last yielded event's content) becomes the
-            # state update value. Each event is published to the sink as
-            # soon as it's produced.
-            answer = ""
-            try:
-                for ev in self._agent.stream(task):
-                    self._publish(ev)
-                    if ev.type == EventType.ANSWER:
-                        answer = ev.content
-            except Exception:
-                # Stream-based path failed; fall back to ``run`` so the node
-                # still produces an answer (and stream-incompatible agents
-                # don't break the workflow). We surface the synchronous
-                # ``run`` result as a single ANSWER event to the consumer.
-                result = self._agent.run(task)
-                answer = getattr(result, "answer", "") or ""
-                self._publish(AgentEvent(type=EventType.ANSWER, content=answer))
-
-            return {self._name: answer}
-        finally:
-            # Push the done marker via the same call_soon_threadsafe
-            # channel as the published events. This guarantees the
-            # outer drain loop sees every event before the marker --
-            # critical because the body runs in a worker thread (via
-            # asyncio.to_thread) while the drain runs on the loop.
-            if sink is not None:
-                loop, queue, _, _, done_marker = sink
-                loop.call_soon_threadsafe(queue.put_nowait, done_marker)
+        return {self._name: answer}
 
 
 def agent_node(
@@ -2374,8 +2395,6 @@ class _SubWorkflowNodeBody:
     real time as they arrive from ``astream``, not batched at the end.
     """
 
-    _event_sink: Optional[Tuple[Any, Any, str, str, Any]]
-
     def __init__(
         self,
         compiled: "CompiledWorkflow[Any]",
@@ -2387,68 +2406,53 @@ class _SubWorkflowNodeBody:
         self._name = name
         self._task_param = task_param
         self._project_state = project_state
-        self._event_sink = None
         self.__name__ = name
 
     async def __call__(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        sink = self._event_sink
-        try:
-            # Build the sub-workflow's initial state. If a task_param is
-            # configured we mirror the AgentProtocol shape -- wrap the
-            # task value as ``{task_param: value}``. Otherwise forward the
-            # inner workflow's declared inputs from the outer state.
-            if self._task_param is not None:
-                if self._task_param not in state:
-                    raise WorkflowExecutionError(
-                        f"workflow_node({self._name!r}): state missing required key {self._task_param!r}"
-                    )
-                inner_state: Dict[str, Any] = {self._task_param: state[self._task_param]}
+        sink = _EVENT_SINK.get()
+        # Build the sub-workflow's initial state. If a task_param is
+        # configured we mirror the AgentProtocol shape -- wrap the
+        # task value as ``{task_param: value}``. Otherwise forward the
+        # inner workflow's declared inputs from the outer state.
+        if self._task_param is not None:
+            if self._task_param not in state:
+                raise WorkflowExecutionError(
+                    f"workflow_node({self._name!r}): state missing required key {self._task_param!r}"
+                )
+            inner_state: Dict[str, Any] = {self._task_param: state[self._task_param]}
+        else:
+            inputs = self._compiled.layer_c_inputs
+            if inputs:
+                inner_state = {k: state[k] for k in inputs if k in state}
             else:
-                inputs = self._compiled.layer_c_inputs
-                if inputs:
-                    inner_state = {k: state[k] for k in inputs if k in state}
-                else:
-                    inner_state = dict(state)
+                inner_state = dict(state)
 
-            sub_state: Dict[str, Any] = {}
-            success = True
-            error: Optional[str] = None
-            async for ev in self._compiled.astream(inner_state):
-                # Real-time forward each inner event to the outer queue.
-                # ``__call__`` runs on the event loop so we can ``await
-                # queue.put`` directly (no thread-safe hop needed).
-                if sink is not None:
-                    _, queue, source, parent_id, _ = sink
-                    if ev.source is None:
-                        ev.source = source
-                    if ev.parent_event_id is None:
-                        ev.parent_event_id = parent_id
-                    await queue.put(ev)
-                if ev.type == EventType.WORKFLOW_END:
-                    sub_state = ev.metadata.get("state", {}) or {}
-                    success = bool(ev.metadata.get("success", True))
-                    error = ev.metadata.get("error")
-
-            if not success:
-                raise WorkflowExecutionError(f"workflow_node({self._name!r}): inner workflow failed: {error}")
-
-            if self._project_state:
-                # Surface the entire sub-state under our node name so callers
-                # can reach into ``state[name]["some_inner_key"]``.
-                return {self._name: dict(sub_state)}
-            # Default: store only the inner answer (str-shaped).
-            key = self._compiled.answer_key
-            if key is not None and key in sub_state:
-                return {self._name: sub_state[key]}
-            return {self._name: ""}
-        finally:
-            # Emit the done marker on the same queue as the forwarded
-            # events so the outer drain knows this body has finished
-            # publishing. Runs on the event loop, so a direct put_nowait
-            # preserves FIFO with the awaited puts above.
+        sub_state: Dict[str, Any] = {}
+        success = True
+        error: Optional[str] = None
+        async for ev in self._compiled.astream(inner_state):
+            # Real-time forward each inner event to the outer queue.
+            # ``__call__`` runs on the event loop so we can ``await
+            # queue.put`` directly (no thread-safe hop needed).
             if sink is not None:
-                _, queue, _, _, done_marker = sink
-                queue.put_nowait(done_marker)
+                await sink.publish(ev)
+            if ev.type == EventType.WORKFLOW_END:
+                sub_state = ev.metadata.get("state", {}) or {}
+                success = bool(ev.metadata.get("success", True))
+                error = ev.metadata.get("error")
+
+        if not success:
+            raise WorkflowExecutionError(f"workflow_node({self._name!r}): inner workflow failed: {error}")
+
+        if self._project_state:
+            # Surface the entire sub-state under our node name so callers
+            # can reach into ``state[name]["some_inner_key"]``.
+            return {self._name: dict(sub_state)}
+        # Default: store only the inner answer (str-shaped).
+        key = self._compiled.answer_key
+        if key is not None and key in sub_state:
+            return {self._name: sub_state[key]}
+        return {self._name: ""}
 
 
 def workflow_node(
@@ -2528,9 +2532,9 @@ def tool_node(
         flow.set_entry("search")
         result = flow.run(query="...")
 
-    Errors from the tool body propagate; per-tool ``timeout`` (if set)
-    is honored by the tool's own machinery -- the workflow doesn't
-    second-guess it. Argument coercion (:func:`coerce_args`) is *not*
+    Errors from the tool body propagate, including ``ToolTimeoutError``
+    when a ``Tool`` with a ``timeout`` runs past it. Argument coercion
+    (:func:`coerce_args`) is *not*
     applied here because the wrapper builds typed kwargs directly from
     state by name; the values are assumed to be the right type already
     (the upstream nodes that produced them are typed).
@@ -2547,7 +2551,10 @@ def tool_node(
         for p in param_names:
             if p in state:
                 kwargs[p] = state[p]
-        result = tool(**kwargs)
+        if isinstance(tool, Tool):
+            result = call_tool(tool, kwargs, coerce=False)
+        else:
+            result = tool(**kwargs)
         return {node_name: result}
 
     _node.__name__ = node_name

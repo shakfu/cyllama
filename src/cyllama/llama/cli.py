@@ -13,6 +13,7 @@ import signal
 from typing import Any, List, Optional, cast
 
 from . import llama_cpp as cy
+from .generation import decode_prompt, sample_tokens
 from .token_decoder import TokenDecoder
 from ..utils.platform import resolve_n_threads
 
@@ -505,25 +506,15 @@ class LlamaCLI:
         vocab = self.vocab
         assert vocab is not None
 
-        # Prepare batch for prompt
-        batch = cy.llama_batch_get_one(prompt_tokens)
-
         # Start timing
         self.t_main_start = cy.ggml_time_us()
 
         # Process prompt
-        n_past = 0
-        for i in range(0, len(prompt_tokens), args.batch_size):
-            n_eval = min(args.batch_size, len(prompt_tokens) - i)
-            batch_tokens = prompt_tokens[i : i + n_eval]
-            batch = cy.llama_batch_get_one(batch_tokens, n_past)
-
-            try:
-                ctx.decode(batch)
-                n_past += n_eval
-            except ValueError as e:
-                print(f"error: {e}")
-                sys.exit(1)
+        try:
+            decode_prompt(ctx, prompt_tokens)
+        except ValueError as e:
+            print(f"error: {e}")
+            sys.exit(1)
 
         # Generate tokens
         n_remain = args.n_predict if args.n_predict > 0 else 1000  # Default limit
@@ -547,28 +538,14 @@ class LlamaCLI:
         # Generate response
         response = ""
         decoder = TokenDecoder(vocab)
-        for i in range(n_remain):
-            # Sample next token
-            new_token_id = sampler.sample(ctx, -1)
-
-            # Check for end of generation
-            if vocab.is_eog(new_token_id):
-                break
-
-            piece = decoder.decode(new_token_id)
-            response += piece
-            print(piece, end="", flush=True)
-
-            # Prepare next batch
-            batch = cy.llama_batch_get_one([new_token_id], n_pos)
-            n_pos += 1
-
-            try:
-                ctx.decode(batch)
+        try:
+            for new_token_id in sample_tokens(ctx, sampler, vocab, n_pos, n_remain):
+                piece = decoder.decode(new_token_id)
+                response += piece
+                print(piece, end="", flush=True)
                 self.n_decode += 1
-            except ValueError as e:
-                print(f"error: {e}")
-                break
+        except ValueError as e:
+            print(f"error: {e}")
 
         tail = decoder.flush()
         response += tail

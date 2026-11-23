@@ -37,6 +37,7 @@ round-trips through :meth:`add` / :meth:`search` unchanged.
 from __future__ import annotations
 
 import json
+import math
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -188,10 +189,14 @@ class ChromaVectorStore(VectorStoreProtocol):
             self._owns_client = True
 
         self._ensure_collection()
-        # Seed the ID counter from the current collection size. Correct
-        # for append-only use (fresh store, or reopen without deletes);
-        # clear() resets it to 0.
-        self._next_id = self.collection.count()
+        # Seed the ID counter past the largest id present. The row count
+        # collided after a delete: ids 0..9, delete 0, reopen -> next id 9,
+        # which still exists. Two stores writing one collection still collide.
+        self._next_id = self._max_id() + 1
+
+    def _max_id(self) -> int:
+        ids = self.collection.get(include=[])["ids"]
+        return max((int(i) for i in ids if str(i).isdigit()), default=-1)
 
     def _ensure_collection(self) -> None:
         # embedding_function=None keeps Chroma from trying to embed
@@ -201,10 +206,24 @@ class ChromaVectorStore(VectorStoreProtocol):
             metadata={"hnsw:space": _METRIC_TO_SPACE[self.metric]},
             embedding_function=None,
         )
+        # An existing collection keeps its own space and dimension; reopening it
+        # with others used to be accepted and then mis-scored or failed on write.
+        space = (self.collection.metadata or {}).get("hnsw:space", "l2")
+        if space != _METRIC_TO_SPACE[self.metric]:
+            raise ValueError(
+                f"collection {self.collection_name!r} uses space {space!r}; requested metric {self.metric!r}"
+            )
+        sample = self.collection.get(limit=1, include=["embeddings"]).get("embeddings")
+        if sample is not None and len(sample) and len(sample[0]) != self.dimension:
+            raise ValueError(
+                f"collection {self.collection_name!r} holds {len(sample[0])}-dim vectors; requested {self.dimension}"
+            )
 
     def _check_closed(self) -> None:
         if self._closed:
-            raise RuntimeError("ChromaVectorStore is closed")
+            from ..store import VectorStoreError
+
+            raise VectorStoreError("ChromaVectorStore is closed")
 
     def _score(self, distance: float) -> float:
         """Convert a Chroma distance into a higher-is-better score.
@@ -217,7 +236,8 @@ class ChromaVectorStore(VectorStoreProtocol):
             return 1.0 - distance
         if self.metric == "dot":
             return 1.0 - distance
-        return -distance
+        # -sqrt: the plain negative distance the SQLite and pgvector stores return
+        return -math.sqrt(max(distance, 0.0))
 
     # ------------------------------------------------------------------
     # Protocol surface

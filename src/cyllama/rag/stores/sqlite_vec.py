@@ -179,7 +179,9 @@ class SqliteVecStore(VectorStoreProtocol):
         self._extension_path = _resolve_extension_path(extension_path)
 
         try:
-            self.conn = sqlite3.connect(db_path, timeout=10)
+            # AsyncRAG and to_thread callers use the store off its creating thread.
+            # Python's sqlite3 is built serialized (threadsafety 3); callers serialize writes.
+            self.conn = sqlite3.connect(db_path, timeout=10, check_same_thread=False)
         except sqlite3.Error as e:
             raise VectorStoreError(f"Failed to connect to database: {e}") from e
 

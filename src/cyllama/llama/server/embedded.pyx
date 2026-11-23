@@ -15,8 +15,9 @@ from cpython.ref cimport PyObject, Py_INCREF, Py_XDECREF
 
 from .http_shim cimport *
 
-from .python import (ServerConfig, ServerSlot, ChatMessage, ChatRequest, ChatResponse, ChatChoice,
-                     check_request, exposed_without_auth, model_params, sse_chunks, stop_at)
+from .python import (ServerConfig, ServerSlot, ChatMessage, ChatRequest, ChatResponse, ChatChoice, RequestError, SlotsBusy,
+                     check_request, exposed_without_auth, model_params, parse_chat_request, render_chat,
+                     sse_chunks, stop_at)
 
 # Global shutdown flag for signal handling
 _shutdown_requested = False
@@ -84,6 +85,7 @@ cdef class EmbeddedServer:
     cdef bint _stop_requested
     cdef object _loop_exited  # threading.Event, clear while wait_for_shutdown runs
     cdef object _loop_ident
+    cdef object _embed_lock  # one Embedder refuses a concurrent caller; queue instead
 
     @property
     def signal_received(self):
@@ -104,6 +106,7 @@ cdef class EmbeddedServer:
         self._loop_exited = threading.Event()
         self._loop_exited.set()
         self._loop_ident = 0
+        self._embed_lock = threading.Lock()
 
     def __dealloc__(self):
         # The listener thread holds a reference, so it has exited by now.
@@ -184,10 +187,14 @@ cdef class EmbeddedServer:
         self._signal_received = signum
 
     def _setup_signal_handlers(self):
-        """Setup signal handlers for graceful shutdown."""
+        """Install SIGINT/SIGTERM handlers on the main thread; return the previous ones to restore."""
+        if threading.current_thread() is not threading.main_thread():
+            return None
+        previous = (signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM))
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         self._logger.debug("Signal handlers registered for SIGINT and SIGTERM")
+        return previous
 
     def start(self) -> bool:
         """Load the model, bind, and serve on a background thread."""
@@ -203,8 +210,6 @@ cdef class EmbeddedServer:
 
         if exposed_without_auth(self._config):
             self._logger.warning(f"Binding {self._config.host} without an API key: any host that can reach it can use it")
-
-        self._setup_signal_handlers()
 
         host, ipv6 = _bind_address(self._config.host)
         if self._srv != NULL:
@@ -255,9 +260,14 @@ cdef class EmbeddedServer:
         self._logger.info("Embedded server stopped")
 
     def wait_for_shutdown(self):
-        """Block until a signal arrives or stop() is called."""
+        """Block until SIGINT/SIGTERM arrives or stop() is called.
+
+        Installs the signal handlers only for its duration, and only on the main
+        thread; start() alone leaves the host application's handlers in place.
+        """
         self._loop_ident = threading.get_ident()
         self._loop_exited.clear()
+        previous = self._setup_signal_handlers()
         try:
             while not _shutdown_requested and not self._stop_requested:
                 time.sleep(0.1)
@@ -265,6 +275,9 @@ cdef class EmbeddedServer:
                 # delivered to another thread does not interrupt the sleep. Raises if a handler raises.
                 PyErr_CheckSignals()
         finally:
+            if previous is not None:
+                signal.signal(signal.SIGINT, previous[0])
+                signal.signal(signal.SIGTERM, previous[1])
             self._logger.info(f"Exiting on signal {self._signal_received}")
             self._loop_exited.set()
 
@@ -326,22 +339,7 @@ cdef class EmbeddedServer:
                 conn.send_error(400, "Empty request body")
                 return
 
-            data = json.loads(body)
-
-            messages = [ChatMessage(role=msg["role"], content=msg["content"])
-                        for msg in data.get("messages", [])]
-
-            request = ChatRequest(
-                messages=messages,
-                model=data.get("model", self._config.model_alias),
-                max_tokens=data.get("max_tokens"),
-                temperature=data.get("temperature", 0.8),
-                top_p=data.get("top_p", 0.9),
-                min_p=data.get("min_p", 0.05),
-                stream=data.get("stream", False),
-                stop=data.get("stop"),
-                seed=data.get("seed"),
-            )
+            request = parse_chat_request(json.loads(body), self._config)
 
             if request.stream:
                 prompt = self._messages_to_prompt(request.messages)
@@ -371,6 +369,10 @@ cdef class EmbeddedServer:
 
         except json.JSONDecodeError:
             conn.send_error(400, "Invalid JSON")
+        except RequestError as e:
+            conn.send_error(400, str(e))
+        except SlotsBusy as e:
+            conn.send_error(503, str(e))
         except Exception as e:
             # The message can carry model and filesystem paths; log it
             # server-side and tell the client nothing specific.
@@ -419,8 +421,9 @@ cdef class EmbeddedServer:
 
             results = []
             total_tokens = 0
-            for i, text in enumerate(texts):
-                result = self._embedder.embed_with_info(text)
+            with self._embed_lock:
+                infos = [self._embedder.embed_with_info(text) for text in texts]
+            for i, result in enumerate(infos):
                 results.append({
                     "object": "embedding",
                     "embedding": result.embedding,
@@ -449,8 +452,11 @@ cdef class EmbeddedServer:
             conn.send_error(500, "Internal Server Error")
 
     def _generate(self, prompt: str, request: ChatRequest):
-        """Yield generated text on a free slot, waiting for one. Closing it frees the slot."""
-        slot = self._free_slots.get()
+        """Yield generated text on a free slot, waiting up to slot_wait_s for one. Closing it frees the slot."""
+        try:
+            slot = self._free_slots.get(timeout=self._config.slot_wait_s)
+        except queue.Empty:
+            raise SlotsBusy(f"No available slots (waited {self._config.slot_wait_s:g}s)") from None
         try:
             slot.task_id = str(uuid.uuid4())
             slot.is_processing = True
@@ -483,19 +489,8 @@ cdef class EmbeddedServer:
         )
 
     def _messages_to_prompt(self, messages: List[ChatMessage]) -> str:
-        """Convert OpenAI messages to a prompt string."""
-        prompt_parts = []
-
-        for message in messages:
-            if message.role == "system":
-                prompt_parts.append(f"System: {message.content}")
-            elif message.role == "user":
-                prompt_parts.append(f"User: {message.content}")
-            elif message.role == "assistant":
-                prompt_parts.append(f"Assistant: {message.content}")
-
-        prompt_parts.append("Assistant:")
-        return "\n".join(prompt_parts)
+        """Render ``messages`` with the model's chat template (see ``render_chat``)."""
+        return render_chat(self._model, messages)
 
 
 # httplib callbacks. They run on httplib worker threads and take the GIL.
@@ -511,7 +506,8 @@ cdef int _precheck(void *userdata, const cy_http_req *req, cy_http_res *res) noe
     conn._res = res
     try:
         auth = req.auth[:req.auth_len].decode("latin-1") if req.auth != NULL else None
-        rejection = check_request(server._config, _text(req.path, req.path_len), auth, req.content_length)
+        rejection = check_request(server._config, _text(req.path, req.path_len), auth, req.content_length,
+                                  _text(req.host, req.host_len))
         if rejection is None:
             return 0
         # Close rather than let httplib drain an unread, possibly oversized, body.

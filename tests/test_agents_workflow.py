@@ -395,11 +395,9 @@ def test_async_node_awaited():
 def test_per_node_timeout_fires():
     """A node exceeding its declared timeout fails the run.
 
-    Note: the underlying worker thread isn't killed (Python cannot
-    safely kill threads, matching the documented ``Tool.timeout``
-    limitation) -- ``asyncio.run`` waits for the executor's pending
-    threads at shutdown. So we don't assert on wall-clock elapsed,
-    only on the error being captured.
+    The worker thread isn't killed (Python cannot safely kill threads,
+    matching the documented ``Tool.timeout`` limitation); it is a daemon
+    thread, so the run returns without waiting for it.
     """
     flow = Workflow()
 
@@ -1994,3 +1992,86 @@ class TestReflectionLoopIntegration:
         result = loop.run("anything")
         assert result.success
         assert "my draft" in result.answer
+
+
+# ---------------------------------------------------------------------------
+# Scheduler robustness: streaming timeouts, concurrent runs, cancellation,
+# daemon threads for sync nodes
+# ---------------------------------------------------------------------------
+
+
+class _SlowStreamingAgent(_StubAgent):
+    def stream(self, task: str):
+        from cyllama.agents import AgentEvent, EventType
+
+        yield AgentEvent(type=EventType.THOUGHT, content="started")
+        time.sleep(1.0)
+        yield AgentEvent(type=EventType.ANSWER, content="late")
+
+
+def test_streaming_node_timeout_fires():
+    # the drain waited for the body's own done marker, so the timeout never ended the step
+    from cyllama.agents.workflow import agent_node
+
+    flow = Workflow()
+    flow.add_node("slow", agent_node(_SlowStreamingAgent(), "slow"), timeout=0.1)
+    flow.set_entry("slow")
+    started = time.perf_counter()
+    result = flow.run(task="t")
+    assert not result.success and "timeout" in result.error.lower()
+    assert time.perf_counter() - started < 0.8
+
+
+def test_timed_out_sync_node_does_not_hold_up_run():
+    # the default executor's thread made asyncio.run wait for it at shutdown
+    flow = Workflow()
+
+    def slow(state):
+        time.sleep(2.0)
+        return {}
+
+    flow.add_node("slow", slow, timeout=0.05)
+    flow.set_entry("slow")
+    started = time.perf_counter()
+    assert not flow.run().success
+    assert time.perf_counter() - started < 1.0
+
+
+def test_concurrent_runs_keep_their_own_events():
+    # the event sink lived on the shared node body, so concurrent runs crossed events
+    from cyllama.agents import EventType
+    from cyllama.agents.workflow import agent_node
+
+    flow = Workflow()
+    flow.add_node("a", agent_node(_StubAgent(emit_thoughts=5), "a"))
+    flow.set_entry("a")
+    compiled = flow.compile()
+
+    async def both():
+        return await asyncio.gather(compiled.arun({"task": "one"}), compiled.arun({"task": "two"}))
+
+    r1, r2 = asyncio.run(both())
+    for result, task in ((r1, "one"), (r2, "two")):
+        thoughts = [e.content for e in result.events if e.type == EventType.THOUGHT]
+        assert len(thoughts) == 5 and all(repr(task) in t for t in thoughts)
+
+
+def test_cancellation_propagates():
+    flow = Workflow()
+
+    async def forever(state):
+        await asyncio.sleep(10)
+        return {}
+
+    flow.add_node("f", forever)
+    flow.set_entry("f")
+    compiled = flow.compile()
+
+    async def cancel_it():
+        task = asyncio.create_task(compiled.arun({}))
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(cancel_it())

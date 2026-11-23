@@ -419,8 +419,8 @@ All generation subcommands (`txt2img`, `img2img`, `inpaint`, `controlnet`) share
 | `-p, --prompt` | string | (required) | Text prompt |
 | `-n, --negative` | string | | Negative prompt |
 | `-o, --output` | string | output.png | Output path |
-| `-W, --width` | int | 512 | Image width |
-| `-H, --height` | int | 512 | Image height |
+| `-W, --width` | int | 512, or the input image's | Image width |
+| `-H, --height` | int | 512, or the input image's | Image height |
 | `--steps` | int | 20 | Sampling steps |
 | `--cfg-scale` | float | 7.0 | Classifier-free guidance scale |
 | `-s, --seed` | int | -1 | Random seed (-1 = random) |
@@ -474,10 +474,6 @@ All generation subcommands (`txt2img`, `img2img`, `inpaint`, `controlnet`) share
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--slg-scale` | float | 0.0 | Skip layer guidance scale (0=disabled, 2.5 good for SD3.5) |
-| `--skip-layer-start` | float | 0.01 | SLG enabling point |
-| `--skip-layer-end` | float | 0.2 | SLG disabling point |
-| `--guidance` | float | | Distilled guidance scale (for FLUX) |
-| `--img-cfg-scale` | float | | Image CFG scale (inpaint / instruct-pix2pix) |
 
 ### Memory Options
 

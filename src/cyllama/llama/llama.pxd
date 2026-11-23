@@ -426,16 +426,17 @@ cdef extern from "llama.h":
             void * set_tensor_data_ud,
             llama_model_params params)
 
+    # nogil: loading takes seconds; the progress and log trampolines take the GIL themselves.
     cdef llama_model * llama_model_load_from_file(
             const char * path_model,
-            llama_model_params params)
+            llama_model_params params) nogil
 
     # Load a model from an open FILE pointer
     # The GGUF is read from the current position, so it can be embedded in a larger file
     # mmap needs the GGUF data section at a file offset to be aligned to the CPU tensor alignment (32 bytes)
     cdef llama_model * llama_model_load_from_file_ptr(
             FILE * file,
-            llama_model_params params)
+            llama_model_params params) nogil
 
     # Load the model from multiple splits (support custom naming scheme)
     # The paths must be in the correct order
@@ -452,7 +453,7 @@ cdef extern from "llama.h":
 
     cdef llama_context * llama_init_from_model(
                      llama_model * model,
-            llama_context_params   params)
+            llama_context_params   params) nogil
 
     # Frees all allocated memory
     cdef void llama_free(llama_context * ctx)
@@ -1219,8 +1220,10 @@ cdef extern from "llama.h":
     # mirror of llama_sampler_i:
     cdef llama_sampler *        llama_sampler_init  (      llama_sampler_i * iface, llama_sampler_context_t ctx)
     cdef const char *           llama_sampler_name  (const llama_sampler * smpl)
-    cdef void                   llama_sampler_accept(      llama_sampler * smpl, llama_token token) nogil
-    cdef void                   llama_sampler_apply (      llama_sampler * smpl, llama_token_data_array * cur_p) nogil
+    # except +: the grammar sampler throws std::runtime_error on a token its
+    # grammar cannot accept, which would otherwise terminate the process.
+    cdef void                   llama_sampler_accept(      llama_sampler * smpl, llama_token token) except + nogil
+    cdef void                   llama_sampler_apply (      llama_sampler * smpl, llama_token_data_array * cur_p) except + nogil
     cdef void                   llama_sampler_reset (      llama_sampler * smpl)
     cdef llama_sampler *        llama_sampler_clone (const llama_sampler * smpl)
     cdef void                   llama_sampler_copy  (const llama_sampler * src, llama_sampler * dst)
@@ -1319,7 +1322,7 @@ cdef extern from "llama.h":
                      const char ** trigger_patterns,
                             size_t num_trigger_patterns,
                const llama_token * trigger_tokens,
-                            size_t num_trigger_tokens)
+                            size_t num_trigger_tokens) except +  # std::regex throws on a bad pattern
 
 
     # NOTE: Avoid using on the full vocabulary as searching for repeated tokens can become slow. For example, apply top-k or top-p sampling first.

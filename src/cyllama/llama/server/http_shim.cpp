@@ -19,7 +19,8 @@ struct cy_http_sink {
     httplib::DataSink *sink;
 };
 
-static cy_http_req make_req(const httplib::Request &req, const std::string &auth, bool has_auth) {
+static cy_http_req make_req(const httplib::Request &req, const std::string &auth, bool has_auth,
+                            const std::string &host) {
     cy_http_req r;
     r.method = req.method.data();
     r.method_len = req.method.size();
@@ -30,6 +31,8 @@ static cy_http_req make_req(const httplib::Request &req, const std::string &auth
     r.body = req.body.data();
     r.body_len = req.body.size();
     r.content_length = req.get_header_value_u64("Content-Length");
+    r.host = host.data();
+    r.host_len = host.size();
     return r;
 }
 
@@ -54,7 +57,8 @@ cy_http_server *cy_http_server_new(void *userdata, cy_http_handler precheck, cy_
     svr.set_pre_routing_handler([=](const httplib::Request &req, httplib::Response &res) {
         bool has_auth = req.has_header("Authorization");
         std::string auth = req.get_header_value("Authorization");
-        cy_http_req r = make_req(req, auth, has_auth);
+        std::string host = req.get_header_value("Host");
+        cy_http_req r = make_req(req, auth, has_auth, host);
         cy_http_res out{&res, release, next};
         return precheck(userdata, &r, &out) ? httplib::Server::HandlerResponse::Handled
                                             : httplib::Server::HandlerResponse::Unhandled;
@@ -63,7 +67,8 @@ cy_http_server *cy_http_server_new(void *userdata, cy_http_handler precheck, cy_
     auto route = [=](const httplib::Request &req, httplib::Response &res) {
         bool has_auth = req.has_header("Authorization");
         std::string auth = req.get_header_value("Authorization");
-        cy_http_req r = make_req(req, auth, has_auth);
+        std::string host = req.get_header_value("Host");
+        cy_http_req r = make_req(req, auth, has_auth, host);
         cy_http_res out{&res, release, next};
         handle(userdata, &r, &out);
     };

@@ -1,315 +1,356 @@
-"""Tests for ACP agent implementation."""
+"""ACP agent: message shapes follow the ACP schema (protocol version 1).
+
+https://agentclientprotocol.com/protocol/schema
+"""
+
+import json
+import os
+import threading
 
 import pytest
 from unittest.mock import Mock
 
 from cyllama.agents.acp import (
+    ACP_PROTOCOL_VERSION,
     ACPAgent,
     ContentBlock,
-    ToolCallUpdate,
-    ToolCallStatus,
     SessionUpdate,
     StopReason,
+    ToolCallStatus,
+    ToolCallUpdate,
+    _prompt_text,
 )
-from cyllama.agents.session import Session, MemorySessionStore
+from cyllama.agents.jsonrpc import JsonRpcResponse
+from cyllama.agents.session import MemorySessionStore, Session
+from cyllama.agents.types import AgentEvent, EventType
+
+ALL_CLIENT_CAPS = {"fs": {"readTextFile": True, "writeTextFile": True}, "terminal": True}
 
 
 class TestContentBlock:
-    """Tests for ACP content blocks."""
-
     def test_text_content(self):
-        block = ContentBlock.from_text("Hello world")
-        assert block.type == "text"
-        assert block.text == "Hello world"
+        block = ContentBlock.from_text("Hello")
+        assert block.type == "text" and block.text == "Hello"
 
     def test_to_dict_text(self):
-        block = ContentBlock.from_text("test")
-        d = block.to_dict()
-
-        assert d["type"] == "text"
-        assert d["text"] == "test"
-        assert "data" not in d
+        assert ContentBlock.from_text("Hello").to_dict() == {"type": "text", "text": "Hello"}
 
     def test_to_dict_with_data(self):
         block = ContentBlock(type="image", data="base64data", mime_type="image/png")
-        d = block.to_dict()
-
-        assert d["type"] == "image"
-        assert d["data"] == "base64data"
-        assert d["mimeType"] == "image/png"
+        assert block.to_dict() == {"type": "image", "data": "base64data", "mimeType": "image/png"}
 
 
-class TestToolCallUpdate:
-    """Tests for tool call updates."""
+class TestUpdateShapes:
+    def test_text_update(self):
+        u = SessionUpdate.text("s1", "agent_message_chunk", "hi")
+        assert u.to_dict() == {
+            "sessionId": "s1",
+            "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "hi"}},
+        }
 
-    def test_basic_update(self):
-        update = ToolCallUpdate(
-            id="tc_1",
-            name="search",
-            status=ToolCallStatus.IN_PROGRESS,
-        )
-        assert update.id == "tc_1"
-        assert update.name == "search"
-        assert update.status == ToolCallStatus.IN_PROGRESS
+    def test_tool_call_and_update(self):
+        call = ToolCallUpdate("call_1", ToolCallStatus.IN_PROGRESS, title="search", kind="other", raw_input={"q": 1})
+        first = SessionUpdate.tool_call("s1", call, first=True).to_dict()["update"]
+        assert first == {
+            "sessionUpdate": "tool_call",
+            "toolCallId": "call_1",
+            "status": "in_progress",
+            "title": "search",
+            "kind": "other",
+            "rawInput": {"q": 1},
+        }
+        done = ToolCallUpdate("call_1", ToolCallStatus.COMPLETED, content=[ContentBlock.from_text("ok")])
+        later = SessionUpdate.tool_call("s1", done, first=False).to_dict()["update"]
+        assert later["sessionUpdate"] == "tool_call_update"
+        assert later["content"] == [{"type": "content", "content": {"type": "text", "text": "ok"}}]
 
-    def test_to_dict(self):
-        update = ToolCallUpdate(
-            id="tc_1",
-            name="calc",
-            status=ToolCallStatus.COMPLETED,
-            arguments={"x": 1},
-            content=[ContentBlock.from_text("42")],
-        )
-        d = update.to_dict()
-
-        assert d["id"] == "tc_1"
-        assert d["name"] == "calc"
-        assert d["status"] == "completed"
-        assert d["arguments"] == {"x": 1}
-        assert len(d["content"]) == 1
+    def test_stop_reasons_match_schema(self):
+        assert {r.value for r in StopReason} == {"end_turn", "max_tokens", "max_turn_requests", "refusal", "cancelled"}
 
 
-class TestSessionUpdate:
-    """Tests for session updates."""
-
-    def test_basic_update(self):
-        update = SessionUpdate(
-            session_id="sess_1",
-            content=[ContentBlock.from_text("Hello")],
-        )
-        assert update.session_id == "sess_1"
-
-    def test_to_dict(self):
-        update = SessionUpdate(
-            session_id="sess_1",
-            content=[ContentBlock.from_text("Done")],
-            stop_reason=StopReason.END_TURN,
-        )
-        d = update.to_dict()
-
-        assert d["sessionId"] == "sess_1"
-        assert len(d["content"]) == 1
-        assert d["stopReason"] == "end_turn"
-
-    def test_to_dict_with_tool_calls(self):
-        update = SessionUpdate(
-            session_id="sess_1",
-            tool_calls=[
-                ToolCallUpdate(
-                    id="tc_1",
-                    name="test",
-                    status=ToolCallStatus.PENDING,
-                )
-            ],
-        )
-        d = update.to_dict()
-
-        assert "toolCalls" in d
-        assert len(d["toolCalls"]) == 1
+class TestPromptText:
+    def test_text_and_resources(self):
+        blocks = [
+            {"type": "text", "text": "Explain this"},
+            {"type": "resource", "resource": {"uri": "file:///a.py", "mimeType": "text/x-python", "text": "x = 1"}},
+            {"type": "resource_link", "uri": "file:///b.py", "name": "b.py"},
+            {"type": "image", "data": "..."},
+            "not a block",
+        ]
+        text = _prompt_text(blocks)
+        assert "Explain this" in text and "x = 1" in text and "file:///b.py" in text
 
 
-class TestACPAgentHandlers:
-    """Tests for ACP agent method handlers."""
+@pytest.fixture
+def agent():
+    llm = Mock()
+    llm.return_value = "Answer: test response"
+    return ACPAgent(llm=llm, verbose=False)
 
-    @pytest.fixture
-    def mock_llm(self):
-        """Create a mock LLM."""
-        llm = Mock()
-        llm.return_value = "Answer: test response"
-        return llm
 
-    @pytest.fixture
-    def agent(self, mock_llm):
-        """Create an ACP agent for testing."""
-        return ACPAgent(llm=mock_llm, verbose=False)
-
-    def test_handle_initialize(self, agent):
-        """Test initialize handler."""
-        result = agent._handle_initialize(
-            {
-                "protocolVersion": "2025-01-01",
-                "clientInfo": {"name": "test", "version": "1.0"},
-            }
-        )
-
-        assert "protocolVersion" in result
-        assert "capabilities" in result
-        assert "agentInfo" in result
+class TestHandlers:
+    def test_initialize(self, agent):
+        result = agent._handle_initialize({"protocolVersion": 1, "clientInfo": {"name": "test", "version": "1.0"}})
+        assert result["protocolVersion"] == ACP_PROTOCOL_VERSION == 1
+        caps = result["agentCapabilities"]
+        assert caps["loadSession"] is True
+        assert caps["promptCapabilities"] == {"image": False, "audio": False, "embeddedContext": True}
         assert result["agentInfo"]["name"] == "cyllama"
+        assert result["authMethods"] == []
 
-    def test_handle_initialize_capabilities(self, agent):
-        """Test that initialize returns correct capabilities."""
-        result = agent._handle_initialize({})
+    def test_initialize_records_client_capabilities(self, agent):
+        assert agent._create_acp_tools() == []  # nothing advertised yet
+        agent._handle_initialize({"clientCapabilities": {"fs": {"readTextFile": True}}})
+        assert [t.name for t in agent._create_acp_tools()] == ["read_file"]
+        agent._handle_initialize({"clientCapabilities": ALL_CLIENT_CAPS})
+        assert [t.name for t in agent._create_acp_tools()] == ["read_file", "write_file", "run_command"]
 
-        caps = result["capabilities"]
-        assert caps["prompts"]["text"] is True
-        assert caps["tools"] is True
-        assert caps["permissions"] is True
+    def test_authenticate(self, agent):
+        assert agent._handle_authenticate({}) == {}
 
-    def test_handle_authenticate(self, agent):
-        """Test authenticate handler."""
-        result = agent._handle_authenticate({})
-        assert result["authenticated"] is True
-
-    def test_handle_session_new(self, agent):
-        """Test session/new handler."""
-        result = agent._handle_session_new({})
-
-        assert "sessionId" in result
-        assert len(result["sessionId"]) > 0
-
-        # Verify session was stored
+    def test_session_new(self, agent):
+        result = agent._handle_session_new({"cwd": "/work", "mcpServers": []})
+        assert set(result) == {"sessionId"}
         session = agent._session_store.load(result["sessionId"])
-        assert session is not None
+        assert session.metadata["cwd"] == "/work"
 
-    def test_handle_session_new_with_mode(self, agent):
-        """Test session/new with mode."""
-        result = agent._handle_session_new({"modeId": "default"})
+    def test_session_new_skips_non_stdio_mcp(self, agent):
+        agent._handle_session_new({"cwd": "/w", "mcpServers": [{"type": "http", "name": "h", "url": "http://x"}]})
+        assert agent._mcp_client is None
 
-        session = agent._session_store.load(result["sessionId"])
-        assert session.mode_id == "default"
-
-    def test_handle_session_load(self, agent):
-        """Test session/load handler."""
-        # First create a session
-        session = Session(id="load_test")
+    def test_session_load_replays_history(self, agent):
+        session = Session(id="s1")
+        session.add_message("user", "hi")
+        session.add_message("assistant", "hello")
         agent._session_store.save(session)
+        server = Mock()
+        agent._server = server
+        assert agent._handle_session_load({"sessionId": "s1", "cwd": "/w", "mcpServers": []}) == {}
+        sent = [c.args[1]["update"] for c in server.send_notification.call_args_list]
+        assert [u["sessionUpdate"] for u in sent] == ["user_message_chunk", "agent_message_chunk"]
+        assert sent[1]["content"]["text"] == "hello"
 
-        # Then load it
-        result = agent._handle_session_load({"sessionId": "load_test"})
-        assert result["sessionId"] == "load_test"
-
-    def test_handle_session_load_not_found(self, agent):
-        """Test session/load with nonexistent session."""
+    def test_session_load_not_found(self, agent):
         with pytest.raises(ValueError, match="Session not found"):
             agent._handle_session_load({"sessionId": "nonexistent"})
 
-    def test_handle_session_load_missing_id(self, agent):
-        """Test session/load without sessionId."""
+    def test_session_load_missing_id(self, agent):
         with pytest.raises(ValueError, match="sessionId is required"):
             agent._handle_session_load({})
 
-    def test_handle_session_set_mode(self, agent):
-        """Test session/set_mode handler."""
-        # Create session
-        session = Session(id="mode_test")
-        agent._session_store.save(session)
+    def test_session_set_mode(self, agent):
+        agent._session_store.save(Session(id="mode_test"))
+        assert agent._handle_session_set_mode({"sessionId": "mode_test", "modeId": "default"}) == {}
+        assert agent._session_store.load("mode_test").mode_id == "default"
 
-        result = agent._handle_session_set_mode(
-            {
-                "sessionId": "mode_test",
-                "modeId": "default",
-            }
-        )
-
-        assert "mode" in result
-
-        # Verify mode was updated
-        updated = agent._session_store.load("mode_test")
-        assert updated.mode_id == "default"
-
-    def test_handle_session_cancel(self, agent):
-        """Test session/cancel notification."""
+    def test_session_cancel_aborts_generation(self, agent):
         agent._current_session_id = "cancel_test"
-        agent._cancelled = False
-
         agent._handle_session_cancel({"sessionId": "cancel_test"})
         assert agent._cancelled is True
+        agent.llm.cancel.assert_called_once()
 
-    def test_handle_session_cancel_wrong_session(self, agent):
-        """Test session/cancel for different session."""
+    def test_session_cancel_wrong_session(self, agent):
         agent._current_session_id = "active"
-        agent._cancelled = False
-
         agent._handle_session_cancel({"sessionId": "other"})
-        assert agent._cancelled is False  # Should not cancel
-
-
-class TestACPAgentIntegration:
-    """Integration tests for ACP agent."""
+        assert agent._cancelled is False
 
     def test_session_store_types(self):
-        """Test different session storage types."""
-        mock_llm = Mock()
+        assert isinstance(ACPAgent(llm=Mock(), session_storage="memory")._session_store, MemorySessionStore)
 
-        # Memory store (default)
-        agent1 = ACPAgent(llm=mock_llm, session_storage="memory")
-        assert isinstance(agent1._session_store, MemorySessionStore)
 
-    def test_create_acp_tools(self):
-        """Test that ACP tools are created."""
-        mock_llm = Mock()
-        agent = ACPAgent(llm=mock_llm)
+class TestPromptTurn:
+    def _run(self, agent, events, prompt="next question"):
+        tasks = []
 
-        tools = agent._create_acp_tools()
+        class Inner:
+            def stream(self, task):
+                tasks.append(task)
+                yield from events
 
-        tool_names = [t.name for t in tools]
-        assert "read_file" in tool_names
-        assert "write_file" in tool_names
-        assert "run_command" in tool_names
+        agent._create_inner_agent = lambda session: Inner()
+        agent._server = Mock()
+        session = Session(id="s1")
+        session.add_message("user", "first question")
+        session.add_message("assistant", "first answer")
+        agent._session_store.save(session)
+        result = agent._handle_session_prompt({"sessionId": "s1", "prompt": [{"type": "text", "text": prompt}]})
+        updates = [c.args[1]["update"] for c in agent._server.send_notification.call_args_list]
+        return result, updates, tasks[0]
+
+    def test_prompt_field_and_history(self, agent):
+        result, updates, task = self._run(agent, [AgentEvent(type=EventType.ANSWER, content="done")])
+        assert result == {"stopReason": "end_turn"}
+        assert updates[-1] == {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "done"}}
+        # earlier turns reach the inner agent
+        assert "first question" in task and "first answer" in task and task.endswith("next question")
+
+    def test_tool_call_ids_link_call_and_result(self, agent):
+        events = [
+            AgentEvent(type=EventType.ACTION, content="search(q)", metadata={"tool_name": "search", "tool_args": {}}),
+            AgentEvent(type=EventType.OBSERVATION, content="found", metadata={"tool_name": "search"}),
+            AgentEvent(type=EventType.ANSWER, content="done"),
+        ]
+        _, updates, _ = self._run(agent, events)
+        call, result = updates[0], updates[1]
+        assert call["sessionUpdate"] == "tool_call" and result["sessionUpdate"] == "tool_call_update"
+        assert call["toolCallId"] == result["toolCallId"]
+        assert result["status"] == "completed"
+
+    def test_max_iterations_maps_to_max_turn_requests(self, agent):
+        events = [AgentEvent(type=EventType.ERROR, content="Reached maximum iterations (10)")]
+        result, _, _ = self._run(agent, events)
+        assert result == {"stopReason": "max_turn_requests"}
+
+    def test_missing_prompt_rejected(self, agent):
+        agent._session_store.save(Session(id="s2"))
+        with pytest.raises(ValueError, match="No text"):
+            agent._handle_session_prompt({"sessionId": "s2", "prompt": []})
 
 
 class TestEventToUpdate:
-    """Tests for converting AgentEvents to ACP updates."""
+    @pytest.mark.parametrize(
+        "event_type,kind",
+        [
+            (EventType.THOUGHT, "agent_thought_chunk"),
+            (EventType.ANSWER, "agent_message_chunk"),
+            (EventType.ERROR, "agent_message_chunk"),
+        ],
+    )
+    def test_text_events(self, agent, event_type, kind):
+        update = agent._event_to_update("s1", AgentEvent(type=event_type, content="x"))
+        assert update.to_dict()["update"]["sessionUpdate"] == kind
 
-    @pytest.fixture
-    def agent(self):
-        mock_llm = Mock()
-        return ACPAgent(llm=mock_llm)
+    def test_failed_observation(self, agent):
+        update = agent._event_to_update("s1", AgentEvent(type=EventType.OBSERVATION, content="Error: no"), "c1")
+        assert update.to_dict()["update"]["status"] == "failed"
 
-    def test_thought_event(self, agent):
-        from cyllama.agents.react import AgentEvent, EventType
 
-        event = AgentEvent(type=EventType.THOUGHT, content="I should search")
-        update = agent._event_to_update("sess_1", event, 0)
+class TestToolPermission:
+    """write_file and run_command ask the editor before acting (session/request_permission)."""
 
-        assert update is not None
-        assert update.session_id == "sess_1"
-        assert len(update.content) == 1
-        assert "Thinking" in update.content[0].text
+    def _agent(self, outcome):
+        agent = ACPAgent(llm=Mock())
+        agent._handle_initialize({"clientCapabilities": ALL_CLIENT_CAPS})
+        server = Mock()
+        sent = []
+        self.requests = []
 
-    def test_action_event(self, agent):
-        from cyllama.agents.react import AgentEvent, EventType
+        def send_request(method, params=None, timeout=None):
+            sent.append(method)
+            self.requests.append((method, params))
+            if method == "session/request_permission":
+                return JsonRpcResponse(id=1, result={"outcome": outcome})
+            if method == "terminal/create":
+                return JsonRpcResponse(id=2, result={"terminalId": "t"})
+            if method == "terminal/output":
+                return JsonRpcResponse(id=3, result={"output": "ran", "truncated": False})
+            if method == "fs/read_text_file":
+                return JsonRpcResponse(id=5, result={"content": "file text"})
+            return JsonRpcResponse(id=4, result={})
 
-        event = AgentEvent(
-            type=EventType.ACTION,
-            content="search(query='test')",
-            metadata={"tool_name": "search", "tool_args": {"query": "test"}},
-        )
-        update = agent._event_to_update("sess_1", event, 0)
+        server.send_request.side_effect = send_request
+        agent._server = server
+        agent._session_store.save(Session(id="s1", metadata={"cwd": "/work"}))
+        agent._current_session_id = "s1"
+        tools = {t.name: t for t in agent._create_acp_tools()}
+        return tools, sent
 
-        assert update is not None
-        assert len(update.tool_calls) == 1
-        assert update.tool_calls[0].name == "search"
-        assert update.tool_calls[0].status == ToolCallStatus.IN_PROGRESS
+    def _params(self, method):
+        return next(p for m, p in self.requests if m == method)
 
-    def test_observation_event(self, agent):
-        from cyllama.agents.react import AgentEvent, EventType
+    @pytest.mark.parametrize(
+        "name,args",
+        [("run_command", {"command": "rm -rf x"}), ("write_file", {"path": "a", "content": "b"})],
+    )
+    def test_denied_does_not_act(self, name, args):
+        tools, sent = self._agent({"outcome": "selected", "optionId": "reject_once"})
+        assert "permission denied" in tools[name](**args)
+        assert sent == ["session/request_permission"]
 
-        event = AgentEvent(type=EventType.OBSERVATION, content="Found 5 results", metadata={"tool_name": "search"})
-        update = agent._event_to_update("sess_1", event, 1)
+    @pytest.mark.parametrize(
+        "name,args,effect",
+        [
+            ("run_command", {"command": "ls"}, "terminal/create"),
+            ("write_file", {"path": "a", "content": "b"}, "fs/write_text_file"),
+        ],
+    )
+    def test_allowed_acts(self, name, args, effect):
+        tools, sent = self._agent({"outcome": "selected", "optionId": "allow_once"})
+        tools[name](**args)
+        assert sent[0] == "session/request_permission" and effect in sent
 
-        assert update is not None
-        assert len(update.tool_calls) == 1
-        assert update.tool_calls[0].status == ToolCallStatus.COMPLETED
+    def test_permission_request_matches_schema(self):
+        tools, _ = self._agent({"outcome": "selected", "optionId": "allow_once"})
+        tools["run_command"](command="ls")
+        params = self._params("session/request_permission")
+        assert params["toolCall"]["toolCallId"] and params["toolCall"]["kind"] == "execute"
+        assert params["toolCall"]["rawInput"] == {"command": "ls"}
+        assert all(set(o) == {"optionId", "name", "kind"} for o in params["options"])
 
-    def test_answer_event(self, agent):
-        from cyllama.agents.react import AgentEvent, EventType
+    @pytest.mark.parametrize("outcome", [{"optionId": "allow_once"}, {"outcome": "weird", "optionId": "allow_once"}])
+    def test_unrecognised_outcome_denies(self, outcome):
+        # ACP: agents SHOULD NOT treat an outcome they do not recognise as approval
+        tools, _ = self._agent(outcome)
+        assert "permission denied" in tools["run_command"](command="ls")
 
-        event = AgentEvent(type=EventType.ANSWER, content="The answer is 42")
-        update = agent._event_to_update("sess_1", event, 0)
+    def test_cancelled_denies(self):
+        tools, sent = self._agent({"outcome": "cancelled"})
+        assert "permission denied" in tools["run_command"](command="ls")
+        assert "terminal/create" not in sent
 
-        assert update is not None
-        assert update.stop_reason == StopReason.END_TURN
-        assert len(update.content) == 1
-        assert update.content[0].text == "The answer is 42"
+    def test_fs_requests_match_schema(self):
+        tools, _ = self._agent({"outcome": "selected", "optionId": "allow_once"})
+        assert tools["read_file"](path="src/a.py") == "file text"
+        assert self._params("fs/read_text_file") == {"sessionId": "s1", "path": os.path.normpath("/work/src/a.py")}
+        tools["write_file"](path="/abs/b.txt", content="x")
+        assert self._params("fs/write_text_file") == {
+            "sessionId": "s1",
+            "path": os.path.normpath("/abs/b.txt"),
+            "content": "x",
+        }
 
-    def test_error_event(self, agent):
-        from cyllama.agents.react import AgentEvent, EventType
+    def test_terminal_requests_match_schema_and_release(self):
+        tools, sent = self._agent({"outcome": "selected", "optionId": "allow_once"})
+        assert tools["run_command"](command="echo hi") == "ran"
+        create = self._params("terminal/create")
+        assert create["sessionId"] == "s1" and create["cwd"] == "/work" and "echo hi" in create["args"]
+        assert sent[-1] == "terminal/release"
+        assert self._params("terminal/release") == {"sessionId": "s1", "terminalId": "t"}
 
-        event = AgentEvent(type=EventType.ERROR, content="Something went wrong")
-        update = agent._event_to_update("sess_1", event, 0)
 
-        assert update is not None
-        assert update.stop_reason == StopReason.ERROR
-        assert "Error" in update.content[0].text
+def test_end_to_end_over_stdio():
+    """initialize, session/new and session/prompt over a JSON-RPC stream; updates precede the response."""
+    r_in, w_in = os.pipe()
+    r_out, w_out = os.pipe()
+    to_agent = os.fdopen(w_in, "w", buffering=1)
+    from_agent = os.fdopen(r_out, "r")
+    agent = ACPAgent(llm=Mock(return_value="Thought: easy\nAnswer: 42"))
+    t = threading.Thread(
+        target=agent.serve, args=(os.fdopen(r_in, "r"), os.fdopen(w_out, "w", buffering=1)), daemon=True
+    )
+    t.start()
+
+    def call(id_, method, params):
+        to_agent.write(json.dumps({"jsonrpc": "2.0", "id": id_, "method": method, "params": params}) + "\n")
+        msgs = []
+        while True:
+            msg = json.loads(from_agent.readline())
+            msgs.append(msg)
+            if msg.get("id") == id_:
+                return msgs
+
+    init = call(1, "initialize", {"protocolVersion": 1, "clientCapabilities": {}})[-1]
+    assert init["result"]["protocolVersion"] == 1
+    sid = call(2, "session/new", {"cwd": "/tmp", "mcpServers": []})[-1]["result"]["sessionId"]
+    to_agent.write("\n")  # a blank line is skipped
+    to_agent.write("not json\n")  # a bad line gets an error and the stream goes on
+    assert json.loads(from_agent.readline())["error"]["code"] == -32700
+    msgs = call(3, "session/prompt", {"sessionId": sid, "prompt": [{"type": "text", "text": "6*7?"}]})
+    assert msgs[-1]["result"] == {"stopReason": "end_turn"}
+    assert msgs[-2]["params"]["update"] == {
+        "sessionUpdate": "agent_message_chunk",
+        "content": {"type": "text", "text": "42"},
+    }
+    to_agent.close()
+    t.join(timeout=5)
+    assert not t.is_alive()

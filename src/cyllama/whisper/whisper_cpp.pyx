@@ -5,6 +5,8 @@ from libcpp cimport bool as cppbool  # required for func pointer sigs
 
 from . cimport whisper as wh
 
+import threading
+
 # Constants
 class WHISPER:
     SAMPLE_RATE = wh.WHISPER_SAMPLE_RATE
@@ -321,9 +323,12 @@ cdef class WhisperVadContext:
     Not thread-safe; create one instance per worker thread.
     """
     cdef wh.whisper_vad_context * _c_ctx
+    # detect_speech() releases the GIL; close() from another thread freed the context under it
+    cdef object _busy_lock
 
     def __cinit__(self):
         self._c_ctx = NULL
+        self._busy_lock = threading.Lock()
 
     def __init__(self, model_path, WhisperVadContextParams params=None):
         from cyllama.utils.validation import validate_whisper_vad_file
@@ -374,12 +379,19 @@ cdef class WhisperVadContext:
         cdef bint result
         cdef bint c_reset = reset_state
 
-        with nogil:
-            if c_reset:
-                result = wh.whisper_vad_detect_speech(ctx, c_samples, n_samples)
-            else:
-                result = wh.whisper_vad_detect_speech_no_reset(
-                    ctx, c_samples, n_samples)
+        if not self._busy_lock.acquire(blocking=False):
+            raise RuntimeError("WhisperVadContext is in use by another thread")
+        try:
+            self._check_open()
+            ctx = self._c_ctx
+            with nogil:
+                if c_reset:
+                    result = wh.whisper_vad_detect_speech(ctx, c_samples, n_samples)
+                else:
+                    result = wh.whisper_vad_detect_speech_no_reset(
+                        ctx, c_samples, n_samples)
+        finally:
+            self._busy_lock.release()
         return bool(result)
 
     def reset_state(self):
@@ -457,10 +469,11 @@ cdef class WhisperVadContext:
         return result
 
     def close(self):
-        """Release the native VAD context. Idempotent."""
-        if self._c_ctx != NULL:
-            wh.whisper_vad_free(self._c_ctx)
-            self._c_ctx = NULL
+        """Release the native VAD context. Idempotent; waits for a detect_speech() in progress."""
+        with self._busy_lock:
+            if self._c_ctx != NULL:
+                wh.whisper_vad_free(self._c_ctx)
+                self._c_ctx = NULL
 
     def __enter__(self):
         return self

@@ -22,7 +22,175 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Security
+
+- **Servers without an API key refuse foreign `Host` headers.** A web page could reach `127.0.0.1:8080` through DNS rebinding and read the model's responses. Without a key, both servers answer 403 unless `Host` is loopback or the bind address; a server bound to all interfaces accepts any host, and its protection is the key.
+
+- **MCP stdio servers get a minimal environment.** They inherited all of `os.environ`, API keys and tokens included. They now get `PATH`, `HOME` and a few locale and temp variables, plus `McpServerConfig.env`; `inherit_env=True` restores the old behaviour. MCP over HTTP refuses redirects, which urllib followed with the configured headers (`Authorization` included) to any host, accepts only http(s) URLs, and caps a response at 16 MB.
+
+- **Model downloads are confined and verified.** A file name from a remote manifest may no longer leave `~/.cache/llama.cpp` (an absolute or `../` name could write anywhere), repository names and tags are restricted to safe characters, and `LLAMA_CACHE_MODEL_ENDPOINT` must be http(s). `Authorization` is dropped when a redirect changes host, as Hugging Face `resolve/` URLs do. Resuming sends `If-Range`, so a file changed upstream is downloaded whole instead of appended to the old partial file. A Docker blob is checked against its manifest digest.
+
+- **SQL injection in `SqliteVectorStore.quantize(max_memory=...)`.** The value was spliced into the SQL text; it is now validated and passed as a bound parameter. Extension loading is turned off again after the sqlite-vector extension loads, so SQL cannot call `load_extension()` on another library. `PgVectorStore.create_index` validates option names, which were spliced raw.
+
+- **`quarto_render` confines existing inputs.** Render-existing mode, which runs a document's code cells, accepted any `.qmd` or `.ipynb` on disk; it now requires the input inside the quarto output directory, like the create-and-render path.
+
+- **`manage.py clean`, `bump` and `info --snapshot` refuse to run outside the repository.** Project paths follow the working directory, so `clean --reset` from another directory deleted that directory's `.venv`, `build/` and `dist/`.
+
+- **Release builds pin their tools.** `pyproject.toml` pins scikit-build-core, Cython (3.3.1) and cython-cmake; wheel repair pins auditwheel, delocate, delvewheel and wheel (`manage.py` `REPAIR_TOOLS`, and the GPU workflows); the GPU workflows pin cmake and ninja. The Windows Vulkan SDK, whose loader DLL ships in the wheel, is pinned to 1.4.363.1 and checked against its sha256 instead of fetching "latest". `test-store-adapters.yml` passes dispatch inputs through `env` instead of interpolating them into the script.
+
+- **Hardened builds.** Linux extensions build with `-fstack-protector-strong`, `_FORTIFY_SOURCE=2` and full RELRO. Static macOS wheels no longer carry absolute build-tree run paths: the 1.0.0a0 CPU wheels had three `/Users/runner/work/...` entries in `LC_RPATH`. On Windows, loading the backends removes the current directory from the DLL search order, which came before `PATH`, where the CUDA runtime is found.
+
+- **ACP `write_file` and `run_command` ask the editor first.** Both now send `session/request_permission` and do nothing unless the user allows it; a timeout or cancel denies. `_request_permission` existed but had no callers, so text injected into a file the model read could run a shell command. `read_file` stays ungated: its result reaches only the model. The request now follows the ACP schema (`optionId`/`name` options, a `toolCallId`, `rawInput`); it sent `id`/`label` and no `toolCallId`, so a strict client would reject it and every gated call would be denied. Any outcome other than `selected` denies.
+
+- **Release builds verify upstream commits.** `scripts/versions.toml` gains a `[commits]` table, and `manage.py` deletes the checkout and fails when a pinned tag resolves to any other commit, in builds and in `check-vendor`. Before, a force-moved upstream tag compiled into every wheel unnoticed.
+
+- **PyPI publish jobs require a tag build.** The GPU job also requires dynamic linking and no failed smoke test, as the GitHub release job does. A dispatch with `link_mode=static` could upload static wheels under the dynamic wheels' filenames, and PyPI files cannot be replaced. `gh-action-pypi-publish` is pinned to the v1.14.3 commit, not the `release/v1` branch.
+
+### Fixed
+
+- **Release tooling agrees on one version and one macOS target.**
+  - `manage.py bump` parses PEP 440 pre-releases. It rejected the current `1.0.0a0`; `--pre` and `--release` now step through them.
+  - `manage.py --version` reads `pyproject.toml`; it printed 0.0.4. The unused Makefile `VERSION` (0.1.20) is gone.
+  - `MACOSX_DEPLOYMENT_TARGET` is 11.0 everywhere, as CI builds. The Makefile used 14.7, `manage.py` 12.6, and the legacy wheel path 10.9.
+  - `make check` refuses macOS wheels not tagged `macosx_11_0`, which marks a local build that delocate never repaired.
+
+- **Every wheel build audits run paths and hardening.** `scripts/audit_wheel.py` now fails a wheel with a run path that is not `$ORIGIN`- or `@`-relative, or with a Linux extension lacking RELRO or BIND_NOW. It ran on the two Windows legs only; every build leg now runs it. It flags the 1.0.0a0 macOS CPU wheels. It also no longer reports delocate's `/DLC/...` install ids as external dependencies.
+
+- **ACP follows the protocol schema.** Most messages were off-spec: `protocolVersion` was a date string, capabilities were under `capabilities` not `agentCapabilities`, prompts were read from `content` not `prompt`, `session/update` had no `update`/`sessionUpdate` envelope, `fs/*` used `contents` and no `sessionId`, and `stopReason` could be the non-existent `error`. Now:
+  - `session/load` replays the conversation.
+  - Each prompt includes the session's earlier turns (up to 8000 characters); each one used to start from scratch.
+  - `session/new` connects the stdio MCP servers it names.
+  - `session/cancel` aborts generation in flight.
+  - Updates are sent before the prompt's response, as the spec requires.
+  - Editor-backed tools are offered only for the capabilities the client advertises.
+  - Relative paths resolve against the session's `cwd`.
+  - `terminal/*` calls carry the session, kill a command that times out, and always release the terminal.
+
+- **A bad line no longer ends the JSON-RPC server.** A blank line was taken as EOF; a non-JSON line, an array, or an id of the wrong type ended the stream with no reply. Blank lines are skipped, a malformed message gets a `-32700`/`-32600` error and the stream goes on, and lines over 16 MB are refused.
+
+- **Workflow scheduling.**
+  - A streaming `agent_node` with a `timeout` never timed out.
+  - Two concurrent `arun()` calls on one compiled workflow crossed their events and could hang.
+  - Cancelling a run or closing its stream was swallowed and turned into a failed result.
+  - A timed-out sync node kept `asyncio.run` waiting up to 300 s and blocked interpreter exit. Sync nodes now run on daemon threads.
+
+- **Agent output parsing.**
+  - `Answer:` or `Action:` inside a thought ("the answer: is unclear") ended the run or was taken as the action; both must now start a line.
+  - Namespaced MCP tool calls (`server/tool(n=5)`) parse with unquoted arguments; the second argument used to be dropped.
+  - A critic's "unacceptable" or "cannot accept" no longer counts as acceptance (`verdict_accepts`).
+  - `plan_and_execute` runs at most `max_steps` (default 20) plan steps.
+
+- **`calculator` bounds integer results.** The exponent cap alone allowed `((9**999)**999)**999`, a ~3e9-bit result computed while holding the GIL; results over 100,000 bits are refused.
+
+- **Servers render the model's chat template.** Both servers sent `System:/User:/Assistant:` text, which instruct models are not trained on. They now use the template as `LLM.chat` does, with one BOS token.
+
+- **The servers handle concurrent and malformed requests.**
+  - `PythonServer` is threaded with a 30 s socket timeout; it served one connection at a time, so a stalled client blocked every request.
+  - Both servers queue a request for a free slot for up to `ServerConfig.slot_wait_s` (60 s), then answer 503.
+  - Concurrent embedding requests are queued; they used to get a 500.
+  - Malformed fields (a string `max_tokens`, a non-string `stop`, an array body) get a 400 naming the field instead of a 500.
+  - `EmbeddedServer.start()` no longer replaces the application's SIGINT/SIGTERM handlers; `wait_for_shutdown()` installs them for its duration only, on the main thread.
+
+- **RAG backends agree on scores and ids.**
+  - Qdrant `l2`/`l1` and Chroma `l2` now return `-distance`, as the SQLite and pgvector stores do. A threshold is a minimum score everywhere; `RAGConfig.similarity_threshold` accepts negative values, since its `[0, 1]` check filtered out every result on a distance metric.
+  - Chroma and Qdrant seed new ids past the largest existing id. The row count reused a live id after a delete, and Qdrant's upsert then overwrote that chunk.
+  - Chroma and Qdrant refuse to reopen a collection with a different metric or dimension.
+  - Sources are keyed by resolved path: `a/README.md` and `b/README.md` collided as one "edited" file. Databases indexed before this keep their basename labels, so an edited file indexed under one is added as a new source.
+
+- **`DirectoryLoader(recursive=False)` works.** `lstrip("*/")` stripped a character set: `**/*.txt` became `.txt`, and the default `**/*` became an empty pattern that raised.
+
+- **`HybridStore` keyword search.** A `"` in the query raised `OperationalError`, and rows already in the database when the FTS table was created were invisible to keyword search; they are now indexed.
+
+- **Binding fixes.**
+  - mtmd `get_output_embeddings`/`get_output_embd` check dimensions against the model and the last encoded chunk instead of reading past the buffer with caller-supplied sizes. `tokenize` rejects an unbound `MtmdBitmap`.
+  - `Upscaler`, `Adetailer` and `WhisperVadContext` take a busy lock, so `close()` from another thread no longer frees the context under a running call.
+  - `Adetailer.detail` uses the current sample parameters; it used the values from construction.
+  - SD preview frames are invalidated when the callback returns, so a kept frame raises instead of reading freed memory.
+  - `SDImage.from_numpy` rejects float arrays (a `[0, 1]` image became all 0s and 1s), out-of-range integers, and shapes other than 2-D or 3-D; a 4-D array leaked its buffer.
+  - `SDContext` validates its five remaining model paths.
+  - stb reads UTF-8 paths on Windows and refuses images over 32768 px per side.
+  - `detokenize` keeps leading whitespace.
+  - `metadata()` no longer truncates a value of exactly 1024 bytes.
+  - `set_abort_callback(None)` clears the callback.
+  - A progress callback that returns `None` no longer aborts the load.
+  - `LlamaContext.default_params()` returns params.
+
+- **`cyllama transcribe` applies its flags.**
+  - It used one thread by default (`threading.active_count()`); it now uses the physical cores.
+  - Beam size, best-of, `--max-len`, `--max-context`, thresholds, `--prompt`, `--suppress-regex`, `--detect-language` and `--no-fallback` were parsed and dropped. They now reach whisper; beam search is used when `--beam-size` exceeds 1, as upstream whisper-cli does, which makes the default slower.
+  - `-o` names the outputs, and two inputs with the same file stem are refused instead of overwriting each other.
+  - The model loads once for all inputs.
+  - `--processors`, `--offset-n`, `--output-words` and `--print-colors` print a warning that they are unsupported.
+
+- **`cyllama sd` applies its flags.** `video` passes `--init-img`, `--end-img`, `--eta` and `--moe-boundary`; it loaded the images and dropped them. `img2img`, `inpaint` and `controlnet` default to the input image's size; a default `--width` of 512 made that unreachable.
+
+- **Inputs that aborted or segfaulted the interpreter now raise.**
+  - `LlamaContext.decode`/`encode` raise `ValueError` for a batch over `n_batch`, or over `n_ubatch` when attention is non-causal. llama.cpp `GGML_ASSERT`s both.
+  - An invalid grammar, or a missing root rule, raises `ValueError` in `add_grammar`. It used to add a NULL link, which crashed the next `sample()`.
+  - `LlamaVocab` accessors and `detokenize` raise `IndexError` for a token id outside the vocabulary; llama.cpp's `.at()` threw `std::out_of_range` through the C ABI.
+  - `sample()`/`accept()` raise `RuntimeError` on a token the grammar rejects, and `add_grammar_lazy_patterns` on an invalid regex (`except +`).
+  - `LlamaBatch` rejects negative sizes and `n_seq_max < 1`, token writes to an `embd` batch, and use after `close()`.
+  - `GGUFContext` accessors raise on an unopened or closed context and on out-of-range key or tensor ids.
+  - `SDImage.load_ppm` raises on a truncated file instead of reading past the buffer.
+  - `set_ref_images`/`set_pm_id_images` raise `TypeError` on a non-`SDImage` element instead of reading unrelated memory, and keep the previous images when they raise.
+
+- **Long prompts no longer abort the servers.** `ServerSlot`, grammar generation, the CLI and speculative drafting decode the prompt in `n_batch` chunks. With the `ServerConfig` defaults, one request of 2049-4095 tokens killed the server. `LLM` chunks by the context's own `n_batch`, which differs from `config.n_batch` when a context is reused. `Embedder` truncates to `n_batch`, and `Reranker` sizes its batch to `n_ctx`.
+
+- **Stopping an async stream early stops its worker.** `AsyncLLM.stream`, the async agents' `stream` and `AsyncRAG.stream` now stop the generator, call `cancel()`, and wait for the thread before releasing their lock. Before, the thread kept decoding to `max_tokens`, or kept running tools, while the next call used the same context.
+
+- **ACP requests from a prompt handler get their replies.** The JSON-RPC server read messages and ran handlers on one thread, so `fs/*` and `terminal/*` requests sent during `session/prompt` always timed out, and `session/cancel` was read only after the prompt ended. Requests now run in order on a worker thread. At EOF, waiting requests fail at once instead of timing out.
+
+- **`PgVectorStore.add` commits after a read.** A read opens an implicit transaction, which turns `add()`'s `transaction()` block into a savepoint; `RAG.add_documents` reads first, so its chunks were rolled back on `close()`.
+
+- **`AsyncRAG` works with the default SQLite store.** The connection is opened with `check_same_thread=False`; every `AsyncRAG` call runs in a worker thread, which sqlite3 rejected.
+
+- **Closing a model closes its contexts first.** `llama_free` reads the model, so `model.close()` with a live context, or cycle collection that cleared the context's model reference, freed the context after its model. `LlamaContext` is now `no_gc_clear`. `sample()` checks its context and the vocab of each grammar/DRY/infill link, and `LlamaBatchExt` checks its context.
+
+- **`None` and unbound arguments raise instead of reading NULL.** This covers the `LlamaVocab` arguments of the sampler `add_*` methods, `sample(None)`, `attach_threadpool(None)`, `copy_to` with a closed destination, a `GgmlThreadPool` made with `__new__`, and an unbound `LlamaModelTensorBuftOverride`. The module-level `llama_attach_threadpool` now keeps the pools alive.
+
+- **SD list setters keep their old value when they raise.** `set_loras`, `slg_layers` and `custom_sigmas` freed the old buffer before converting the new values, so a bad element left the params pointing at freed memory.
+
+- **`GGML_NATIVE=OFF` reaches the whisper.cpp and stable-diffusion.cpp builds.** Upstream defaults it to ON unless cross-compiling, and only the llama.cpp builder forwarded it. `manage.py` also read `ON`/`OFF` as invalid and used the default; it now accepts CMake booleans.
+
+- **`LlamaServer` passes the API key as `LLAMA_API_KEY`** instead of in argv, where other users could read it and the INFO log printed it. It finds `llama-server` on `PATH` with `shutil.which`; the old check tested the working directory.
+
+- **`Tool.timeout` applies in every agent.** Only `ReActAgent` honoured it. `ConstrainedAgent` and workflow `tool_node` called the tool directly, so a hung tool blocked them. All three now dispatch through `agents.tools.call_tool`, which also carries the caller's context variables into a timed tool's thread.
+
+- **Contract checks see what the tool sees.**
+  - `contract_assert` under `ENFORCE` stops the run. Both inner agents caught its `ContractTermination` as a tool error and carried on, so the model never saw the stop. Tools can raise the new `AgentTermination` base class to stop a run the same way.
+  - Preconditions get coerced arguments: `count="5"` failed `args["count"] > 0` with a `TypeError`, which counted as a violation.
+  - With `agent_type="constrained"`, postconditions get the tool's arguments and raw result instead of `{}` and the rendered string.
+
+- **`BatchGenerator` and `GrammarConstrainedLLM` honour all sampling settings.** Each built its own sampler chain: `BatchGenerator` dropped penalties, DRY and mirostat, and grammar generation fixed the penalty window at 64 and ignored frequency and presence penalties. They now share `build_sampler` (`cyllama.llama.generation`) with `LLM`, `ServerSlot` and `chat.py`. `ServerSlot` keeps its previous chain; which request fields it honours is still open.
+
+- **`cyllama transcribe` downmixes multichannel WAV.** Interleaved stereo samples were passed as mono at twice the length.
+
+### Removed
+
+- **`cyllama sd` flags that did nothing.** `--skip-layer-start`, `--skip-layer-end`, `--guidance` and `--img-cfg-scale` were parsed and never used; `SDContext.generate()` has no such parameters.
+
+- **`AsyncBridge`** (`cyllama.agents.jsonrpc`). Nothing used it once ACP sends updates synchronously.
+
+- **`LlamaBatch` embedding mode.** `embd` now defaults to 0, and any other value raises `ValueError`. The mode had no token array and no way to fill its embedding array; use `LlamaBatchExt.add_embd`.
+
 ### Changed
+
+- **`VectorStoreProtocol` declares `delete` and the shared semantics.** Every store implemented `delete(ids)`; the protocol left it out. Its docstring now states the rules the conformance suite checks:
+  - Scores are higher-is-better and a threshold is a minimum.
+  - IDs are not reused after a delete.
+  - A closed store raises `VectorStoreError`, now a `RuntimeError` subclass, which Chroma and Qdrant raise in place of a bare `RuntimeError`.
+
+- **`Embedder.embed_batch` packs several texts per decode.** Up to 16 texts, one sequence each, share a batch of up to `min(n_ctx, n_batch)` tokens; each text was its own decode. 200 short texts embed 2.1x faster (bge-small, CPU). The context uses a unified KV cache so packed texts share `n_ctx`. Packed vectors match single ones to cosine 0.9999; rounding differs with batch shape. `embed_documents` uses it too.
+
+- **Model loading, context creation and multimodal calls release the GIL.** `LlamaModel` loading, `LlamaContext` creation, and `MtmdContext` init, `tokenize`, `encode_chunk` and `eval_chunks` held it, so every other Python thread stopped for the duration.
+
+- **Chat templates compile once.** Both renderers built a sandbox and compiled the template on every `chat()`; one cached compile per template text now serves `LLM.chat` and `apply_chat_template`. `LLM` takes its token counts from the generation instead of tokenizing the prompt and output again.
+
+- **`SDImage.save_bmp` writes through stb_image_write**, in C; the Python writer made one `write()` per pixel. `cyllama transcribe` decodes WAV into a typed array instead of a list of Python floats, about 32 bytes per sample.
+
+- **`LLM` reuses the cached prompt prefix.** A call keeps the KV entries for the longest prefix its prompt shares with the previous prompt and output, and decodes only the rest. A multi-turn chat or a ReAct step re-decoded its whole history every call. Recurrent models, which cannot trim the cache, still clear it. Prompt decode and the sample loop live in `cyllama.llama.generation`, shared by `LLM`, `ServerSlot`, grammar generation and the CLI.
+
+- **`Embedder` pools in C.** It copied every token's output row into a Python list and mean-pooled it in a double loop; pooling a 502-token text took 11.6 ms of a ~62 ms embed (bge-small, CPU), and now takes 0.04 ms, with identical results. The public logits and embedding getters still return lists: the generation loop never reads logits, so a memoryview return type would change the API for little gain.
 
 - **CUDA wheels target `75-real;80-virtual` instead of `75`.** Ampere and newer GPUs JIT-compiled `compute_75` PTX, which compiles out ggml's Ampere+ kernels. Prompt processing with flash attention at 4096 context is 12-25% faster on an RTX 4060; Turing keeps native SASS. Wheels shrink by about 2.5 MB (Linux 113.1 to 110.6 MB). Benchmarks and rejected options: [docs/dev/cuda-wheel.md](docs/dev/cuda-wheel.md).
 

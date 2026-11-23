@@ -33,8 +33,6 @@ from .llama.llama_cpp import (
     LlamaContext,
     LlamaModelParams,
     LlamaContextParams,
-    LlamaSampler,
-    LlamaSamplerChainParams,
     LlamaBatch,
     ggml_backend_load_all,
     disable_logging,
@@ -42,6 +40,7 @@ from .llama.llama_cpp import (
     return_batch_to_pool,
 )
 from .api import GenerationConfig, Response, GenerationStats
+from .llama.generation import build_sampler
 
 
 @dataclass
@@ -274,19 +273,8 @@ class BatchGenerator:
             for i, tokens in enumerate(tokenized_prompts):
                 print(f"  Prompt {i}: {len(tokens)} tokens")
 
-        # Create sampler
-        sampler_params = LlamaSamplerChainParams()
-        sampler = LlamaSampler(sampler_params)
-        sampler.add_suppress_tokens(self.vocab)
-
-        if config.temperature == 0.0:
-            sampler.add_greedy()
-        else:
-            sampler.add_min_p(config.min_p, 1)
-            sampler.add_top_k(config.top_k)
-            sampler.add_top_p(config.top_p, 1)
-            sampler.add_temp(config.temperature)
-            sampler.add_dist(config.seed if config.seed != -1 else int(time.time()))
+        # The same chain LLM builds; penalties, DRY and mirostat were ignored here.
+        sampler = build_sampler(self.vocab, config, self.n_ctx)
 
         # Process prompts in batch (use pooling if enabled)
         if self.use_pooling:

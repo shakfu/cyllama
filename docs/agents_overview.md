@@ -1068,12 +1068,14 @@ async def parallel_agents():
 
 ## Experimental: ACPAgent
 
-`ACPAgent` (and `serve_acp`) implement the Agent Client Protocol for editor integration (Zed, Neovim, ...). The module is **experimental**:
+`ACPAgent` (and `serve_acp`) implement the [Agent Client Protocol](https://agentclientprotocol.com/protocol/schema), version 1, for editor integration (Zed, Neovim, ...).
 
-- `ACP_PROTOCOL_VERSION` is hardcoded to `"2025-01-01"`; no version negotiation against the client's announced version.
+- Supported: `initialize`, `session/new` (with stdio MCP servers), `session/load` (replays the conversation), `session/prompt` (text, embedded resources, resource links), `session/cancel` (aborts generation in flight) and `session/set_mode`.
 
-- No conformance test against a reference ACP client.
+- The agent sees earlier turns of the session with each prompt, up to 8000 characters.
 
-- API surface may change as the protocol stabilizes and real editor integrations exercise the rough edges.
+- `read_file`, `write_file` and `run_command` are offered only when the client advertises `fs.readTextFile`, `fs.writeTextFile` and `terminal`. Writes and commands ask the user through `session/request_permission` first; relative paths resolve against the session's `cwd`.
 
-Build on it for prototypes and editor experiments; do not build a production integration on this surface without expecting churn. See the warning in `src/cyllama/agents/acp.py` module docstring for the full statement.
+- Not supported: image and audio prompts, plans, HTTP MCP servers, authentication methods.
+
+The message shapes are tested against the schema, but not against a real editor client yet. Treat the API as experimental until it has been.

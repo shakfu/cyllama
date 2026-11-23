@@ -1,7 +1,9 @@
 # cyllama Makefile
-VERSION := 0.1.20
+# The version lives in pyproject.toml (and src/cyllama/__init__.py); `manage.py bump` updates both.
 
-export MACOSX_DEPLOYMENT_TARGET := 14.7
+# Same target as CI (pyproject.toml [tool.cibuildwheel.macos], manage.py
+# MACOSX_DEPLOYMENT_TARGET_DEFAULT). A local 14.7 built wheels that do not install on older macOS.
+export MACOSX_DEPLOYMENT_TARGET := 11.0
 
 # Find system Python (python3 or python) - manage.py only uses stdlib
 ifeq ($(OS),Windows_NT)
@@ -116,8 +118,14 @@ check:
 			   echo "Releases are abi3-only (cp312-abi3). Build with 'make wheel-abi3' or use the *-abi3 CI artifacts."; \
 			   exit 1 ;; \
 		esac; \
+		case "$$whl" in \
+			*-macosx_11_0_*|*-manylinux*|*-win_*) ;; \
+			*) echo "ERROR: $$whl is not a repaired CI wheel (expected macosx_11_0, manylinux or win)"; \
+			   echo "A local build targets this machine's macOS and is not delocated; publish the CI artifacts."; \
+			   exit 1 ;; \
+		esac; \
 	done
-	@echo "OK: all wheels in dist/ are abi3-tagged"
+	@echo "OK: all wheels in dist/ are abi3-tagged CI wheels"
 
 publish: check
 	@uv run twine upload dist/*.whl

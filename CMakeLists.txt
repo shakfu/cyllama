@@ -626,6 +626,14 @@ else()
     set(CXX_COMPILE_OPTIONS -std=c++17 -fvisibility=hidden -fvisibility-inlines-hidden)
 endif()
 
+# Hardening for the extensions on Linux; they parse model, image and audio files
+# and embed an HTTP server. macOS and MSVC enable comparable defaults themselves.
+set(HARDENING_LINK_OPTIONS "")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    list(APPEND CXX_COMPILE_OPTIONS -fstack-protector-strong -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
+    set(HARDENING_LINK_OPTIONS -Wl,-z,relro,-z,now)
+endif()
+
 # -----------------------------------------------------------------------------
 # Cython include paths (for .pxd files)
 # -----------------------------------------------------------------------------
@@ -765,10 +773,16 @@ function(add_cython_extension target_name pyx_file)
     # $ORIGIN/../cyllama.libs/..., and sanitises the absolute paths
     # out of the final wheel. Editable installs also work because the
     # build-tree paths are valid on the dev host.
-    set_target_properties(${target_name} PROPERTIES
-        BUILD_RPATH "${_build_rpath}"
-        INSTALL_RPATH "${_build_rpath}"
-    )
+    #
+    # Static builds link everything in and need no rpath. Repair tools leave a
+    # static wheel's binaries untouched, so these build-tree paths shipped in the
+    # macOS CPU wheels (/Users/runner/work/...); set them for dynamic builds only.
+    if(WITH_DYLIB)
+        set_target_properties(${target_name} PROPERTIES
+            BUILD_RPATH "${_build_rpath}"
+            INSTALL_RPATH "${_build_rpath}"
+        )
+    endif()
 
     # Install
     if(ARG_DESTINATION)
@@ -983,10 +997,7 @@ if(WITH_STABLEDIFFUSION)
             )
         endif()
 
-        set_target_properties(stable_diffusion PROPERTIES
-            BUILD_RPATH "${SD_GGML_LIB_DIR};${SDCPP_LIB}"
-            INSTALL_RPATH "${SD_GGML_LIB_DIR};${SDCPP_LIB}"
-        )
+        # All static: no rpath, so no build-tree path in the wheel (see add_cython_extension).
     endif()
 
     install(TARGETS stable_diffusion DESTINATION "cyllama/sd")
@@ -1074,3 +1085,13 @@ install(
 # -----------------------------------------------------------------------------
 
 # The wheel.packages setting in pyproject.toml handles the Python files
+
+# Linux link hardening for every extension module, including those built
+# without add_cython_extension (see HARDENING_LINK_OPTIONS).
+if(HARDENING_LINK_OPTIONS)
+    foreach(_ext llama_cpp embedded whisper_cpp stable_diffusion)
+        if(TARGET ${_ext})
+            target_link_options(${_ext} PRIVATE ${HARDENING_LINK_OPTIONS})
+        endif()
+    endforeach()
+endif()

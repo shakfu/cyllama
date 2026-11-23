@@ -318,3 +318,38 @@ class TestMtmdBatch:
         batch = mctx.batch()
         batch.close()
         batch.close()
+
+
+class TestMtmdEmbeddingBounds:
+    """get_output_embeddings / get_output_embd took dimensions from the caller and read past the buffer."""
+
+    def _image_chunk(self, mctx):
+        side = 64
+        bitmap = cy.MtmdBitmap.create_image(side, side, bytes(i % 256 for i in range(side * side * 3)))
+        chunks = mctx.tokenize(mctx.marker, [bitmap], True, True)
+        return next(chunks[i] for i in range(len(chunks)) if chunks[i].type != cy.MtmdInputChunkType.TEXT)
+
+    def test_context_getter_bounded_by_last_chunk(self, vision):
+        model, mctx = vision
+        chunk = self._image_chunk(mctx)
+        assert mctx.encode_chunk(chunk) == 0
+        n = chunk.n_tokens
+        assert len(mctx.get_output_embeddings(n, model.n_embd_inp)) == n
+        with pytest.raises(ValueError, match="n_tokens"):
+            mctx.get_output_embeddings(10**6, model.n_embd_inp)
+        with pytest.raises(ValueError, match="n_embd_inp"):
+            mctx.get_output_embeddings(n, model.n_embd_inp + 1)
+
+    def test_batch_getter_checks_n_embd(self, vision):
+        model, mctx = vision
+        chunk = self._image_chunk(mctx)
+        with mctx.batch() as batch:
+            batch.add_chunk(chunk)
+            batch.encode()
+            with pytest.raises(ValueError, match="n_embd_inp"):
+                batch.get_output_embd(chunk, model.n_embd_inp * 4)
+
+    def test_tokenize_rejects_unbound_bitmap(self, vision):
+        _, mctx = vision
+        with pytest.raises(ValueError, match="not initialized"):
+            mctx.tokenize(mctx.marker, [cy.MtmdBitmap.__new__(cy.MtmdBitmap)], True, True)

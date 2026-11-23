@@ -174,7 +174,7 @@ class TestProtocol:
         assert isinstance(store, VectorStoreProtocol)
 
     def test_every_protocol_member_is_callable(self, store):
-        for name in ("search", "add", "is_source_indexed", "get_source_by_label", "clear", "close"):
+        for name in ("search", "add", "delete", "is_source_indexed", "get_source_by_label", "clear", "close"):
             assert callable(getattr(store, name)), f"{name} missing or not callable"
 
     def test_empty_store_has_zero_length(self, store):
@@ -436,6 +436,24 @@ class TestLifecycle:
     def test_close_is_idempotent(self, store):
         store.close()
         store.close()
+
+    def test_closed_store_raises_vector_store_error(self, store):
+        # Chroma and Qdrant raised a bare RuntimeError; VectorStoreError is one, so both catch it
+        from cyllama.rag.store import VectorStoreError
+
+        store.close()
+        with pytest.raises(VectorStoreError):
+            store.search(QUERY, k=1)
+        with pytest.raises(RuntimeError):
+            store.add(EMBEDDINGS[:1], TEXTS[:1])
+
+    def test_ids_not_reused_after_delete(self, store):
+        # Chroma and Qdrant seeded their id counter from the row count
+        ids = [str(i) for i in store.add(EMBEDDINGS, TEXTS)]
+        store.delete([ids[0]])
+        new = [str(i) for i in store.add(EMBEDDINGS[:2], TEXTS[:2])]
+        assert not set(new) & set(ids[1:])
+        assert len(store) == len(EMBEDDINGS) + 1
 
 
 def test_every_backend_reports_its_availability():

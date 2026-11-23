@@ -15,15 +15,11 @@ from ..api import LLM, GenerationConfig
 
 # Module logger
 logger = logging.getLogger(__name__)
-from ..llama.llama_cpp import (
-    LlamaSampler,
-    LlamaSamplerChainParams,
-    llama_batch_get_one,
-)
+from ..llama.generation import build_sampler, decode_prompt, sample_tokens
 from ..llama.token_decoder import TokenDecoder
 from ._loop_detection import detect_loop, format_loop_error
 from .react import render_observation
-from .tools import Tool, ToolArgumentError, ToolRegistry, coerce_args
+from .tools import AgentTermination, Tool, ToolArgumentError, ToolRegistry, call_tool
 from .grammar import (
     GrammarFormat,
     generate_answer_or_tool_grammar,
@@ -83,38 +79,17 @@ class GrammarConstrainedLLM(LLM):
         sampler = self._sampler
         assert sampler is not None
 
-        # Process prompt
-        batch = llama_batch_get_one(prompt_tokens)
-        ctx.decode(batch)
+        decode_prompt(ctx, prompt_tokens)
 
-        # Generate tokens
-        n_pos = n_prompt
-        n_generated = 0
         output_tokens = []
         decoder = TokenDecoder(self.vocab)
-
-        for _ in range(config.max_tokens):
-            # Sample next token with grammar constraint
-            new_token_id = sampler.sample(ctx, -1)
-
-            # Check for end of generation
-            if self.vocab.is_eog(new_token_id):
-                break
-
-            # Note: Do NOT call sampler.accept() manually - the sampler chain
-            # handles acceptance internally when using grammar constraints
-
+        # The grammar link accepts each sampled token itself; do not call sampler.accept().
+        for new_token_id in sample_tokens(ctx, sampler, self.vocab, n_prompt, config.max_tokens):
             piece = decoder.decode(new_token_id)
             if piece:
                 output_tokens.append(piece)
                 if on_token:
                     on_token(piece)
-
-            # Prepare next iteration
-            batch = llama_batch_get_one([new_token_id], n_pos)
-            ctx.decode(batch)
-            n_pos += 1
-            n_generated += 1
 
         tail = decoder.flush()
         if tail:
@@ -124,44 +99,10 @@ class GrammarConstrainedLLM(LLM):
         return "".join(output_tokens)
 
     def _ensure_sampler_with_grammar(self, config: GenerationConfig, grammar: str, grammar_root: str) -> None:
-        """Create sampler with grammar constraint."""
-        sampler_params = LlamaSamplerChainParams()
-        sampler_params.no_perf = not self.verbose
-
-        self._sampler = LlamaSampler(sampler_params)
-
-        # IMPORTANT: Grammar constraint must come FIRST in the sampler chain.
-        # The grammar sampler filters logits to only allow tokens that match
-        # the grammar, then subsequent samplers select from valid tokens.
-        self._sampler.add_grammar(self.vocab, grammar, grammar_root)
-        self._sampler.add_suppress_tokens(self.vocab)
-
-        # Add penalties if configured
-        if config.repeat_penalty != 1.0:
-            self._sampler.add_penalties(
-                self.vocab.n_vocab,
-                penalty_last_n=64,
-                penalty_repeat=config.repeat_penalty,
-                penalty_freq=0.0,
-                penalty_present=0.0,
-            )
-
-        # Add sampling methods based on config
-        if config.temperature == 0.0:
-            # Greedy sampling
-            self._sampler.add_greedy()
-        else:
-            # Probabilistic sampling
-            self._sampler.add_min_p(config.min_p, 1)
-            self._sampler.add_top_k(config.top_k)
-            self._sampler.add_top_p(config.top_p, 1)
-            self._sampler.add_temp(config.temperature)
-
-            # Distribution sampler for final selection
-            if config.seed != -1:
-                self._sampler.add_dist(config.seed)
-            else:
-                self._sampler.add_dist(int(time.time()))
+        """Create a sampler for ``config`` whose first link is the grammar."""
+        self._sampler = build_sampler(
+            self.vocab, config, self._ctx_size or self.model.n_ctx_train, not self.verbose, (grammar, grammar_root)
+        )
 
 
 @dataclass
@@ -489,13 +430,16 @@ Use tools when needed, then provide a helpful final answer based on the results.
                     yield event
 
                     # Execute tool
+                    raw_result: Any = None
                     try:
                         tool_start = time.perf_counter()
-                        observation = self._execute_tool(tool_name, tool_args)
+                        observation, raw_result = self._call_tool(tool_name, tool_args)
                         tool_time = (time.perf_counter() - tool_start) * 1000
                         self._metrics.tool_time_ms += tool_time
                         logger.debug("Tool %s executed in %.1fms", tool_name, tool_time)
                         observations.append(f"{tool_name}: {observation}")
+                    except AgentTermination:
+                        raise  # a tool asked to stop the run (e.g. contract_assert under ENFORCE)
                     except Exception as e:
                         self._metrics.error_count += 1
                         observation = f"Error: {str(e)}"
@@ -507,8 +451,11 @@ Use tools when needed, then provide a helpful final answer based on the results.
                         yield error_event
 
                     # Emit observation
+                    # tool_args and raw_result, as ReActAgent emits them, for postconditions
                     obs_event = AgentEvent(
-                        type=EventType.OBSERVATION, content=observation, metadata={"tool_name": tool_name}
+                        type=EventType.OBSERVATION,
+                        content=observation,
+                        metadata={"tool_name": tool_name, "tool_args": tool_args, "raw_result": raw_result},
                     )
                     yield obs_event
 
@@ -716,21 +663,30 @@ Use tools when needed, then provide a helpful final answer based on the results.
         Raises:
             ValueError: If tool not found
         """
+        return self._call_tool(tool_name, args)[0]
+
+    def _call_tool(self, tool_name: str, args: Dict[str, Any]) -> "tuple[str, Any]":
+        """Return (observation, raw result) for a tool call; the raw result is None on error.
+
+        Raises:
+            ValueError: If tool not found
+            AgentTermination: the tool asked to stop the run
+        """
         tool = self.registry.get(tool_name)
         if not tool:
             raise ValueError(f"Unknown tool: {tool_name}")
 
         try:
-            if tool.coerce:
-                args = coerce_args(tool, args)
-            result = tool(**args)
-            return render_observation(result)
+            result = call_tool(tool, args)
+            return render_observation(result), result
+        except AgentTermination:
+            raise
         except ToolArgumentError as e:
             # Surface schema-violation details verbatim so the LLM can fix
             # the call on the next iteration.
-            return f"Tool argument error: {e.message}"
+            return f"Tool argument error: {e.message}", None
         except Exception as e:
-            return f"Tool execution error: {str(e)}"
+            return f"Tool execution error: {str(e)}", None
 
     def add_tool(self, tool: Tool) -> None:
         """

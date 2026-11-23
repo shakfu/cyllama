@@ -646,3 +646,27 @@ class TestRerankerWithRealModel:
 
         assert len(reranked) == 2
         assert reranked[0].text == self.RELEVANT
+
+
+class TestHybridStoreFts:
+    def test_quote_in_query(self):
+        from cyllama.rag.advanced import HybridStore
+
+        store = HybridStore(dimension=3)
+        store.add([[1.0, 0.0, 0.0]], ['a 5" floppy disk'])
+        # an unescaped '"' raised sqlite3.OperationalError
+        results = store.search([1.0, 0.0, 0.0], query_text='5" floppy', k=1)
+        assert results and "floppy" in results[0].text
+        store.close()
+
+    def test_existing_rows_are_keyword_searchable(self, tmp_path):
+        from cyllama.rag.advanced import HybridStore
+        from cyllama.rag.store import SqliteVectorStore
+
+        db = str(tmp_path / "v.db")
+        with SqliteVectorStore(dimension=3, db_path=db) as plain:
+            plain.add([[0.0, 1.0, 0.0]], ["zebra crossing"])
+        store = HybridStore(dimension=3, db_path=db)
+        # the FTS table was created empty, so rows added before it were invisible to keyword search
+        assert any("zebra" in r.text for r in store.search([1.0, 0.0, 0.0], query_text="zebra", k=1, alpha=0.0))
+        store.close()

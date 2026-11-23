@@ -9,6 +9,7 @@ Provides Python bindings for image generation using Stable Diffusion models.
 
 import os
 import logging
+import threading
 import traceback
 from collections import namedtuple
 from typing import Optional, List, Callable, Tuple, Union
@@ -534,10 +535,10 @@ cdef class SDImage:
 
     def save_bmp(self, path: str):
         """
-        Save image as BMP (Bitmap) format.
+        Save image as a 24-bit BMP (Bitmap) with stb_image_write.
 
-        BMP is a simple uncompressed format that requires no dependencies.
-        Universally supported by all image viewers and editors.
+        Alpha is dropped. The Python writer this replaces made one write()
+        call per pixel (1,048,576 at 1024x1024).
 
         Args:
             path: Output file path (should end with .bmp)
@@ -545,59 +546,34 @@ cdef class SDImage:
         if not self.is_valid:
             raise ValueError("Image has no valid data")
 
-        cdef uint32_t w = self._image.width
-        cdef uint32_t h = self._image.height
-        cdef uint32_t c = self._image.channel
-        cdef size_t size = w * h * c
-        cdef bytes raw_data
-
-        # Get raw bytes from image data
-        raw_data = <bytes>self._image.data[:size]
-
-        # BMP requires rows to be padded to 4-byte boundaries
-        row_size = w * 3
-        padding = (4 - (row_size % 4)) % 4
-        padded_row_size = row_size + padding
-        pixel_data_size = padded_row_size * h
-
-        # BMP file header (14 bytes) + DIB header (40 bytes) = 54 bytes
-        file_size = 54 + pixel_data_size
-
-        with open(path, 'wb') as f:
-            import struct
-
-            # BMP file header (14 bytes)
-            f.write(b'BM')                              # Signature
-            f.write(struct.pack('<I', file_size))       # File size
-            f.write(struct.pack('<HH', 0, 0))           # Reserved
-            f.write(struct.pack('<I', 54))              # Pixel data offset
-
-            # DIB header - BITMAPINFOHEADER (40 bytes)
-            f.write(struct.pack('<I', 40))              # Header size
-            f.write(struct.pack('<i', w))               # Width
-            f.write(struct.pack('<i', h))               # Height (positive = bottom-up)
-            f.write(struct.pack('<HH', 1, 24))          # Planes, bits per pixel
-            f.write(struct.pack('<I', 0))               # Compression (none)
-            f.write(struct.pack('<I', pixel_data_size)) # Image size
-            f.write(struct.pack('<i', 2835))            # X pixels per meter (72 DPI)
-            f.write(struct.pack('<i', 2835))            # Y pixels per meter (72 DPI)
-            f.write(struct.pack('<I', 0))               # Colors in color table
-            f.write(struct.pack('<I', 0))               # Important colors
-
-            # Pixel data (bottom-up, BGR order)
-            pad_bytes = b'\x00' * padding
-            for y in range(h - 1, -1, -1):  # Bottom to top
-                for x in range(w):
-                    idx = (y * w + x) * c
-                    if c >= 3:
-                        # BGR order for BMP
-                        f.write(bytes([raw_data[idx + 2], raw_data[idx + 1], raw_data[idx]]))
-                    elif c == 1:
-                        # Grayscale to BGR
-                        val = raw_data[idx]
-                        f.write(bytes([val, val, val]))
-                if padding:
-                    f.write(pad_bytes)
+        cdef int w = self._image.width
+        cdef int h = self._image.height
+        cdef int c = self._image.channel
+        cdef bytes path_bytes = path.encode('utf-8')
+        cdef const uint8_t* src = self._image.data
+        cdef uint8_t* rgb = NULL
+        cdef size_t i, n = <size_t>w * h
+        cdef int result
+        if c == 2 or c == 4:
+            # stb writes 32-bit BMP for 4 channels; keep the 24-bit output this method always produced
+            rgb = <uint8_t*>malloc(n * 3)
+            if rgb == NULL:
+                raise MemoryError("Failed to allocate BMP buffer")
+            for i in range(n):
+                if c == 4:
+                    rgb[3 * i] = src[4 * i]
+                    rgb[3 * i + 1] = src[4 * i + 1]
+                    rgb[3 * i + 2] = src[4 * i + 2]
+                else:  # gray + alpha
+                    rgb[3 * i] = rgb[3 * i + 1] = rgb[3 * i + 2] = src[2 * i]
+            src = rgb
+            c = 3
+        try:
+            result = stbi_write_bmp(path_bytes, w, h, c, src)
+        finally:
+            free(rgb)
+        if result == 0:
+            raise IOError(f"Failed to write BMP file: {path}")
 
     def save_png(self, path: str):
         """
@@ -706,6 +682,16 @@ cdef class SDImage:
         if not HAS_NUMPY:
             raise ImportError("numpy is required for from_numpy()")
 
+        arr = np.asarray(arr)
+        # A float image in [0, 1] cast to uint8 became all 0s and 1s.
+        if arr.dtype != np.uint8:
+            if not np.issubdtype(arr.dtype, np.integer):
+                raise TypeError(f"from_numpy needs integer pixels in [0, 255], got dtype {arr.dtype}; "
+                                "for floats in [0, 1] pass (arr * 255).round().astype(np.uint8)")
+            if arr.size and (arr.min() < 0 or arr.max() > 255):
+                raise ValueError("from_numpy pixel values must be in [0, 255]")
+        if arr.ndim not in (2, 3):
+            raise ValueError(f"from_numpy needs shape (H, W) or (H, W, C), got {arr.shape}")
         arr = np.ascontiguousarray(arr, dtype=np.uint8)
         if arr.ndim == 2:
             arr = arr[:, :, np.newaxis]
@@ -793,8 +779,15 @@ cdef class SDImage:
             if max_val != 255:
                 raise ValueError(f"Unsupported max value: {max_val}. Only 255 supported.")
 
+            if w <= 0 or h <= 0:
+                raise ValueError(f"Invalid PPM dimensions: {w}x{h}")
+
             # Read pixel data
             pixel_data = f.read(w * h * 3)
+            if len(pixel_data) != w * h * 3:
+                raise ValueError(
+                    f"Truncated PPM: {w}x{h} needs {w * h * 3} bytes of pixel data, got {len(pixel_data)}"
+                )
 
         # Create SDImage
         cdef SDImage img = SDImage()
@@ -1863,18 +1856,19 @@ cdef class SDSampleParams:
 
     @slg_layers.setter
     def slg_layers(self, values: list):
-        if self._slg_layers != NULL:
-            free(self._slg_layers)
-            self._slg_layers = NULL
-        if values is None or len(values) == 0:
-            self._params.guidance.slg.layers = NULL
-            self._params.guidance.slg.layer_count = 0
-        else:
-            self._slg_layers = <int*>malloc(len(values) * sizeof(int))
-            for i in range(len(values)):
-                self._slg_layers[i] = <int>values[i]
-            self._params.guidance.slg.layers = self._slg_layers
-            self._params.guidance.slg.layer_count = len(values)
+        # Convert before freeing the old buffer: a bad element must leave it in place.
+        cdef list ints = [int(v) for v in (values or [])]
+        cdef int* buf = NULL
+        if ints:
+            buf = <int*>malloc(len(ints) * sizeof(int))
+            if buf == NULL:
+                raise MemoryError("Failed to allocate slg_layers")
+            for i in range(len(ints)):
+                buf[i] = <int>ints[i]
+        free(self._slg_layers)
+        self._slg_layers = buf
+        self._params.guidance.slg.layers = buf
+        self._params.guidance.slg.layer_count = len(ints)
 
     @property
     def custom_sigmas(self) -> list:
@@ -1887,18 +1881,18 @@ cdef class SDSampleParams:
 
     @custom_sigmas.setter
     def custom_sigmas(self, values: list):
-        if self._custom_sigmas != NULL:
-            free(self._custom_sigmas)
-            self._custom_sigmas = NULL
-        if values is None or len(values) == 0:
-            self._params.custom_sigmas = NULL
-            self._params.custom_sigmas_count = 0
-        else:
-            self._custom_sigmas = <float*>malloc(len(values) * sizeof(float))
-            for i in range(len(values)):
-                self._custom_sigmas[i] = <float>values[i]
-            self._params.custom_sigmas = self._custom_sigmas
-            self._params.custom_sigmas_count = len(values)
+        cdef list floats = [float(v) for v in (values or [])]
+        cdef float* buf = NULL
+        if floats:
+            buf = <float*>malloc(len(floats) * sizeof(float))
+            if buf == NULL:
+                raise MemoryError("Failed to allocate custom_sigmas")
+            for i in range(len(floats)):
+                buf[i] = <float>floats[i]
+        free(self._custom_sigmas)
+        self._custom_sigmas = buf
+        self._params.custom_sigmas = buf
+        self._params.custom_sigmas_count = len(floats)
 
     def __str__(self) -> str:
         """Get string representation."""
@@ -1913,6 +1907,30 @@ cdef class SDSampleParams:
 # =============================================================================
 # SDImageGenParams class
 # =============================================================================
+
+cdef list _sd_image_list(images):
+    """Copy ``images`` into a new list, raising TypeError on a non-SDImage element."""
+    if images is None:
+        return []
+    cdef list out = list(images)
+    for i, img in enumerate(out):
+        if not isinstance(img, SDImage):
+            raise TypeError(f"images[{i}] is {type(img).__name__}, expected SDImage")
+    return out
+
+
+cdef sd_image_t* _sd_image_buf(list imgs) except? NULL:
+    """malloc an sd_image_t array viewing ``imgs``; NULL for an empty list."""
+    cdef Py_ssize_t n = len(imgs)
+    if n == 0:
+        return NULL
+    cdef sd_image_t* buf = <sd_image_t*>malloc(n * sizeof(sd_image_t))
+    if buf == NULL:
+        raise MemoryError("Failed to allocate image array")
+    for i in range(n):
+        buf[i] = (<SDImage>imgs[i])._image
+    return buf
+
 
 cdef class SDImageGenParams:
     """
@@ -2284,25 +2302,29 @@ cdef class SDImageGenParams:
             loras: List of dicts with keys: 'path' (str), 'multiplier' (float, default 1.0),
                    'is_high_noise' (bool, default False).
         """
-        if self._loras_buf != NULL:
-            free(self._loras_buf)
-            self._loras_buf = NULL
-        if loras is None or len(loras) == 0:
-            self._params.loras = NULL
-            self._params.lora_count = 0
-            self._lora_paths_bytes = None
-            return
-        cdef int n = len(loras)
-        self._loras_buf = <sd_lora_t*>malloc(n * sizeof(sd_lora_t))
-        self._lora_paths_bytes = []
-        for i in range(n):
-            entry = loras[i]
-            path_bytes = entry['path'].encode('utf-8')
-            self._lora_paths_bytes.append(path_bytes)
-            self._loras_buf[i].path = <const char*>path_bytes
-            self._loras_buf[i].multiplier = <float>entry.get('multiplier', 1.0)
-            self._loras_buf[i].is_high_noise = <bint>entry.get('is_high_noise', False)
-        self._params.loras = self._loras_buf
+        # Validate every entry before freeing the old buffer, so a bad entry
+        # leaves the previous LoRAs (and the bytes their paths point into) in place.
+        cdef list entries = []
+        for i, entry in enumerate(loras or []):
+            if 'path' not in entry:
+                raise KeyError(f"loras[{i}] has no 'path'")
+            entries.append((entry['path'].encode('utf-8'),
+                            float(entry.get('multiplier', 1.0)),
+                            bool(entry.get('is_high_noise', False))))
+        cdef int n = len(entries)
+        cdef sd_lora_t* buf = NULL
+        if n:
+            buf = <sd_lora_t*>malloc(n * sizeof(sd_lora_t))
+            if buf == NULL:
+                raise MemoryError("Failed to allocate LoRA array")
+            for i in range(n):
+                buf[i].path = <const char*>(<bytes>entries[i][0])
+                buf[i].multiplier = <float>entries[i][1]
+                buf[i].is_high_noise = <bint>entries[i][2]
+        free(self._loras_buf)
+        self._loras_buf = buf
+        self._lora_paths_bytes = [e[0] for e in entries] or None  # keeps the path bytes alive
+        self._params.loras = buf
         self._params.lora_count = n
 
     # --- Reference images ---
@@ -2313,21 +2335,15 @@ cdef class SDImageGenParams:
         Args:
             images: List of SDImage objects.
         """
-        if self._ref_images_buf != NULL:
-            free(self._ref_images_buf)
-            self._ref_images_buf = NULL
-        if images is None or len(images) == 0:
-            self._params.ref_images = NULL
-            self._params.ref_images_count = 0
-            self._ref_images = None
-            return
-        cdef int n = len(images)
-        self._ref_images = images  # prevent GC
-        self._ref_images_buf = <sd_image_t*>malloc(n * sizeof(sd_image_t))
-        for i in range(n):
-            self._ref_images_buf[i] = (<SDImage>images[i])._image
-        self._params.ref_images = self._ref_images_buf
-        self._params.ref_images_count = n
+        # Validate and build the new buffer before releasing the old one, so a
+        # bad element leaves the previous images in place.
+        cdef list imgs = _sd_image_list(images)
+        cdef sd_image_t* buf = _sd_image_buf(imgs)
+        free(self._ref_images_buf)
+        self._ref_images_buf = buf
+        self._ref_images = imgs or None  # a copy: the caller's list may change
+        self._params.ref_images = buf
+        self._params.ref_images_count = len(imgs)
 
     # --- Photo Maker parameters ---
 
@@ -2337,21 +2353,13 @@ cdef class SDImageGenParams:
         Args:
             images: List of SDImage objects.
         """
-        if self._pm_id_images_buf != NULL:
-            free(self._pm_id_images_buf)
-            self._pm_id_images_buf = NULL
-        if images is None or len(images) == 0:
-            self._params.pm_params.id_images = NULL
-            self._params.pm_params.id_images_count = 0
-            self._pm_id_images = None
-            return
-        cdef int n = len(images)
-        self._pm_id_images = images  # prevent GC
-        self._pm_id_images_buf = <sd_image_t*>malloc(n * sizeof(sd_image_t))
-        for i in range(n):
-            self._pm_id_images_buf[i] = (<SDImage>images[i])._image
-        self._params.pm_params.id_images = self._pm_id_images_buf
-        self._params.pm_params.id_images_count = n
+        cdef list imgs = _sd_image_list(images)
+        cdef sd_image_t* buf = _sd_image_buf(imgs)
+        free(self._pm_id_images_buf)
+        self._pm_id_images_buf = buf
+        self._pm_id_images = imgs or None
+        self._params.pm_params.id_images = buf
+        self._params.pm_params.id_images_count = len(imgs)
 
     @property
     def pm_id_embed_path(self) -> str:
@@ -2772,6 +2780,7 @@ cdef class SDImageGenParams:
 
     def __str__(self) -> str:
         """Get string representation."""
+        self._params.sample_params = self._sample_params._params  # as generate_with_params does
         cdef char* s = sd_img_gen_params_to_str(&self._params)
         if s:
             result = s.decode('utf-8')
@@ -2865,6 +2874,11 @@ cdef class SDContext:
             ("taesd_path", "TAESD"),
             ("photo_maker_path", "PhotoMaker"),
             ("pulid_weights_path", "PuLID"),
+            ("clip_vision_path", "CLIP vision"),
+            ("llm_path", "LLM text encoder"),
+            ("llm_vision_path", "LLM vision encoder"),
+            ("high_noise_diffusion_model_path", "high-noise diffusion model"),
+            ("uncond_diffusion_model_path", "unconditional diffusion model"),
         )
         for attr, label in path_specs:
             value = getattr(params, attr, None)
@@ -3375,9 +3389,12 @@ cdef class Upscaler:
     cdef bytes _model_path_bytes
     cdef bytes _backend_bytes
     cdef bytes _params_backend_bytes
+    # upscale() releases the GIL; close() from another thread freed the context under it
+    cdef object _busy_lock
 
     def __cinit__(self):
         self._ctx = NULL
+        self._busy_lock = threading.Lock()
 
     def __dealloc__(self):
         if self._ctx != NULL:
@@ -3385,10 +3402,11 @@ cdef class Upscaler:
             self._ctx = NULL
 
     def close(self):
-        """Release the underlying upscaler context immediately. Idempotent."""
-        if self._ctx != NULL:
-            free_upscaler_ctx(self._ctx)
-            self._ctx = NULL
+        """Release the underlying upscaler context immediately. Idempotent; waits for an upscale in progress."""
+        with self._busy_lock:
+            if self._ctx != NULL:
+                free_upscaler_ctx(self._ctx)
+                self._ctx = NULL
 
     def __init__(self,
                  model_path: str,
@@ -3463,6 +3481,14 @@ cdef class Upscaler:
         Raises:
             RuntimeError: If upscaling fails
         """
+        if not self._busy_lock.acquire(blocking=False):
+            raise RuntimeError("Upscaler is in use by another thread")
+        try:
+            return self._upscale_locked(image, factor)
+        finally:
+            self._busy_lock.release()
+
+    def _upscale_locked(self, SDImage image, int factor):
         if self._ctx == NULL:
             raise RuntimeError("Upscaler not initialized")
 
@@ -3510,9 +3536,11 @@ cdef class Adetailer:
     cdef bytes _detector_path_bytes
     cdef bytes _backend_bytes
     cdef bytes _params_backend_bytes
+    cdef object _busy_lock  # detail() releases the GIL; see Upscaler
 
     def __cinit__(self):
         self._ctx = NULL
+        self._busy_lock = threading.Lock()
 
     def __dealloc__(self):
         if self._ctx != NULL:
@@ -3520,10 +3548,11 @@ cdef class Adetailer:
             self._ctx = NULL
 
     def close(self):
-        """Release the underlying adetailer context immediately. Idempotent."""
-        if self._ctx != NULL:
-            free_adetailer_ctx(self._ctx)
-            self._ctx = NULL
+        """Release the underlying adetailer context immediately. Idempotent; waits for a detail() in progress."""
+        with self._busy_lock:
+            if self._ctx != NULL:
+                free_adetailer_ctx(self._ctx)
+                self._ctx = NULL
 
     def __init__(self,
                  detector_path: str,
@@ -3613,6 +3642,11 @@ cdef class Adetailer:
         ad_params.negative_prompt = <const char*>neg_bytes
         ad_params.extra_ad_args = <const char*>extra_bytes
 
+        # Only generate_with_params copied the sample params in; without this,
+        # detail() ran with the values from construction, and a stale slg_layers
+        # pointer after reassignment.
+        inpaint_params._params.sample_params = inpaint_params._sample_params._params
+
         cdef adetailer_ctx_t* ad_ptr = self._ctx
         cdef sd_ctx_t* sd_ptr = sd_ctx._ctx
         cdef sd_image_t input_img = image._image
@@ -3623,13 +3657,21 @@ cdef class Adetailer:
         # adetail_image drives the diffusion context through several inpaint
         # passes with the GIL released, so it must take the same
         # single-user guard as SDContext.generate().
-        sd_ctx._try_acquire_busy()
+        if not self._busy_lock.acquire(blocking=False):
+            raise RuntimeError("Adetailer is in use by another thread")
         try:
-            with nogil:
-                ok = adetail_image(ad_ptr, sd_ptr, input_img, &ad_params,
-                                   gen_ptr, &out)
+            if self._ctx == NULL:
+                raise RuntimeError("Adetailer is closed")
+            ad_ptr = self._ctx
+            sd_ctx._try_acquire_busy()
+            try:
+                with nogil:
+                    ok = adetail_image(ad_ptr, sd_ptr, input_img, &ad_params,
+                                       gen_ptr, &out)
+            finally:
+                sd_ctx._busy_lock.release()
         finally:
-            sd_ctx._busy_lock.release()
+            self._busy_lock.release()
 
         results = _take_image_result(out) if out != NULL else []
         if not ok:
@@ -3992,8 +4034,9 @@ cdef void _preview_callback_wrapper(int step, int frame_count, sd_image_t* frame
     reference (e.g. `self._last_frame = frames[0]`, or appends to a list
     that outlives the callback), any subsequent attribute access on that
     SDImage reads freed/recycled memory. The user-callback contract is:
-    consume immediately, or copy via `np.array(img.data, copy=True)` /
-    `img.save(path)` before returning.
+    consume immediately, or copy via `img.to_numpy().copy()` / `img.save(path)`
+    before returning. After it returns, the wrappers are invalidated
+    (`is_valid` is False) so a kept frame raises instead of reading freed memory.
 
     Exceptions from the user callback are swallowed (passed silently)
     because raising across the C boundary is undefined behaviour even
@@ -4011,7 +4054,14 @@ cdef void _preview_callback_wrapper(int step, int frame_count, sd_image_t* frame
             for i in range(frame_count):
                 img = SDImage._from_c_image(frames[i], owns_data=False)
                 frame_list.append(img)
-            _preview_callback(step, frame_list, bool(is_noisy))
+            try:
+                _preview_callback(step, frame_list, bool(is_noisy))
+            finally:
+                # The buffer is reused or freed after this returns; a frame the
+                # callback kept would read it. Clearing data makes every
+                # accessor raise instead (is_valid is False).
+                for img in frame_list:
+                    (<SDImage>img)._image.data = NULL
         except BaseException:
             traceback.print_exc()
 
@@ -4042,12 +4092,10 @@ def set_preview_callback(
         The ``SDImage`` instances passed in ``frames`` alias buffers owned
         by stable-diffusion.cpp and are valid **only for the duration of
         this callback**. The next diffusion step reuses the same buffer.
-        Do not retain ``SDImage`` references past the callback return: any
-        later attribute access (``.data``, ``.save()``, etc.) reads freed
-        or recycled memory. If you need to keep a frame, copy it inside
-        the callback (``img.save(path)`` or ``np.array(img.data,
-        copy=True)``). Exceptions raised inside the callback are silently
-        swallowed.
+        A frame kept past the callback is invalidated (``is_valid`` is
+        False; accessors raise). To keep one, copy it inside the callback
+        (``img.save(path)`` or ``img.to_numpy().copy()``). Exceptions raised
+        inside the callback are printed and swallowed.
     """
     global _preview_callback
     _preview_callback = callback

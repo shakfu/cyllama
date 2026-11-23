@@ -7,7 +7,6 @@ using a pure Python HTTP server implementation. Uses the existing cyllama bindin
 to provide OpenAI-compatible API endpoints through a lightweight Python HTTP server.
 """
 
-import codecs
 import hmac
 import ipaddress
 import json
@@ -20,7 +19,7 @@ if TYPE_CHECKING:
     from ...rag.embedder import Embedder
     from ..decision import DecisionModel
 from dataclasses import dataclass, field
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 import uuid
 from contextlib import closing
@@ -34,8 +33,9 @@ from ..llama_cpp import (
     LlamaContext,
     LlamaSampler,
     ggml_backend_load_all,
-    llama_batch_get_one,
 )
+from ..generation import build_sampler, decode_prompt, sample_tokens
+from ..token_decoder import TokenDecoder
 
 
 @dataclass
@@ -73,6 +73,15 @@ class ServerConfig:
     # Security
     api_key: Optional[str] = None  # if set, require "Authorization: Bearer <key>" except on /health
     max_body_bytes: int = 2 * 1024 * 1024
+    slot_wait_s: float = 60.0  # how long a request waits for a free slot before a 503
+
+
+class SlotsBusy(RuntimeError):
+    """No slot became free within ``ServerConfig.slot_wait_s``; answered with 503."""
+
+
+# Seconds a PythonServer connection may stall between reads before it is dropped.
+REQUEST_TIMEOUT_S = 30
 
 
 def model_params(config: ServerConfig) -> LlamaModelParams:
@@ -82,14 +91,41 @@ def model_params(config: ServerConfig) -> LlamaModelParams:
     return params
 
 
+def _host_allowed(config: ServerConfig, host: str) -> bool:
+    """True if a Host header names a loopback address or the bind address."""
+    name = host.strip().lower()
+    if name.startswith("["):  # [::1]:8080
+        name = name[1 : name.find("]")] if "]" in name else name
+    elif name.count(":") == 1:  # host:port
+        name = name.split(":", 1)[0]
+    bind = config.host.strip("[]").lower()
+    if name in ("localhost", bind) or (bind in ("0.0.0.0", "::") and name):
+        return True
+    try:
+        return ipaddress.ip_address(name).is_loopback
+    except ValueError:
+        return False
+
+
 def check_request(
-    config: ServerConfig, path: str, authorization: Optional[str], content_length: int
+    config: ServerConfig,
+    path: str,
+    authorization: Optional[str],
+    content_length: int,
+    host: Optional[str] = None,
 ) -> Optional[Tuple[int, str]]:
     """Return (status, message) if a request must be rejected before its body is handled, else None.
 
     `authorization` is the header as both servers decode it, latin-1, so
     re-encoding it recovers the bytes the client sent.
+
+    Without an API key, a request whose Host is not loopback or the bind
+    address is refused: a web page can otherwise reach a local server
+    through DNS rebinding and read its responses. Servers bound to all
+    interfaces accept any Host; a key is what protects them.
     """
+    if not config.api_key and host and not _host_allowed(config, host):
+        return 403, "Host not allowed"
     if config.api_key and path != "/health":
         scheme, _, token = (authorization or "").partition(" ")
         sent = token.encode("latin-1", errors="replace")
@@ -155,6 +191,127 @@ def sse_chunks(model: str, pieces: Generator[str, None, None]) -> Generator[byte
             yield event({"content": piece})
     yield event({}, "stop")
     yield b"data: [DONE]\n\n"
+
+
+_logger = logging.getLogger(__name__)
+
+
+def plain_prompt(messages: List["ChatMessage"]) -> str:
+    """``System:/User:/Assistant:`` lines, for a model with no usable chat template."""
+    labels = {"system": "System", "user": "User", "assistant": "Assistant"}
+    parts = [f"{labels[m.role]}: {m.content}" for m in messages if m.role in labels]
+    parts.append("Assistant:")
+    return "\n".join(parts)
+
+
+def render_chat(model: Optional[LlamaModel], messages: List["ChatMessage"]) -> str:
+    """The prompt for ``messages`` in the model's chat template, as ``LLM.chat`` renders it.
+
+    Falls back to llama.cpp's built-in templates, then to :func:`plain_prompt`.
+    A leading BOS the template writes is removed when tokenization adds one,
+    so the prompt does not start with two.
+    """
+    if model is None:
+        return plain_prompt(messages)
+    tmpl = model.get_default_chat_template()
+    if tmpl:
+        from ...api import _apply_jinja_template_standalone
+        from ..llama_cpp import LlamaChatMessage
+
+        dicts = [{"role": m.role, "content": m.content} for m in messages]
+        try:
+            return _strip_bos(model, _apply_jinja_template_standalone(model, tmpl, dicts, True))
+        except Exception:
+            _logger.debug("jinja chat template failed; trying llama.cpp's built-in templates", exc_info=True)
+        try:
+            msgs = [LlamaChatMessage(role=m.role, content=m.content) for m in messages]
+            return _strip_bos(model, model.chat_apply_template(tmpl, msgs, True))
+        except Exception:
+            _logger.debug("chat template not recognised; using the plain format", exc_info=True)
+    return plain_prompt(messages)
+
+
+def _strip_bos(model: LlamaModel, prompt: str) -> str:
+    vocab = model.get_vocab()
+    if vocab.get_add_bos() and vocab.token_bos() >= 0:
+        bos = vocab.token_to_piece(vocab.token_bos(), special=True)
+        if bos and prompt.startswith(bos):
+            return prompt[len(bos) :]
+    return prompt
+
+
+class RequestError(ValueError):
+    """A request field has the wrong type or value; answered with 400."""
+
+
+def _content_text(content: Any, i: int) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):  # OpenAI content parts
+        texts = []
+        for part in content:
+            if not isinstance(part, dict) or part.get("type") != "text" or not isinstance(part.get("text"), str):
+                raise RequestError(f"messages[{i}].content: only text parts are supported")
+            texts.append(part["text"])
+        return "".join(texts)
+    raise RequestError(f"messages[{i}].content must be a string or a list of text parts")
+
+
+def _number(data: Dict[str, Any], key: str, default: float, lo: float, hi: float) -> float:
+    value = data.get(key, default)
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not lo <= value <= hi:
+        raise RequestError(f"{key} must be a number in [{lo}, {hi}]")
+    return float(value)
+
+
+def parse_chat_request(data: Any, config: ServerConfig) -> "ChatRequest":
+    """Validate an OpenAI chat-completion body; raise :class:`RequestError` naming the bad field."""
+    if not isinstance(data, dict):
+        raise RequestError("request body must be a JSON object")
+    raw = data.get("messages")
+    if not isinstance(raw, list) or not raw:
+        raise RequestError("messages must be a non-empty array")
+    messages = []
+    for i, msg in enumerate(raw):
+        if not isinstance(msg, dict) or not isinstance(msg.get("role"), str):
+            raise RequestError(f"messages[{i}] must be an object with a string role")
+        messages.append(ChatMessage(role=msg["role"], content=_content_text(msg.get("content", ""), i)))
+
+    max_tokens = data.get("max_tokens", data.get("max_completion_tokens"))
+    if max_tokens is not None and (isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens < 1):
+        raise RequestError("max_tokens must be a positive integer")
+    if max_tokens is not None:
+        max_tokens = min(max_tokens, config.n_ctx)
+
+    stop = data.get("stop")
+    if isinstance(stop, str):
+        stop = [stop]
+    if stop is not None and not (isinstance(stop, list) and all(isinstance(x, str) for x in stop)):
+        raise RequestError("stop must be a string or an array of strings")
+
+    stream = data.get("stream", False)
+    if not isinstance(stream, bool):
+        raise RequestError("stream must be a boolean")
+    seed = data.get("seed")
+    if seed is not None and (isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed < 2**32 - 1):
+        raise RequestError("seed must be an integer in [0, 2**32 - 1)")
+    model = data.get("model", config.model_alias)
+    if not isinstance(model, str):
+        raise RequestError("model must be a string")
+
+    return ChatRequest(
+        messages=messages,
+        model=model,
+        max_tokens=max_tokens,
+        temperature=_number(data, "temperature", 0.8, 0.0, 2.0),
+        top_p=_number(data, "top_p", 0.9, 0.0, 1.0),
+        min_p=_number(data, "min_p", 0.05, 0.0, 1.0),
+        stream=stream,
+        stop=stop,
+        seed=seed,
+    )
 
 
 @dataclass
@@ -239,15 +396,17 @@ class ServerSlot:
         min_p: float = 0.05,
         seed: Optional[int] = None,
     ) -> None:
-        """Build (or rebuild) the sampler chain with the given parameters."""
-        from ..llama_cpp import LlamaSamplerChainParams
+        """Build (or rebuild) the sampler chain with the given parameters.
 
-        sampler_params = LlamaSamplerChainParams()
-        self.sampler = LlamaSampler(sampler_params)
-        self.sampler.add_suppress_tokens(self.model.get_vocab())
-        self.sampler.add_min_p(min_p, 1)
-        self.sampler.add_temp(temperature)
-        self.sampler.add_dist(seed if seed is not None else 1337)
+        top_k=0 and top_p=1.0 disable those links, as before; which request
+        fields to honour is still open.
+        """
+        from ...api import GenerationConfig
+
+        config = GenerationConfig(
+            temperature=temperature, min_p=min_p, top_k=0, top_p=1.0, seed=seed if seed is not None else 1337
+        )
+        self.sampler = build_sampler(self.model.get_vocab(), config, self.config.n_ctx)
 
     def reset(self) -> None:
         """Reset the slot for a new request."""
@@ -288,36 +447,14 @@ class ServerSlot:
         if not prompt_tokens or len(prompt_tokens) >= self.config.n_ctx:
             return
 
-        batch = llama_batch_get_one(prompt_tokens, 0)  # Start from position 0
-        n_past = len(prompt_tokens)
-        ret = context.decode(batch)
-        if ret != 0:
-            logging.warning(f"Initial decode returned {ret}")
-            return
-
-        # A multi-byte character can span tokens.
-        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
-        for _ in range(max_tokens):
-            if n_past >= context.n_ctx - 1:
-                break
-
-            assert self.sampler is not None
-            new_token_id = self.sampler.sample(context, -1)
-            if vocab.is_eog(new_token_id):
-                break
-
-            piece = decoder.decode(vocab.token_to_bytes(new_token_id, 0, True))
+        decode_prompt(context, prompt_tokens)
+        assert self.sampler is not None
+        decoder = TokenDecoder(vocab)  # a multi-byte character can span tokens
+        for token in sample_tokens(context, self.sampler, vocab, len(prompt_tokens), max_tokens):
+            piece = decoder.decode(token)
             if piece:
                 yield piece
-
-            batch = llama_batch_get_one([new_token_id], n_past)
-            n_past += 1
-            ret = context.decode(batch)
-            if ret != 0:
-                logging.warning(f"Token decode returned {ret}")
-                break
-
-        tail = decoder.decode(b"", final=True)
+        tail = decoder.flush()
         if tail:
             yield tail
 
@@ -342,7 +479,10 @@ class PythonServer:
         self.decision: Optional["DecisionModel"] = None  # set when the model is a supported decision model
 
         # HTTP server
-        self.httpd: Optional[HTTPServer] = None
+        self.httpd: Optional[ThreadingHTTPServer] = None
+        self._slot_lock = threading.Condition()
+        # One Embedder refuses a concurrent caller; queue requests instead of failing them.
+        self._embed_lock = threading.Lock()
         self.server_thread: Optional[threading.Thread] = None
         self.running = False
 
@@ -396,18 +536,38 @@ class PythonServer:
             return False
 
     def get_available_slot(self) -> Optional[ServerSlot]:
-        """Get an available slot for processing."""
-        for slot in self.slots:
-            if not slot.is_processing:
-                return slot
+        """Claim an idle slot (marked processing), or return None if all are busy.
+
+        Check and claim are one step under a lock: requests run on separate threads.
+        """
+        with self._slot_lock:
+            for slot in self.slots:
+                if not slot.is_processing:
+                    slot.is_processing = True
+                    return slot
         return None
+
+    def _acquire_slot(self) -> ServerSlot:
+        """Claim a slot, waiting up to ``slot_wait_s`` for one to free up."""
+        deadline = time.monotonic() + self.config.slot_wait_s
+        with self._slot_lock:
+            while True:
+                slot = self.get_available_slot()
+                if slot is not None:
+                    return slot
+                remaining = deadline - time.monotonic()
+                if not self.slots or remaining <= 0:
+                    raise SlotsBusy(f"No available slots (waited {self.config.slot_wait_s:g}s)")
+                self._slot_lock.wait(remaining)
+
+    def _release_slot(self, slot: ServerSlot) -> None:
+        slot.reset()
+        with self._slot_lock:
+            self._slot_lock.notify()
 
     def process_chat_completion(self, request: ChatRequest) -> ChatResponse:
         """Process a chat completion request."""
-        # Get available slot
-        slot = self.get_available_slot()
-        if slot is None:
-            raise RuntimeError("No available slots")
+        slot = self._acquire_slot()
 
         try:
             # Generate task ID
@@ -449,14 +609,11 @@ class PythonServer:
             return response
 
         finally:
-            # Reset slot
-            slot.reset()
+            self._release_slot(slot)
 
     def stream_chat_completion(self, request: ChatRequest) -> Generator[str, None, None]:
         """Yield generated text for `request`. Closing the generator frees the slot."""
-        slot = self.get_available_slot()
-        if slot is None:
-            raise RuntimeError("No available slots")
+        slot = self._acquire_slot()
         try:
             slot.task_id = str(uuid.uuid4())
             slot.is_processing = True
@@ -464,23 +621,11 @@ class PythonServer:
             with closing(slot.stream(prompt, request.max_tokens or 100, request)) as pieces:
                 yield from stop_at(pieces, request.stop)
         finally:
-            slot.reset()
+            self._release_slot(slot)
 
     def _messages_to_prompt(self, messages: List[ChatMessage]) -> str:
-        """Convert OpenAI messages to a prompt string."""
-        # Simple conversion - can be enhanced with chat templates
-        prompt_parts = []
-
-        for message in messages:
-            if message.role == "system":
-                prompt_parts.append(f"System: {message.content}")
-            elif message.role == "user":
-                prompt_parts.append(f"User: {message.content}")
-            elif message.role == "assistant":
-                prompt_parts.append(f"Assistant: {message.content}")
-
-        prompt_parts.append("Assistant:")
-        return "\n".join(prompt_parts)
+        """Render ``messages`` with the model's chat template (see :func:`render_chat`)."""
+        return render_chat(self.model, messages)
 
     def start(self) -> bool:
         """Start the embedded server."""
@@ -493,7 +638,8 @@ class PythonServer:
         try:
             # Create HTTP server
             handler = self._create_request_handler()
-            self.httpd = HTTPServer((self.config.host, self.config.port), handler)
+            self.httpd = ThreadingHTTPServer((self.config.host, self.config.port), handler)
+            self.httpd.daemon_threads = True
 
             # Start server in background thread
             self.running = True
@@ -533,6 +679,9 @@ class PythonServer:
         server_instance = self
 
         class RequestHandler(BaseHTTPRequestHandler):
+            # Socket timeout: a client that stalls mid-request no longer holds its thread forever.
+            timeout = REQUEST_TIMEOUT_S
+
             def log_message(self, format: str, *args: Any) -> None:
                 # Suppress default logging
                 pass
@@ -586,6 +735,8 @@ class PythonServer:
 
                 except (json.JSONDecodeError, UnicodeDecodeError):  # JSON must be UTF-8 (RFC 8259)
                     self._send_error(400, "Invalid JSON")
+                except RequestError as e:
+                    self._send_error(400, str(e))
                 except Exception as e:
                     server_instance.logger.error(f"Request error: {e}")
                     self._send_error(500, "Internal Server Error")
@@ -593,7 +744,11 @@ class PythonServer:
             def _reject(self, path: str, content_length: int) -> bool:
                 """Send an error and return True if the request fails auth or size checks."""
                 rejection = check_request(
-                    server_instance.config, path, self.headers.get("Authorization"), content_length
+                    server_instance.config,
+                    path,
+                    self.headers.get("Authorization"),
+                    content_length,
+                    self.headers.get("Host"),
                 )
                 if rejection is None:
                     return False
@@ -636,21 +791,7 @@ class PythonServer:
             def _handle_chat_completions(self, data: Dict[str, Any]) -> None:
                 """Handle /v1/chat/completions endpoint."""
                 try:
-                    # Parse request
-                    messages_data = data.get("messages", [])
-                    messages = [ChatMessage(role=msg["role"], content=msg["content"]) for msg in messages_data]
-
-                    request = ChatRequest(
-                        messages=messages,
-                        model=data.get("model", server_instance.config.model_alias),
-                        max_tokens=data.get("max_tokens"),
-                        temperature=data.get("temperature", 0.8),
-                        top_p=data.get("top_p", 0.9),
-                        min_p=data.get("min_p", 0.05),
-                        stream=data.get("stream", False),
-                        stop=data.get("stop"),
-                        seed=data.get("seed"),
-                    )
+                    request = parse_chat_request(data, server_instance.config)
 
                     if request.stream:
                         self._stream(server_instance.stream_chat_completion(request), request.model)
@@ -678,6 +819,10 @@ class PythonServer:
 
                     self._send_json_response(response_data)
 
+                except RequestError as e:
+                    self._send_error(400, str(e))
+                except SlotsBusy as e:
+                    self._send_error(503, str(e))
                 except Exception as e:
                     # The message can carry model and filesystem paths; log it
                     # server-side and tell the client nothing specific.
@@ -729,8 +874,9 @@ class PythonServer:
                     # Generate embeddings
                     results = []
                     total_tokens = 0
-                    for i, text in enumerate(texts):
-                        result = embedder.embed_with_info(text)
+                    with server_instance._embed_lock:
+                        infos = [embedder.embed_with_info(text) for text in texts]
+                    for i, result in enumerate(infos):
                         results.append(
                             {
                                 "object": "embedding",

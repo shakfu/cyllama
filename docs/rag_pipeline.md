@@ -62,7 +62,7 @@ from cyllama.rag import RAGConfig
 config = RAGConfig(
     # Retrieval settings
     top_k=5,                      # Number of documents to retrieve
-    similarity_threshold=0.5,     # Minimum similarity score
+    similarity_threshold=0.5,     # Minimum score: cosine similarity, or -distance for l2/l1
 
     # Generation settings
     max_tokens=512,               # Maximum response length

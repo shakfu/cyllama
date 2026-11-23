@@ -327,23 +327,31 @@ cdef class Speculative:
         return result
 
     cdef _decode_draft(self, list tokens, int pos0, bint last_logits, str stage):
-        """Decode ``tokens`` on seq 0 of the draft context from position ``pos0``."""
+        """Decode ``tokens`` on seq 0 of the draft context from position ``pos0``.
+
+        Chunked by the draft context's n_batch, which llama_decode asserts.
+        """
         cdef int n = len(tokens)
-        cdef int i
+        cdef int step = <int>llama.llama_n_batch(self.ctx_dft.ptr)
+        cdef int start, m, i
         cdef int32_t rc
-        cdef llama.llama_batch batch = llama.llama_batch_init(n, 0, 1)
-        batch.n_tokens = n
-        for i in range(n):
-            batch.token[i] = <llama.llama_token>tokens[i]
-            batch.pos[i] = <llama.llama_pos>(pos0 + i)
-            batch.n_seq_id[i] = 1
-            batch.seq_id[i][0] = 0
-            batch.logits[i] = last_logits and i == n - 1
-        with nogil:
-            rc = llama.llama_decode(self.ctx_dft.ptr, batch)
-        llama.llama_batch_free(batch)
-        if rc != 0:
-            raise RuntimeError(f"speculative draft {stage} decode failed (llama_decode rc={rc})")
+        cdef llama.llama_batch batch = llama.llama_batch_init(min(n, step), 0, 1)
+        try:
+            for start in range(0, n, step):
+                m = min(step, n - start)
+                batch.n_tokens = m
+                for i in range(m):
+                    batch.token[i] = <llama.llama_token>tokens[start + i]
+                    batch.pos[i] = <llama.llama_pos>(pos0 + start + i)
+                    batch.n_seq_id[i] = 1
+                    batch.seq_id[i][0] = 0
+                    batch.logits[i] = last_logits and start + i == n - 1
+                with nogil:
+                    rc = llama.llama_decode(self.ctx_dft.ptr, batch)
+                if rc != 0:
+                    raise RuntimeError(f"speculative draft {stage} decode failed (llama_decode rc={rc})")
+        finally:
+            llama.llama_batch_free(batch)
 
     def accept(self, int n_accepted):
         """Inform the speculative decoder that n_accepted tokens were accepted.

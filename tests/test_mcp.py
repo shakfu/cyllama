@@ -372,3 +372,119 @@ elif mode == "chatty":
                 conn._await_response(request_id=1, timeout=5.0)
         finally:
             conn.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# Transport hardening: environment, redirects, size caps, URL scheme, isError
+# ---------------------------------------------------------------------------
+
+import http.server  # noqa: E402
+import json as _json  # noqa: E402
+import sys as _sys  # noqa: E402
+import threading as _threading  # noqa: E402
+
+from cyllama.agents import mcp as _mcp  # noqa: E402
+from cyllama.agents.mcp import McpClient, McpHttpConnection, McpServerConfig, McpStdioConnection, McpTransportType  # noqa: E402,F811
+
+_ECHO_ENV = (
+    "import json, os, sys\n"
+    "for line in sys.stdin:\n"
+    "    req = json.loads(line)\n"
+    "    if 'id' in req:\n"
+    "        print(json.dumps({'jsonrpc': '2.0', 'id': req['id'], 'result': {'secret': os.environ.get('CYLLAMA_TEST_SECRET')}}), flush=True)\n"
+)
+
+
+@pytest.mark.parametrize("inherit,expected", [(False, None), (True, "s3cret")])
+def test_stdio_server_env(monkeypatch, inherit, expected):
+    # the whole parent environment, API keys included, went to every server
+    monkeypatch.setenv("CYLLAMA_TEST_SECRET", "s3cret")
+    config = McpServerConfig(name="env", command=_sys.executable, args=["-c", _ECHO_ENV], inherit_env=inherit)
+    conn = McpStdioConnection(config)
+    conn.connect()
+    try:
+        assert conn.send_request("x", {}, timeout=10)["secret"] == expected
+    finally:
+        conn.disconnect()
+
+
+def test_stdio_server_explicit_env_passes(monkeypatch):
+    config = McpServerConfig(
+        name="env", command=_sys.executable, args=["-c", _ECHO_ENV], env={"CYLLAMA_TEST_SECRET": "given"}
+    )
+    conn = McpStdioConnection(config)
+    conn.connect()
+    try:
+        assert conn.send_request("x", {}, timeout=10)["secret"] == "given"
+    finally:
+        conn.disconnect()
+
+
+class _Handler(http.server.BaseHTTPRequestHandler):
+    body = b""
+    status = 200
+    location = ""
+
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        self.send_response(self.status)
+        if self.location:
+            self.send_header("Location", self.location)
+        self.send_header("Content-Length", str(len(self.body)))
+        self.end_headers()
+        self.wfile.write(self.body)
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture
+def http_server():
+    servers = []
+
+    def make(status=200, body=b"", location=""):
+        handler = type("H", (_Handler,), {"status": status, "body": body, "location": location})
+        srv = http.server.HTTPServer(("127.0.0.1", 0), handler)
+        _threading.Thread(target=srv.serve_forever, daemon=True).start()
+        servers.append(srv)
+        return f"http://127.0.0.1:{srv.server_address[1]}/"
+
+    yield make
+    for srv in servers:
+        srv.shutdown()
+        srv.server_close()
+
+
+def test_http_redirect_refused(http_server):
+    # urllib resends custom headers (e.g. Authorization) to the redirect target
+    url = http_server(status=307, location="http://169.254.169.254/")
+    conn = McpHttpConnection(
+        McpServerConfig(name="h", transport=McpTransportType.HTTP, url=url, headers={"Authorization": "x"})
+    )
+    with pytest.raises(RuntimeError, match="redirect"):
+        conn.send_request("tools/list", {}, timeout=5)
+
+
+def test_http_response_size_capped(http_server, monkeypatch):
+    monkeypatch.setattr(_mcp, "MAX_MESSAGE_BYTES", 100)
+    url = http_server(body=b'{"jsonrpc":"2.0","id":1,"result":"' + b"x" * 200 + b'"}')
+    conn = McpHttpConnection(McpServerConfig(name="h", transport=McpTransportType.HTTP, url=url))
+    with pytest.raises(RuntimeError, match="exceeds"):
+        conn.send_request("tools/list", {}, timeout=5)
+
+
+@pytest.mark.parametrize("url", ["file:///etc/passwd", "ftp://x/"])
+def test_http_url_scheme_validated(url):
+    with pytest.raises(ValueError, match="http or https"):
+        McpServerConfig(name="h", transport=McpTransportType.HTTP, url=url).validate()
+
+
+def test_tool_call_is_error_raises():
+    client = McpClient()
+    conn = Mock()
+    conn.send_request.return_value = {"isError": True, "content": [{"type": "text", "text": "bad input"}]}
+    client._connections["srv"] = conn
+    with pytest.raises(RuntimeError, match="bad input"):
+        client.call_tool("srv/t", {})
+    conn.send_request.return_value = None
+    assert client.call_tool("srv/t", {}) is None

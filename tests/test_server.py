@@ -99,8 +99,11 @@ class TestServerConfig:
 
         args = config.to_args()
 
-        assert "--api-key" in args
-        assert "secret" in args
+        # the key goes in the environment: argv is readable by other users
+        assert "--api-key" not in args
+        assert "secret" not in args
+        assert config.to_env() == {"LLAMA_API_KEY": "secret"}
+        assert ServerConfig(model_path="test.gguf").to_env() == {}
         assert "--ssl-cert-file" in args
         assert "cert.pem" in args
         assert "--ssl-key-file" in args
@@ -137,6 +140,27 @@ class TestLlamaServer:
         with patch.object(Path, "exists", return_value=False):
             with pytest.raises(FileNotFoundError, match="Server binary not found"):
                 LlamaServer(config, server_binary="/nonexistent/llama-server")
+
+    def test_find_server_binary_searches_path(self, monkeypatch, tmp_path):
+        # Path("llama-server").exists() tested the working directory, not PATH
+        exe = tmp_path / "llama-server"
+        exe.write_text("#!/bin/sh\n")
+        exe.chmod(0o755)
+        monkeypatch.setattr(Path, "exists", lambda self: self == exe)
+        monkeypatch.setenv("PATH", str(tmp_path))
+        assert LlamaServer._find_server_binary(None) == exe
+
+    def test_api_key_passed_in_environment(self, tmp_path):
+        binary = tmp_path / "llama-server"
+        binary.write_text("")
+        model = tmp_path / "m.gguf"
+        model.write_text("")
+        server = LlamaServer(ServerConfig(model_path=str(model), api_key="secret"), server_binary=str(binary))
+        with patch("subprocess.Popen") as popen, patch.object(LlamaServer, "_start_log_readers"):
+            server.start(wait_for_ready=False)
+        cmd, kwargs = popen.call_args[0][0], popen.call_args[1]
+        assert "secret" not in cmd
+        assert kwargs["env"]["LLAMA_API_KEY"] == "secret"
 
     def test_find_server_binary_candidates(self):
         """Test server binary discovery logic."""

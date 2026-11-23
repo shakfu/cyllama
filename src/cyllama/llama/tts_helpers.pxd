@@ -18,9 +18,9 @@ cdef extern from "helpers/tts.h":
     cdef void twiddle(float * real, float * imag, int k, int N)
     cdef void irfft(int n, const float * inp_cplx, float * out_real)
     cdef void fold(const std_vector[float] & data, int64_t n_out, int64_t n_win,
-             int64_t n_hop, int64_t n_pad, std_vector[float] & output)
+             int64_t n_hop, int64_t n_pad, std_vector[float] & output) except +
 
-    cdef std_string convert_less_than_thousand(int num)
-    cdef std_string number_to_words(const std_string & number_str)
-    cdef std_string replace_numbers_with_words(const std_string & input_text)
-    cdef std_string process_text(const std_string & text, const outetts_version tts_version)
+    cdef std_string convert_less_than_thousand(int num) except +
+    cdef std_string number_to_words(const std_string & number_str) except +
+    cdef std_string replace_numbers_with_words(const std_string & input_text) except +
+    cdef std_string process_text(const std_string & text, const outetts_version tts_version) except +

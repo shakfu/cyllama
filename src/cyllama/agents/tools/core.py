@@ -45,6 +45,14 @@ class ToolTimeoutError(RuntimeError):
         super().__init__(f"{tool_name}: exceeded {timeout}s timeout")
 
 
+class AgentTermination(Exception):
+    """Raised inside a tool to stop the agent run.
+
+    Agents re-raise it instead of reporting it to the model as a failed tool
+    call. ``ContractTermination`` derives from it.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Annotated[] constraint markers
 #
@@ -1171,3 +1179,55 @@ class ToolRegistry:
     def __iter__(self) -> Any:
         """Iterate over tools."""
         return iter(self._tools.values())
+
+
+def call_tool(tool: "Tool", args: Dict[str, Any], coerce: Optional[bool] = None) -> Any:
+    """Call ``tool`` with ``args``: coerce them, then apply ``tool.timeout``.
+
+    The one dispatch path for every agent, so coercion and timeouts cannot
+    differ between them.
+
+    Args:
+        tool: Tool to call.
+        args: Keyword arguments, as parsed from the model.
+        coerce: Validate and coerce ``args`` (``coerce_args``); defaults to ``tool.coerce``.
+
+    Returns:
+        The tool's raw return value.
+
+    Raises:
+        ToolArgumentError: ``args`` fail the tool's schema.
+        ToolTimeoutError: the tool ran past ``tool.timeout``. Its thread is
+            abandoned, not killed; it runs on as a daemon.
+        Exception: whatever the tool raised.
+    """
+    if tool.coerce if coerce is None else coerce:
+        args = coerce_args(tool, args)
+    if tool.timeout is None:
+        return tool(**args)
+
+    # A raw daemon thread, not a pooled executor: ThreadPoolExecutor.__exit__
+    # waits for the worker, which would bring back the hang the timeout avoids.
+    # copy_context() carries the caller's context variables (e.g. the contract
+    # context read by contract_assert) into the worker.
+    import contextvars
+    import threading
+
+    result_box: List[Any] = [None]
+    exc_box: List[Optional[BaseException]] = [None]
+    run_in = contextvars.copy_context()
+
+    def _runner() -> None:
+        try:
+            result_box[0] = run_in.run(tool, **args)
+        except BaseException as e:  # noqa: BLE001 -- re-raised in the caller
+            exc_box[0] = e
+
+    worker = threading.Thread(target=_runner, name=f"tool-{tool.name}", daemon=True)
+    worker.start()
+    worker.join(timeout=tool.timeout)
+    if worker.is_alive():
+        raise ToolTimeoutError(tool.name, tool.timeout)
+    if exc_box[0] is not None:
+        raise exc_box[0]
+    return result_box[0]

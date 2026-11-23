@@ -79,8 +79,12 @@ def _validate_table_name(name: str) -> None:
         )
 
 
-class VectorStoreError(Exception):
-    """Exception raised for VectorStore errors."""
+class VectorStoreError(RuntimeError):
+    """Exception raised for VectorStore errors.
+
+    A RuntimeError, so code that caught the RuntimeError the Chroma and Qdrant
+    stores used to raise for a closed store keeps working.
+    """
 
     pass
 
@@ -222,7 +226,9 @@ class SqliteVectorStore(VectorStoreProtocol):
 
         # Connect to database
         try:
-            self.conn = sqlite3.connect(db_path, timeout=10)
+            # AsyncRAG and to_thread callers use the store off its creating thread.
+            # Python's sqlite3 is built serialized (threadsafety 3); callers serialize writes.
+            self.conn = sqlite3.connect(db_path, timeout=10, check_same_thread=False)
         except sqlite3.Error as e:
             raise VectorStoreError(f"Failed to connect to database: {e}") from e
 
@@ -243,9 +249,12 @@ class SqliteVectorStore(VectorStoreProtocol):
                     "Rebuild Python with --enable-loadable-sqlite-extensions."
                 )
             self.conn.enable_load_extension(True)
-            # SQLite load_extension expects path without extension
-            ext_path = str(self.EXTENSION_PATH)
-            self.conn.load_extension(ext_path)
+            try:
+                # SQLite load_extension expects path without extension
+                self.conn.load_extension(str(self.EXTENSION_PATH))
+            finally:
+                # Left on, SQL could call load_extension() on any library.
+                self.conn.enable_load_extension(False)
         except sqlite3.OperationalError as e:
             # Check if extension file exists
             ext_file = self._get_extension_file()
@@ -953,9 +962,12 @@ class SqliteVectorStore(VectorStoreProtocol):
         self._check_closed()
 
         try:
-            cursor = self.conn.execute(f"""
-                SELECT vector_quantize('{self.table_name}', 'embedding', 'max_memory={max_memory}')
-            """)
+            if not re.fullmatch(r"\d+(\.\d+)?\s*[KMG]?B?", str(max_memory).strip(), re.IGNORECASE):
+                raise ValueError(f"max_memory must be a size such as '30MB', got {max_memory!r}")
+            # Bound parameters: max_memory was interpolated into the SQL text.
+            cursor = self.conn.execute(
+                "SELECT vector_quantize(?, 'embedding', ?)", (self.table_name, f"max_memory={max_memory}")
+            )
             count: int = cursor.fetchone()[0]
             self._quantized = True
             return count
@@ -1021,7 +1033,10 @@ class SqliteVectorStore(VectorStoreProtocol):
         try:
             # Load extension to read vector metadata
             conn.enable_load_extension(True)
-            conn.load_extension(str(cls.EXTENSION_PATH))
+            try:
+                conn.load_extension(str(cls.EXTENSION_PATH))
+            finally:
+                conn.enable_load_extension(False)
 
             # Check if table exists
             cursor = conn.execute(

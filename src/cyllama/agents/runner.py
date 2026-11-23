@@ -24,6 +24,7 @@ from .types import AgentEvent, EventType
 from .tools import Tool
 from .react import ReActAgent
 from .constrained import ConstrainedAgent
+from .composition import verdict_accepts
 from .contract import ContractAgent
 
 AGENT_KINDS = ("react", "constrained", "contract", "plan", "reflect")
@@ -230,7 +231,7 @@ def stream_agent(
                 if ev.type == EventType.ANSWER:
                     critique = ev.content
                 yield _tag(ev, f"critic-{n}")
-            if critique and marker in critique.upper():
+            if critique and verdict_accepts(critique, marker):
                 accepted = True
                 break
             current = _revision_task(task, draft, critique or "")

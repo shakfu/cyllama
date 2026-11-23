@@ -2,6 +2,8 @@
 
 Analysis behind the `CMAKE_CUDA_ARCHITECTURES` change in `_gpu-build-cuda.yml` and `_gpu-build-cuda-windows.yml` before 1.0.0. Date: 2026-11-17.
 
+This is the reference for both cyllama and inferna. inferna sets the same value in `_gpu-build-cuda.yml`, `_gpu-build-cuda-windows.yml` and `_CI_LINUX_BUILD_ENV` in `scripts/manage.py`. Measurements below are for `cyllama-cuda12`.
+
 ## Summary
 
 - The 1.0.0a0 `cyllama_cuda12` wheels exceed PyPI's 100 MB file limit: 113.1 MB (Linux), 109.6 MB (Windows).

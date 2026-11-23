@@ -33,7 +33,8 @@ Issues = "https://github.com/shakfu/cyllama/issues"
 cyllama = "cyllama.__main__:main"
 
 [build-system]
-requires = ["scikit-build-core", "cython", "cython-cmake"]
+# Pinned: these generate and package the shipped binaries. Bump deliberately.
+requires = ["scikit-build-core==1.1.2", "cython==3.3.1", "cython-cmake==0.3.0"]
 build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]

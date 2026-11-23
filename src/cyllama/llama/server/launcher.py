@@ -9,6 +9,8 @@ The wrapper manages the llama-server subprocess and provides a convenient
 interface for starting, stopping, and monitoring the server.
 """
 
+import os
+import shutil
 import time
 import logging
 import subprocess
@@ -109,9 +111,7 @@ class ServerConfig:
         if not self.slots:
             args.append("--no-slots")
 
-        # Security
-        if self.api_key:
-            args.extend(["--api-key", self.api_key])
+        # Security. api_key goes through to_env(): argv is readable by other users.
         if self.api_key_file:
             args.extend(["--api-key-file", str(self.api_key_file)])
         if self.ssl_key_file:
@@ -127,6 +127,10 @@ class ServerConfig:
         args.extend(self.extra_args)
 
         return args
+
+    def to_env(self) -> Dict[str, str]:
+        """Environment variables llama-server reads in place of secret arguments."""
+        return {"LLAMA_API_KEY": self.api_key} if self.api_key else {}
 
 
 class LlamaServer:
@@ -184,12 +188,15 @@ class LlamaServer:
             cyllama_root / "thirdparty" / "llama.cpp" / "bin" / "llama-server",
             cyllama_root / "build" / "llama.cpp" / "bin" / "llama-server",
             cyllama_root / "build" / "llama-server" / "bin" / "llama-server",  # make llama-server
-            Path("llama-server"),  # In PATH
         ]
 
         for candidate in candidates:
             if candidate.exists():
                 return candidate
+
+        on_path = shutil.which("llama-server")
+        if on_path:
+            return Path(on_path)
 
         raise FileNotFoundError("Could not find llama-server binary")
 
@@ -216,7 +223,12 @@ class LlamaServer:
         # Start process
         try:
             self.process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, bufsize=1
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+                bufsize=1,
+                env={**os.environ, **self.config.to_env()},
             )
         except Exception as e:
             raise RuntimeError(f"Failed to start server: {e}")

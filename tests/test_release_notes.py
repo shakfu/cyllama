@@ -30,8 +30,13 @@ def test_upstream_versions_missing_key():
 
 def test_versions_toml_covers_upstreams():
     pins = tomllib.loads((ROOT / "scripts" / "versions.toml").read_text())
-    assert set(pins) == {key for key, _, _ in release_notes.UPSTREAMS}
+    commits = pins.pop("commits")
+    keys = {key for key, _, _ in release_notes.UPSTREAMS}
+    assert set(pins) == keys
     assert all(isinstance(v, str) and v for v in pins.values())
+    # every tag is pinned to a full commit id
+    assert set(commits) == keys
+    assert all(len(c) == 40 and all(ch in "0123456789abcdef" for ch in c) for c in commits.values())
 
 
 def test_main_appends_upstreams(tmp_path):

@@ -49,6 +49,8 @@ _METRIC_TO_DISTANCE = {
     "l2": "EUCLID",
     "l1": "MANHATTAN",
 }
+# Metrics Qdrant scores as a distance rather than a similarity.
+_DISTANCE_METRICS = frozenset({"l2", "l1"})
 
 # Payload keys reserved by the adapter. User-supplied metadata that
 # collides with these would be overwritten; we surface the reserved
@@ -115,16 +117,40 @@ class QdrantVectorStore(VectorStoreProtocol):
             self._owns_client = True
 
         self._ensure_collection()
-        # Seed the ID counter from the current collection size. This is
-        # correct for append-only workloads (fresh store, or reopen
-        # without deletes). After clear() we reset to 0.
-        self._next_id = self._count_exact()
+        # Seed the ID counter past the largest id present. The point count
+        # collided after a delete, and upsert then overwrote a live point.
+        # Two stores writing one collection still collide.
+        self._next_id = self._max_id() + 1
+
+    def _max_id(self) -> int:
+        largest, offset = -1, None
+        while True:
+            points, offset = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=1000,
+                offset=offset,
+                with_payload=False,
+                with_vectors=False,
+            )
+            for p in points:
+                if isinstance(p.id, int):
+                    largest = max(largest, p.id)
+            if offset is None:
+                return largest
 
     def _ensure_collection(self) -> None:
         qmodels = self._qmodels
         distance = getattr(qmodels.Distance, _METRIC_TO_DISTANCE[self.metric])
         existing = {c.name for c in self.client.get_collections().collections}
         if self.collection_name in existing:
+            # Reopening with another metric or dimension used to be accepted and
+            # then mis-scored or failed on the first write.
+            params = self.client.get_collection(self.collection_name).config.params.vectors
+            if params.size != self.dimension or params.distance != distance:
+                raise ValueError(
+                    f"collection {self.collection_name!r} has size={params.size}, distance={params.distance}; "
+                    f"requested dimension={self.dimension}, metric={self.metric!r}"
+                )
             return
         self.client.create_collection(
             collection_name=self.collection_name,
@@ -136,7 +162,9 @@ class QdrantVectorStore(VectorStoreProtocol):
 
     def _check_closed(self) -> None:
         if self._closed:
-            raise RuntimeError("QdrantVectorStore is closed")
+            from ..store import VectorStoreError
+
+            raise VectorStoreError("QdrantVectorStore is closed")
 
     def add(
         self,
@@ -190,11 +218,14 @@ class QdrantVectorStore(VectorStoreProtocol):
         # query_points() is the modern Qdrant API; .search() was
         # deprecated and removed. Returns a QueryResponse whose
         # `.points` list mirrors the legacy ScoredPoint shape.
+        # Qdrant scores l2/l1 as a distance (lower is better). Report -distance,
+        # as the other stores do, so a threshold is always a minimum score.
+        negate = self.metric in _DISTANCE_METRICS
         response = self.client.query_points(
             collection_name=self.collection_name,
             query=list(query_embedding),
             limit=k,
-            score_threshold=threshold,
+            score_threshold=(-threshold if negate else threshold) if threshold is not None else None,
             with_payload=True,
         )
         hits = response.points
@@ -209,7 +240,7 @@ class QdrantVectorStore(VectorStoreProtocol):
                 SearchResult(
                     id=str(h.id),
                     text=text,
-                    score=float(h.score),
+                    score=-float(h.score) if negate else float(h.score),
                     metadata=payload,
                 )
             )

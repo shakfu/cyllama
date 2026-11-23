@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterator, cast
 
@@ -54,7 +55,8 @@ class RAGConfig:
 
     Attributes:
         top_k: Number of documents to retrieve (default: 5)
-        similarity_threshold: Minimum similarity score for retrieval (default: None)
+        similarity_threshold: Minimum score for retrieval, in the store's scale: cosine
+            similarity, or -distance for l2/l1 (default: None)
         max_tokens: Maximum tokens to generate (default: 512)
         temperature: Generation temperature (default: 0.7)
         prompt_template: Template for formatting the RAG prompt
@@ -139,8 +141,10 @@ class RAGConfig:
         """Validate configuration values."""
         if self.top_k < 1:
             raise ValueError(f"top_k must be >= 1, got {self.top_k}")
-        if self.similarity_threshold is not None and not 0 <= self.similarity_threshold <= 1:
-            raise ValueError(f"similarity_threshold must be between 0 and 1, got {self.similarity_threshold}")
+        # In the store's score scale: cosine similarity, or -distance for l2/l1, so
+        # it can be negative; [0, 1] filtered out every result on a distance metric.
+        if self.similarity_threshold is not None and not math.isfinite(self.similarity_threshold):
+            raise ValueError(f"similarity_threshold must be a finite number, got {self.similarity_threshold}")
         if self.max_tokens < 1:
             raise ValueError(f"max_tokens must be >= 1, got {self.max_tokens}")
         if self.temperature < 0:

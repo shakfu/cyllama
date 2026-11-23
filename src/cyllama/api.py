@@ -41,6 +41,7 @@ Async Example:
 """
 
 import asyncio
+import functools
 import hashlib
 import threading
 from collections import OrderedDict
@@ -67,7 +68,7 @@ import time
 
 logger = logging.getLogger(__name__)
 
-from .utils.cancellation import SigintHandle, install_sigint_handler as _install_sigint_handler
+from .utils.cancellation import SigintHandle, install_sigint_handler as _install_sigint_handler, iterate_in_thread
 from .utils.platform import resolve_n_threads
 from .defaults import (
     LLAMA_DEFAULT_SEED,
@@ -103,12 +104,11 @@ from .llama.llama_cpp import (
     LlamaModelParams,
     LlamaContextParams,
     LlamaSampler,
-    LlamaSamplerChainParams,
     LlamaChatMessage,
-    llama_batch_get_one,
     ggml_backend_load_all,
     disable_logging,
 )
+from .llama.generation import build_sampler, decode_prompt, sample_tokens
 from .llama.token_decoder import TokenDecoder
 
 # Module-level so the chat-template fallback in _apply_template can catch it.
@@ -747,6 +747,8 @@ class LLM:
         # Context will be created on-demand and cached when possible
         self._ctx: Optional[LlamaContext] = None
         self._ctx_size: int = 0  # Track current context size for reuse decisions
+        # Tokens in sequence 0 of self._ctx's KV cache, for prompt-prefix reuse.
+        self._ctx_tokens: List[int] = []
         self._sampler: Optional[LlamaSampler] = None
 
         # MCP client is created lazily on the first add_mcp_server() call so
@@ -1021,7 +1023,7 @@ class LLM:
         key_str = "\0".join(key_parts)
         return hashlib.sha256(key_str.encode()).hexdigest()
 
-    def _ensure_context(self, prompt_length: int, config: GenerationConfig) -> LlamaContext:
+    def _ensure_context(self, prompt_length: int, config: GenerationConfig, keep_cache: bool = False) -> LlamaContext:
         """
         Create or recreate context if needed.
 
@@ -1031,8 +1033,8 @@ class LLM:
         - The required size exceeds current context size
         - The instance was closed (will reopen)
 
-        The KV cache is cleared via llama_kv_cache_clear() when reusing
-        a context to ensure clean state for new generations.
+        A reused context's KV cache is cleared, unless ``keep_cache`` is set:
+        then ``self._ctx_tokens`` still describes it and the caller trims it.
 
         Returns the live context so callers don't have to re-narrow
         ``self._ctx`` from ``Optional`` after this method runs.
@@ -1052,7 +1054,9 @@ class LLM:
             # Reuse existing context - just clear the KV cache
             if self.verbose:
                 print(f"Reusing context (size {self._ctx_size}, need {required_ctx})")
-            self._ctx.kv_cache_clear()
+            if not keep_cache:
+                self._ctx.kv_cache_clear()
+                self._ctx_tokens = []
             self._ctx.set_n_threads(resolve_n_threads(config.n_threads), resolve_n_threads(config.n_threads_batch))
             return self._ctx
 
@@ -1078,105 +1082,17 @@ class LLM:
         ctx.install_cancel_callback()
         self._ctx = ctx
         self._ctx_size = required_ctx
+        self._ctx_tokens = []
         return ctx
 
     def _ensure_sampler(self, config: GenerationConfig) -> LlamaSampler:
-        """Create or recreate sampler if needed.
+        """Create a fresh sampler for ``config``.
 
         Returns the live sampler so callers don't have to re-narrow
         ``self._sampler`` from ``Optional`` after this method runs.
+        ``_ensure_context`` runs first, so ``_ctx_size`` is set.
         """
-        # Always create fresh sampler to respect new config
-        sampler_params = LlamaSamplerChainParams()
-        sampler_params.no_perf = not self.verbose
-
-        sampler = LlamaSampler(sampler_params)
-        sampler.add_suppress_tokens(self.vocab)
-
-        # Both history-based samplers below document "-1 = whole context", but
-        # libllama never implements that: llama_sampler_init_penalties and
-        # llama_sampler_init_dry each clamp a negative window to 0, which is
-        # their *disabled* value. Upstream resolved -1 one layer up, in
-        # common/sampling.cpp, which cyllama does not use -- and v0.3.0 dropped
-        # even that, along with `llama_sampler_init_dry`'s n_ctx_train argument
-        # (upstream #26524). So resolve it here, where the context and the model
-        # are known, and keep GenerationConfig meaning what it says.
-        # `_ensure_context` runs before `_ensure_sampler`, so `_ctx_size` is set.
-        context_window = self._ctx_size or self.model.n_ctx_train
-
-        # Penalties chain link is added first so it shapes logits before
-        # truncation samplers (top_k/top_p/min_p) and the final selector.
-        # Skipped entirely when all knobs are at their disabled values to
-        # avoid an unnecessary chain node.
-        if (
-            config.repeat_penalty != 1.0 or config.frequency_penalty != 0.0 or config.presence_penalty != 0.0
-        ) and config.penalty_last_n != 0:
-            sampler.add_penalties(
-                self.vocab.n_vocab,
-                context_window if config.penalty_last_n < 0 else config.penalty_last_n,
-                config.repeat_penalty,
-                config.frequency_penalty,
-                config.presence_penalty,
-            )
-
-        # DRY targets repeated phrases rather than repeated individual tokens,
-        # so it complements the penalties link above and also runs before
-        # truncation.
-        if config.dry_multiplier > 0.0 and config.dry_penalty_last_n != 0:
-            sampler.add_dry(
-                self.vocab,
-                config.dry_multiplier,
-                config.dry_base,
-                config.dry_allowed_length,
-                context_window if config.dry_penalty_last_n < 0 else config.dry_penalty_last_n,
-                config.dry_sequence_breakers,
-            )
-
-        # Add sampling methods based on config
-        if config.temperature == 0.0:
-            # Greedy sampling
-            sampler.add_greedy()
-        elif config.mirostat == 1:
-            # Mirostat v1 owns temperature + selection; truncation
-            # samplers are skipped per upstream guidance.
-            sampler.add_temp(config.temperature)
-            sampler.add_mirostat(
-                self.vocab.n_vocab,
-                config.seed,
-                config.mirostat_tau,
-                config.mirostat_eta,
-                100,  # m: rolling-window size, llama.cpp default
-            )
-        elif config.mirostat == 2:
-            sampler.add_temp(config.temperature)
-            sampler.add_mirostat_v2(
-                config.seed,
-                config.mirostat_tau,
-                config.mirostat_eta,
-            )
-        elif config.top_n_sigma >= 0.0:
-            # Top-n-sigma thresholds on the logit distribution's own spread,
-            # so upstream applies it in place of top_k/top_p/min_p.
-            sampler.add_top_n_sigma(config.top_n_sigma)
-            sampler.add_temp(config.temperature)
-
-            if config.seed != LLAMA_DEFAULT_SEED:
-                sampler.add_dist(config.seed)
-            else:
-                sampler.add_dist(LLAMA_DEFAULT_SEED)
-        else:
-            # Probabilistic sampling
-            sampler.add_min_p(config.min_p, 1)
-            sampler.add_top_k(config.top_k)
-            sampler.add_top_p(config.top_p, 1)
-            sampler.add_temp(config.temperature)
-
-            # Distribution sampler
-            if config.seed != LLAMA_DEFAULT_SEED:
-                sampler.add_dist(config.seed)
-            else:
-                sampler.add_dist(LLAMA_DEFAULT_SEED)
-
+        sampler = build_sampler(self.vocab, config, self._ctx_size or self.model.n_ctx_train, not self.verbose)
         self._sampler = sampler
         return sampler
 
@@ -1231,22 +1147,19 @@ class LLM:
                     return cast(Response, cached)
 
         start_time = time.time()
-
-        # Tokenize for stats
-        prompt_tokens = self.vocab.tokenize(prompt, add_special=config.add_bos, parse_special=config.parse_special)
-        n_prompt = len(prompt_tokens)
-
-        # Generate text
+        self._last_stream_stats = None
         chunks = list(self._generate_stream(prompt, config, on_token))
         text = "".join(chunks)
+        total_time = time.time() - start_time
 
-        end_time = time.time()
-        total_time = end_time - start_time
-
-        # Calculate stats
-        response_tokens = self.vocab.tokenize(text, add_special=False, parse_special=False)
-        n_generated = len(response_tokens)
-
+        # The stream counted the prompt and sampled tokens; re-tokenizing both
+        # here only to count them cost two extra tokenizer passes per call.
+        last = self._last_stream_stats
+        if last is not None:
+            n_prompt, n_generated = last.prompt_tokens, last.generated_tokens
+        else:  # cancelled during prefill, before the stream recorded its stats
+            n_prompt = len(self.vocab.tokenize(prompt, add_special=config.add_bos, parse_special=config.parse_special))
+            n_generated = 0
         stats = GenerationStats(
             prompt_tokens=n_prompt,
             generated_tokens=n_generated,
@@ -1289,31 +1202,32 @@ class LLM:
 
         # Ensure context and sampler are ready
         # Always recreate sampler to ensure fresh state
-        ctx = self._ensure_context(n_prompt, config)
+        ctx = self._ensure_context(n_prompt, config, keep_cache=True)
         sampler = self._ensure_sampler(config)
         # Mirror the Python-side cancel flag onto the C-level flag for the
         # active context. Cleared here; ``cancel()`` sets both layers.
         ctx.cancel = False
 
-        # Process prompt in batches to avoid exceeding n_batch limit. If
-        # the caller has already issued ``cancel()`` (or does so during a
-        # long prefill), the abort callback aborts the in-progress decode
-        # and we bail before generation begins.
-        n_batch = config.n_batch
-        for i in range(0, n_prompt, n_batch):
-            if self._cancel_event.is_set():
-                return
-            batch_tokens = prompt_tokens[i : i + n_batch]
-            batch = llama_batch_get_one(batch_tokens, i)  # Pass position offset
-            try:
-                ctx.decode(batch)
-            except InterruptedError:
-                # Mid-decode abort_callback fired (cancel() was called
-                # during prefill). Bail cleanly rather than propagating.
-                return
+        # Keep the KV entries of the longest prefix this prompt shares with the
+        # cached tokens (a chat turn or agent step usually extends the last
+        # one), and decode only the rest. At least one token is decoded, so the
+        # last position has fresh logits.
+        start = _common_prefix_len(self._ctx_tokens, prompt_tokens, n_prompt - 1)
+        if start == 0 or not ctx.memory_seq_rm(0, start, -1):  # recurrent models cannot trim
+            ctx.kv_cache_clear()
+            start = 0
+        self._ctx_tokens = []  # unknown until the prefill completes
+        if self._cancel_event.is_set():
+            return
+        try:
+            decode_prompt(ctx, prompt_tokens, start)
+        except InterruptedError:
+            # cancel() during prefill aborted the decode.
+            return
+        self._ctx_tokens = list(prompt_tokens)
+        if self.verbose and start:
+            print(f"Reused {start} cached prompt tokens")
 
-        # Generate tokens
-        n_pos = n_prompt
         n_generated = 0
 
         # Stop sequence handling: buffer recent output to detect sequences spanning tokens
@@ -1323,21 +1237,10 @@ class LLM:
 
         decoder = TokenDecoder(self.vocab)
 
-        for _ in range(config.max_tokens):
-            # Cooperative cancellation check between tokens. The mid-decode
-            # ggml abort callback handles cancellation during long
-            # ``llama_decode`` calls; this handles the steady-state
-            # token-by-token loop with sub-millisecond latency.
-            if self._cancel_event.is_set():
-                break
-
-            # Sample next token
-            new_token_id = sampler.sample(ctx, -1)
-
-            # Check for end of generation
-            if self.vocab.is_eog(new_token_id):
-                break
-
+        # sample_tokens decodes each token and appends it to self._ctx_tokens.
+        for new_token_id in sample_tokens(
+            ctx, sampler, self.vocab, n_prompt, config.max_tokens, self._cancel_event.is_set, self._ctx_tokens
+        ):
             piece = decoder.decode(new_token_id)
 
             # Handle stop sequences
@@ -1377,17 +1280,6 @@ class LLM:
                     on_token(piece)
                 yield piece
 
-            # Prepare next batch
-            batch = llama_batch_get_one([new_token_id], n_pos)
-            try:
-                ctx.decode(batch)
-            except InterruptedError:
-                # Mid-decode cancellation; the next-token batch did not
-                # complete. Stop the stream cleanly with whatever we
-                # already yielded.
-                break
-
-            n_pos += 1
             n_generated += 1
 
         # Flush remaining buffer (no stop sequence found). A character cut off
@@ -1613,58 +1505,11 @@ class LLM:
             ImportError: Should not happen because jinja2 is vendored,
                 but caught defensively in the caller.
         """
-        import json
-        from datetime import datetime
-
-        from cyllama._vendor.jinja2 import ext as _jinja2_ext
         from cyllama._vendor.jinja2.exceptions import TemplateError
-        from cyllama._vendor.jinja2.sandbox import ImmutableSandboxedEnvironment
 
         template_str = self.model.get_default_chat_template()
         if not template_str:
             raise TemplateError("Model has no embedded chat template")
-
-        # Resolve bos/eos token strings via the existing public C API.
-        # The model exposes token IDs through its vocab; we convert them
-        # to text via token_to_piece. Tokens may legitimately be missing
-        # (some embedding-only models have no BOS/EOS), in which case we
-        # pass empty strings -- a template that references {{ bos_token }}
-        # will just render an empty string in that position.
-        vocab = self.model.get_vocab()
-        bos_id = vocab.token_bos()
-        eos_id = vocab.token_eos()
-        bos_token = vocab.token_to_piece(bos_id, special=True) if bos_id >= 0 else ""
-        eos_token = vocab.token_to_piece(eos_id, special=True) if eos_id >= 0 else ""
-
-        def raise_exception(message: str) -> str:
-            raise TemplateError(message)
-
-        def tojson_filter(
-            value: Any,
-            ensure_ascii: bool = False,
-            indent: Optional[int] = None,
-            separators: Optional[Tuple[str, str]] = None,
-            sort_keys: bool = False,
-        ) -> str:
-            return json.dumps(
-                value,
-                ensure_ascii=ensure_ascii,
-                indent=indent,
-                separators=separators,
-                sort_keys=sort_keys,
-            )
-
-        def strftime_now(fmt: str) -> str:
-            return datetime.now().strftime(fmt)
-
-        env = ImmutableSandboxedEnvironment(
-            trim_blocks=True,
-            lstrip_blocks=True,
-            extensions=[_jinja2_ext.loopcontrols],
-        )
-        env.filters["tojson"] = tojson_filter
-        env.globals["raise_exception"] = raise_exception
-        env.globals["strftime_now"] = strftime_now
 
         # Validate and normalise messages: same shape checks the legacy
         # path performs, but raised inside the new code path so callers
@@ -1677,15 +1522,7 @@ class LLM:
             if msg.get("content") is None:
                 raise ValueError(f"Message at index {i} missing 'content' key")
 
-        compiled = env.from_string(template_str)
-        return str(
-            compiled.render(
-                messages=messages,
-                bos_token=bos_token,
-                eos_token=eos_token,
-                add_generation_prompt=add_generation_prompt,
-            ),
-        )
+        return _apply_jinja_template_standalone(self.model, template_str, messages, add_generation_prompt)
 
     def get_chat_template(self, template_name: Optional[str] = None) -> str:
         """
@@ -2138,9 +1975,32 @@ def _apply_jinja_template_standalone(
     add_generation_prompt: bool = True,
     **variables: Any,
 ) -> str:
-    """Render a chat template via vendored jinja2 for the standalone apply_chat_template path.
+    """Render a chat template via vendored jinja2; ``LLM.chat`` and ``apply_chat_template`` both use it.
 
     ``variables`` are extra template inputs, e.g. ``language`` and ``voice`` for a "tts" template.
+    """
+    vocab = model.get_vocab()
+    bos_id = vocab.token_bos()
+    eos_id = vocab.token_eos()
+    bos_token = vocab.token_to_piece(bos_id, special=True) if bos_id >= 0 else ""
+    eos_token = vocab.token_to_piece(eos_id, special=True) if eos_id >= 0 else ""
+    return str(
+        _compile_chat_template(template_str).render(
+            messages=messages,
+            bos_token=bos_token,
+            eos_token=eos_token,
+            add_generation_prompt=add_generation_prompt,
+            **variables,
+        ),
+    )
+
+
+@functools.lru_cache(maxsize=16)
+def _compile_chat_template(template_str: str) -> Any:
+    """Compile ``template_str`` in the HuggingFace-compatible sandbox, once per template text.
+
+    Each chat() built a sandbox environment and compiled the template again.
+    The environment's globals are stateless, so the compiled template is shared.
     """
     import json
     from datetime import datetime
@@ -2148,12 +2008,6 @@ def _apply_jinja_template_standalone(
     from cyllama._vendor.jinja2 import ext as _jinja2_ext
     from cyllama._vendor.jinja2.exceptions import TemplateError
     from cyllama._vendor.jinja2.sandbox import ImmutableSandboxedEnvironment
-
-    vocab = model.get_vocab()
-    bos_id = vocab.token_bos()
-    eos_id = vocab.token_eos()
-    bos_token = vocab.token_to_piece(bos_id, special=True) if bos_id >= 0 else ""
-    eos_token = vocab.token_to_piece(eos_id, special=True) if eos_id >= 0 else ""
 
     def raise_exception(message: str) -> str:
         raise TemplateError(message)
@@ -2170,25 +2024,21 @@ def _apply_jinja_template_standalone(
     def strftime_now(fmt: str) -> str:
         return datetime.now().strftime(fmt)
 
-    env = ImmutableSandboxedEnvironment(
-        trim_blocks=True,
-        lstrip_blocks=True,
-        extensions=[_jinja2_ext.loopcontrols],
-    )
+    env = ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True, extensions=[_jinja2_ext.loopcontrols])
     env.filters["tojson"] = tojson_filter
     env.globals["raise_exception"] = raise_exception
     env.globals["strftime_now"] = strftime_now
+    return env.from_string(template_str)
 
-    compiled = env.from_string(template_str)
-    return str(
-        compiled.render(
-            messages=messages,
-            bos_token=bos_token,
-            eos_token=eos_token,
-            add_generation_prompt=add_generation_prompt,
-            **variables,
-        ),
-    )
+
+def _common_prefix_len(a: List[int], b: List[int], limit: int) -> int:
+    """Length of the common prefix of ``a`` and ``b``, at most ``limit`` (and at least 0)."""
+    n = 0
+    for x, y in zip(a, b):
+        if n >= limit or x != y:
+            break
+        n += 1
+    return n
 
 
 def _format_messages_simple(messages: List[Dict[str, str]]) -> str:
@@ -2538,64 +2388,22 @@ class AsyncLLM:
         else:
             effective_config = config
 
-        # Use a queue to bridge sync generator to async iterator
-        queue: asyncio.Queue[Union[str, None, Exception]] = asyncio.Queue()
-        loop = asyncio.get_running_loop()
-
-        async def producer() -> None:
-            """Run sync generator in thread and put items in queue."""
-            try:
-
-                def generate_sync() -> None:
-                    for chunk in self._llm._generate_stream(prompt, effective_config):
-                        # Schedule putting item in queue from the thread
-                        asyncio.run_coroutine_threadsafe(queue.put(chunk), loop)
-                    # Signal completion
-                    asyncio.run_coroutine_threadsafe(queue.put(None), loop)
-
-                await asyncio.to_thread(generate_sync)
-            except Exception as e:
-                # Route any exception (from generation, tokenization,
-                # the user's on_token callback, etc.) through the queue
-                # so the consumer's `raise item` re-raises it on the
-                # awaiting task. Narrowing this catch would orphan
-                # exceptions and hang the consumer on `queue.get()`.
-                await queue.put(e)
-
-        # Start producer task
+        # Stopping early cancels the generation and waits for its thread, so the
+        # lock is not released while the context is still decoding.
+        chunks = iterate_in_thread(lambda: self._llm._generate_stream(prompt, effective_config), self._llm.cancel)
         async with self._lock:
-            producer_task = asyncio.create_task(producer())
-
             try:
                 while True:
-                    if timeout is not None:
-                        item = await asyncio.wait_for(queue.get(), timeout=timeout)
-                    else:
-                        item = await queue.get()
-                    if item is None:
+                    try:
+                        if timeout is not None:
+                            item = await asyncio.wait_for(chunks.__anext__(), timeout=timeout)
+                        else:
+                            item = await chunks.__anext__()
+                    except StopAsyncIteration:
                         break
-                    if isinstance(item, Exception):
-                        raise item
                     yield item
             finally:
-                # Ensure producer completes; if it hasn't started yet or is
-                # still running, cancel it and suppress CancelledError.
-                if not producer_task.done():
-                    producer_task.cancel()
-                    try:
-                        await producer_task
-                    except asyncio.CancelledError:
-                        pass
-                else:
-                    # Retrieve (and discard) the result so any exception
-                    # doesn't become an unhandled task exception.
-                    # Anything raised by the producer was already
-                    # routed via `queue.put(e)` above and re-raised on
-                    # the consumer side, so swallowing here is correct.
-                    try:
-                        producer_task.result()
-                    except Exception:
-                        pass
+                await chunks.aclose()
 
     async def generate_with_stats(self, prompt: str, config: Optional[GenerationConfig] = None) -> Response:
         """

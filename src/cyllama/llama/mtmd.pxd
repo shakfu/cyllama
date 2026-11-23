@@ -76,7 +76,7 @@ cdef extern from "mtmd.h":
     # Context management
     cdef mtmd_context * mtmd_init_from_file(const char * mmproj_fname,
                                        const llama_model * text_model,
-                                       const mtmd_context_params ctx_params)
+                                       const mtmd_context_params ctx_params) nogil
     cdef void mtmd_free(mtmd_context * ctx)
 
     # Context queries
@@ -175,7 +175,7 @@ cdef extern from "mtmd.h":
                           mtmd_input_chunks * output,
                           const mtmd_input_text * text,
                           const mtmd_bitmap ** bitmaps,
-                          size_t n_bitmaps)
+                          size_t n_bitmaps) nogil
 
     # as mtmd_tokenize, from text and bitmap parts instead of media markers; per-part add_special is ignored
     cdef int32_t mtmd_tokenize_from_parts(const mtmd_context * ctx,
@@ -188,7 +188,7 @@ cdef extern from "mtmd.h":
                         const mtmd_image_tokens * image_tokens)  # deprecated
 
     cdef int32_t mtmd_encode_chunk(mtmd_context * ctx,
-                              const mtmd_input_chunk * chunk)
+                              const mtmd_input_chunk * chunk) nogil
 
     cdef float * mtmd_get_output_embd(mtmd_context * ctx)
 
@@ -491,7 +491,7 @@ cdef extern from "mtmd-helper.h":
                                     llama_seq_id seq_id,
                                     int32_t n_batch,
                                     bint logits_last,
-                                    llama_pos * new_n_past)
+                                    llama_pos * new_n_past) nogil
 
     cdef int32_t mtmd_helper_eval_chunk_single(mtmd_context * ctx,
                                           llama_context * lctx,

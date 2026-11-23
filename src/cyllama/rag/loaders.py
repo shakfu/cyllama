@@ -615,7 +615,12 @@ class DirectoryLoader(BaseLoader):
         if self.recursive:
             files = list(path.glob(self.glob_pattern))
         else:
-            files = list(path.glob(self.glob_pattern.lstrip("*/")))
+            # Drop a leading "**/" prefix. lstrip("*/") removed a character set:
+            # "**/*.txt" became ".txt" and the default "**/*" became "", which raises.
+            pattern = self.glob_pattern
+            while pattern.startswith("**/"):
+                pattern = pattern[3:]
+            files = list(path.glob(pattern if pattern and pattern != "**" else "*"))
 
         # Filter out excluded patterns
         for exclude_pattern in self.exclude:

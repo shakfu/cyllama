@@ -41,7 +41,7 @@ def render_observation(raw: Any) -> str:
 from ..defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from ..api import LLM, GenerationConfig
 from ._loop_detection import detect_loop, format_loop_error
-from .tools import Tool, ToolRegistry, ToolTimeoutError, coerce_args
+from .tools import AgentTermination, Tool, ToolRegistry, call_tool
 from .types import AgentEvent, AgentMetrics, AgentProtocol, AgentResult, EventType
 
 # Module logger
@@ -491,6 +491,8 @@ Begin!"""
                         },
                     )
                     yield error_event
+                except AgentTermination:
+                    raise  # a tool asked to stop the run (e.g. contract_assert under ENFORCE)
                 except Exception as e:
                     # Unexpected error during tool execution
                     self._metrics.error_count += 1
@@ -620,7 +622,8 @@ Begin!"""
 
     def _extract_action(self, text: str) -> Optional[str]:
         """Extract action from agent response."""
-        match = re.search(r"Action:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
+        # At the start of a line: "Action:" inside a thought is not an action.
+        match = re.search(r"^\s*Action:\s*(.+?)$", text, re.IGNORECASE | re.MULTILINE)
         if match:
             action = match.group(1).strip()
             # Handle double Action: prefix (model sometimes outputs "Action: Action: tool(...)")
@@ -631,7 +634,9 @@ Begin!"""
 
     def _extract_answer(self, text: str) -> Optional[str]:
         """Extract final answer from agent response."""
-        match = re.search(r"Answer:\s*(.+?)$", text, re.IGNORECASE | re.DOTALL)
+        # At the start of a line: "the answer: is unclear" inside a thought is not
+        # a final answer, and used to end the run before its Action ran.
+        match = re.search(r"^\s*(?:Final\s+)?Answer:\s*(.+)", text, re.IGNORECASE | re.MULTILINE | re.DOTALL)
         if match:
             answer = match.group(1).strip()
             # Truncate at common continuation markers that indicate hallucination
@@ -971,7 +976,13 @@ Begin!"""
         """
         import ast as _ast
 
-        tree = _ast.parse(original_action.strip(), mode="eval")
+        # Parse "_f(<args>)": a namespaced name such as server/tool is not a
+        # Python name, and parsed as a division it made this strategy fail.
+        src = original_action.strip()
+        cut = src.index("(")
+        if "\n" in src[:cut]:
+            raise ValueError("tool name and its arguments are on different lines")
+        tree = _ast.parse("_f" + src[cut:], mode="eval")
         if not isinstance(tree.body, _ast.Call):
             raise ValueError("not a call expression")
 
@@ -1140,39 +1151,7 @@ Begin!"""
         tool = self.registry.get(tool_name)
         if not tool:
             raise ValueError(f"Unknown tool: {tool_name}")
-
-        if tool.coerce:
-            args = coerce_args(tool, args)
-
-        if tool.timeout is None:
-            return tool(**args)
-
-        # Run on a daemon thread so the interpreter can exit even if the
-        # tool hangs. We use a raw daemon Thread rather than a pooled
-        # executor because ThreadPoolExecutor.__exit__ blocks on worker
-        # completion -- which would re-introduce the hang we're trying to
-        # avoid. concurrent.futures cannot kill the worker thread either
-        # way; we just stop waiting on it.
-        import threading as _threading
-
-        result_box: List[Any] = [None]
-        exc_box: List[Optional[BaseException]] = [None]
-
-        def _runner() -> None:
-            try:
-                result_box[0] = tool(**args)
-            except BaseException as e:  # noqa: BLE001 — re-raised in caller
-                exc_box[0] = e
-
-        worker = _threading.Thread(target=_runner, name=f"tool-{tool_name}", daemon=True)
-        worker.start()
-        worker.join(timeout=tool.timeout)
-        if worker.is_alive():
-            # Worker keeps running on a daemon thread; the agent moves on.
-            raise ToolTimeoutError(tool_name, tool.timeout)
-        if exc_box[0] is not None:
-            raise exc_box[0]
-        return result_box[0]
+        return call_tool(tool, args)
 
     def _execute_tool(self, tool_name: str, args: Dict[str, Any]) -> str:
         """

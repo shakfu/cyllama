@@ -115,10 +115,18 @@ def parse_message(data: str) -> JsonRpcMessage:
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON: {e}")
 
+    if not isinstance(d, dict):
+        raise ValueError("JSON-RPC message must be an object (batches are not supported)")
     if "jsonrpc" not in d or d["jsonrpc"] != "2.0":
         raise ValueError("Invalid JSON-RPC version")
+    if not isinstance(d.get("id"), (str, int, type(None))) or isinstance(d.get("id"), bool):
+        raise ValueError("id must be a string, number or null")
 
     if "method" in d:
+        if not isinstance(d["method"], str):
+            raise ValueError("method must be a string")
+        if d.get("params") is not None and not isinstance(d["params"], dict):
+            raise ValueError("params must be an object (by-position params are not supported)")
         return JsonRpcRequest.from_dict(d)
     else:
         return JsonRpcResponse.from_dict(d)
@@ -133,8 +141,12 @@ class StdioTransport:
     """
     JSON-RPC transport over stdio.
 
-    Messages are newline-delimited JSON.
+    Messages are newline-delimited JSON, at most MAX_LINE_BYTES each. Blank
+    lines are skipped; a malformed line gets an error response and the
+    stream continues.
     """
+
+    MAX_LINE_BYTES = 16 * 1024 * 1024
 
     def __init__(
         self,
@@ -146,18 +158,37 @@ class StdioTransport:
         self._lock = threading.Lock()
 
     def read_message(self) -> Optional[JsonRpcMessage]:
-        """Read a single JSON-RPC message from input."""
-        try:
-            line = self._input.readline()
+        """Read the next JSON-RPC message; None at EOF.
+
+        A line that is not a valid message is answered with a JSON-RPC error
+        (id null) and skipped; it used to end the stream.
+        """
+        while True:
+            try:
+                line = self._input.readline(self.MAX_LINE_BYTES + 1)
+            except Exception as e:
+                logger.error("Error reading message: %s", e)
+                return None
             if not line:
                 return None  # EOF
+            if len(line) > self.MAX_LINE_BYTES:
+                # discard the rest of the oversized line
+                while line and not line.endswith("\n"):
+                    line = self._input.readline(self.MAX_LINE_BYTES)
+                self._reject(ErrorCode.INVALID_REQUEST, f"message exceeds {self.MAX_LINE_BYTES} bytes")
+                continue
             line = line.strip()
             if not line:
-                return None
-            return parse_message(line)
-        except Exception as e:
-            logger.error("Error reading message: %s", e)
-            return None
+                continue
+            try:
+                return parse_message(line)
+            except ValueError as e:
+                code = ErrorCode.PARSE_ERROR if str(e).startswith("Invalid JSON:") else ErrorCode.INVALID_REQUEST
+                logger.warning("Rejected message: %s", e)
+                self._reject(code, str(e))
+
+    def _reject(self, code: "ErrorCode", message: str) -> None:
+        self.write_message(JsonRpcResponse(id=None, error=JsonRpcError(code=code, message=message)))
 
     def write_message(self, msg: JsonRpcMessage) -> None:
         """Write a JSON-RPC message to output."""
@@ -190,9 +221,7 @@ class JsonRpcServer:
         self._request_id = 0
         self._lock = threading.Lock()
         self._running = False
-
-        # Queue for bridging sync inner agents with async protocol
-        self._outgoing_queue: "queue.Queue[Any]" = queue.Queue()
+        self._input_closed = False
 
     def register(self, method: str, handler: Callable[..., Any]) -> None:
         """Register a method handler."""
@@ -234,6 +263,8 @@ class JsonRpcServer:
         event = threading.Event()
 
         with self._lock:
+            if self._input_closed:
+                raise ConnectionError(f"Request {method}: the peer's input stream is closed")
             self._pending_requests[request_id] = event
 
         msg = JsonRpcRequest(method=method, params=params, id=request_id)
@@ -291,80 +322,56 @@ class JsonRpcServer:
     def serve(self) -> None:
         """
         Main server loop. Blocks until EOF on input.
+
+        Requests run one at a time, in arrival order, on a worker thread. The
+        reading thread stays free, so a handler blocked in send_request() still
+        receives its response, and notifications such as session/cancel arrive
+        while a request runs.
         """
         self._running = True
+        with self._lock:
+            self._input_closed = False
         logger.info("JSON-RPC server starting")
+        requests: "queue.Queue[Optional[JsonRpcRequest]]" = queue.Queue()
 
+        def dispatch() -> None:
+            while True:
+                request = requests.get()
+                if request is None:
+                    return
+                response = self._handle_message(request)
+                if response is not None:
+                    self._transport.write_message(response)
+
+        worker = threading.Thread(target=dispatch, name="jsonrpc-dispatch", daemon=True)
+        worker.start()
         try:
             for msg in self._transport.read_messages():
                 if not self._running:
                     break
-
+                if isinstance(msg, JsonRpcRequest) and not msg.is_notification:
+                    requests.put(msg)
+                    continue
                 response = self._handle_message(msg)
                 if response is not None:
                     self._transport.write_message(response)
         finally:
+            self._fail_pending("connection closed")
+            requests.put(None)
+            worker.join()
             self._running = False
             logger.info("JSON-RPC server stopped")
+
+    def _fail_pending(self, reason: str) -> None:
+        """Wake every send_request() still waiting, with an error response; none can arrive now."""
+        with self._lock:
+            self._input_closed = True
+            for request_id, event in self._pending_requests.items():
+                self._pending_responses[request_id] = JsonRpcResponse(
+                    id=request_id, error=JsonRpcError(code=ErrorCode.INTERNAL_ERROR, message=reason)
+                )
+                event.set()
 
     def stop(self) -> None:
         """Signal the server to stop."""
         self._running = False
-
-
-class AsyncBridge:
-    """
-    Bridge between synchronous agent execution and async protocol handling.
-
-    Uses a queue to allow the sync agent to emit events that are sent
-    as notifications by the protocol handler.
-    """
-
-    def __init__(self, server: JsonRpcServer) -> None:
-        self._server = server
-        self._queue: "queue.Queue[Any]" = queue.Queue()
-        self._worker_thread: Optional[threading.Thread] = None
-        self._running = False
-
-    def start(self) -> None:
-        """Start the async bridge worker."""
-        self._running = True
-        self._worker_thread = threading.Thread(target=self._worker, daemon=True)
-        self._worker_thread.start()
-
-    def stop(self) -> None:
-        """Stop the async bridge worker."""
-        self._running = False
-        self._queue.put(None)  # Sentinel to wake up worker
-        if self._worker_thread:
-            self._worker_thread.join(timeout=1.0)
-
-    def _worker(self) -> None:
-        """Worker thread that sends queued notifications."""
-        while self._running:
-            try:
-                item = self._queue.get(timeout=0.1)
-                if item is None:
-                    continue
-                method, params = item
-                self._server.send_notification(method, params)
-            except queue.Empty:
-                continue
-            except Exception as e:
-                logger.error("Error in async bridge worker: %s", e)
-
-    def send_notification(self, method: str, params: Optional[Dict[str, Any]] = None) -> None:
-        """
-        Queue a notification to be sent asynchronously.
-
-        This is safe to call from the synchronous agent execution thread.
-        """
-        self._queue.put((method, params))
-
-    def send_notification_sync(self, method: str, params: Optional[Dict[str, Any]] = None) -> None:
-        """
-        Send a notification immediately (blocking).
-
-        Use this when you need the notification sent before continuing.
-        """
-        self._server.send_notification(method, params)

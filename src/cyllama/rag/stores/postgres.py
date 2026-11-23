@@ -82,6 +82,13 @@ _METRIC_TO_OPCLASS = {
 _VALID_TABLE_NAME = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
+def _index_option(key: str) -> str:
+    """``key`` if it is a plain identifier; index option names are spliced into the SQL text."""
+    if not re.fullmatch(r"[a-z_][a-z0-9_]*", key):
+        raise ValueError(f"invalid index option name: {key!r}")
+    return key
+
+
 def _validate_table_name(name: str) -> None:
     """Reject table names that aren't plain identifiers.
 
@@ -436,6 +443,9 @@ class PgVectorStore(VectorStoreProtocol):
                             datetime.now(timezone.utc).isoformat(),
                         ),
                     )
+            # A read earlier on this connection opened an implicit transaction,
+            # which makes transaction() a savepoint that does not commit.
+            self.conn.commit()
         except Exception:
             # The transaction rolled back, so the IDs describe rows that
             # no longer exist. Don't hand the caller phantoms.
@@ -673,7 +683,7 @@ class PgVectorStore(VectorStoreProtocol):
             statement = sql.SQL("{stmt} WITH ({opts})").format(
                 stmt=statement,
                 opts=sql.SQL(", ").join(
-                    sql.SQL("{k} = {v}").format(k=sql.SQL(str(key)), v=sql.Literal(value))
+                    sql.SQL("{k} = {v}").format(k=sql.SQL(_index_option(key)), v=sql.Literal(value))
                     for key, value in options.items()
                 ),
             )

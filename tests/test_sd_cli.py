@@ -186,3 +186,62 @@ class TestLogLevels:
 
         mod.emit_log(LogLevel.INFO, "x\n")
         assert "[INFO] x" in capsys.readouterr().out
+
+
+class TestCliWiring:
+    """Flags the CLI parsed and then dropped."""
+
+    def _run(self, monkeypatch, argv):
+        import cyllama.sd.__main__ as cli
+        import cyllama.sd.stable_diffusion as sd
+
+        calls = {}
+
+        class FakeImage:
+            width, height = 768, 1024
+
+            @staticmethod
+            def load(path):
+                return FakeImage()
+
+            def save(self, path):
+                pass
+
+        class FakeCtx:
+            def __init__(self, params):
+                pass
+
+            def generate_video(self, **kw):
+                calls["video"] = kw
+                return []
+
+            def generate(self, **kw):
+                calls["generate"] = kw
+                return []
+
+        monkeypatch.setattr(sd, "SDContext", FakeCtx)
+        monkeypatch.setattr(sd, "SDImage", FakeImage)
+        monkeypatch.setattr(cli, "save_video_frames", lambda *a, **k: None)
+        monkeypatch.setenv("CYLLAMA_SD_NO_ISOLATE", "1")
+        monkeypatch.setattr("sys.argv", ["sd", *argv])
+        cli.main()
+        return calls
+
+    def test_video_passes_init_and_end_images(self, monkeypatch):
+        calls = self._run(
+            monkeypatch,
+            ["video", "-m", "m.gguf", "-p", "x", "--init-img", "a.png", "--end-img", "b.png", "--eta", "0.5"],
+        )
+        kw = calls["video"]
+        assert kw["init_image"] is not None and kw["end_image"] is not None
+        assert kw["eta"] == 0.5 and kw["moe_boundary"] == 0.875
+
+    def test_removed_no_op_flags_are_rejected(self, monkeypatch):
+        with pytest.raises(SystemExit):
+            self._run(monkeypatch, ["txt2img", "-m", "m.gguf", "-p", "x", "--guidance", "3.5"])
+
+
+def test_img2img_defaults_to_input_size(monkeypatch):
+    # --width defaulted to 512, so the "use the input image's size" branch never ran
+    calls = TestCliWiring()._run(monkeypatch, ["img2img", "-m", "m.gguf", "-p", "x", "-i", "a.png"])
+    assert (calls["generate"]["width"], calls["generate"]["height"]) == (768, 1024)

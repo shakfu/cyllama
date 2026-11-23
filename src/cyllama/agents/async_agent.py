@@ -44,6 +44,15 @@ from .types import AgentEvent, AgentMetrics, AgentResult
 from .constrained import ConstrainedAgent, ConstrainedGenerationConfig
 from .tools import Tool
 from ..api import LLM, GenerationConfig
+from ..utils.cancellation import iterate_in_thread
+
+
+def _cancel_llm(agent: Any) -> None:
+    """Abort the LLM call `agent` has in flight, if its LLM supports cancel()."""
+    cancel = getattr(getattr(agent, "llm", None), "cancel", None)
+    if cancel is not None:
+        cancel()
+
 
 logger = logging.getLogger(__name__)
 
@@ -184,52 +193,16 @@ class AsyncReActAgent:
             >>>         print(f"Acting: {event.content}")
         """
         self._check_closed()
-        queue: asyncio.Queue[Union[AgentEvent, None, Exception]] = asyncio.Queue()
-
-        async def producer() -> None:
-            """Run sync generator in thread and put items in queue."""
-            try:
-
-                def generate_sync() -> None:
-                    for event in self._agent.stream(task):
-                        asyncio.run_coroutine_threadsafe(queue.put(event), loop)
-                    asyncio.run_coroutine_threadsafe(queue.put(None), loop)
-
-                await asyncio.to_thread(generate_sync)
-            except Exception as e:
-                await queue.put(e)
-
-        loop = asyncio.get_event_loop()
-
+        # Stopping early stops the agent at its next event, cancels the LLM call
+        # in flight, and waits for the thread before the lock is released.
+        events = iterate_in_thread(lambda: self._agent.stream(task), lambda: _cancel_llm(self._agent))
         async with self._lock:
             self._check_closed()
-            producer_task = asyncio.create_task(producer())
-
             try:
-                while True:
-                    item = await queue.get()
-                    if item is None:
-                        break
-                    if isinstance(item, Exception):
-                        raise item
-                    yield item
+                async for event in events:
+                    yield event
             finally:
-                # Consumer may exit early (break, exception, or async-generator
-                # close). Cancel the producer so the lock is released for the
-                # next caller; the underlying thread cannot be cancelled, so
-                # any in-flight LLM work in the agent will continue until it
-                # naturally yields, but it no longer blocks this coroutine.
-                if not producer_task.done():
-                    producer_task.cancel()
-                    try:
-                        await producer_task
-                    except asyncio.CancelledError:
-                        pass
-                else:
-                    try:
-                        producer_task.result()
-                    except Exception:
-                        pass
+                await events.aclose()
 
 
 class AsyncConstrainedAgent:
@@ -342,47 +315,16 @@ class AsyncConstrainedAgent:
             AgentEvent instances as agent executes
         """
         self._check_closed()
-        queue: asyncio.Queue[Union[AgentEvent, None, Exception]] = asyncio.Queue()
-
-        async def producer() -> None:
-            try:
-
-                def generate_sync() -> None:
-                    for event in self._agent.stream(task):
-                        asyncio.run_coroutine_threadsafe(queue.put(event), loop)
-                    asyncio.run_coroutine_threadsafe(queue.put(None), loop)
-
-                await asyncio.to_thread(generate_sync)
-            except Exception as e:
-                await queue.put(e)
-
-        loop = asyncio.get_event_loop()
-
+        # Stopping early stops the agent at its next event, cancels the LLM call
+        # in flight, and waits for the thread before the lock is released.
+        events = iterate_in_thread(lambda: self._agent.stream(task), lambda: _cancel_llm(self._agent))
         async with self._lock:
             self._check_closed()
-            producer_task = asyncio.create_task(producer())
-
             try:
-                while True:
-                    item = await queue.get()
-                    if item is None:
-                        break
-                    if isinstance(item, Exception):
-                        raise item
-                    yield item
+                async for event in events:
+                    yield event
             finally:
-                # See note in AsyncReActAgent.stream: consumer-early-exit path.
-                if not producer_task.done():
-                    producer_task.cancel()
-                    try:
-                        await producer_task
-                    except asyncio.CancelledError:
-                        pass
-                else:
-                    try:
-                        producer_task.result()
-                    except Exception:
-                        pass
+                await events.aclose()
 
 
 async def run_agent_async(agent: Union[ReActAgent, ConstrainedAgent], task: str) -> AgentResult:

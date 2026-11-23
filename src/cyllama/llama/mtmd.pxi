@@ -483,6 +483,7 @@ cdef class MtmdContext:
 
     cdef mtmd_context * _ctx
     cdef object _model_ref  # Keep reference to prevent GC
+    cdef size_t _encoded_tokens  # tokens of the chunk the last encode_chunk produced
 
     def __init__(self, mmproj_path: str, llama_model: LlamaModel, params: MtmdContextParams = None):
         """Initialize mtmd context.
@@ -498,11 +499,18 @@ cdef class MtmdContext:
         if params is None:
             params = MtmdContextParams()
 
+        if llama_model is None or llama_model.ptr is NULL:
+            raise RuntimeError("LlamaModel is closed")
         self._model_ref = llama_model
         cdef bytes path_bytes = mmproj_path.encode('utf-8')
+        cdef const char * c_path = path_bytes
         cdef llama.llama_model* model_ptr = llama_model.ptr
-
-        self._ctx = mtmd_init_from_file(path_bytes, model_ptr, params._params)
+        cdef mtmd_context_params c_params = params._params
+        cdef mtmd_context * created
+        # Without the GIL: loading the projector and its warmup take seconds.
+        with nogil:
+            created = mtmd_init_from_file(c_path, model_ptr, c_params)
+        self._ctx = created
 
         if self._ctx is NULL:
             raise RuntimeError(f"Failed to initialize mtmd context from: {mmproj_path}")
@@ -781,16 +789,24 @@ cdef class MtmdContext:
             # Pre-declare the variable outside the loop
             for i in range(n_bitmaps):
                 bitmap_obj = bitmaps[i]
+                if bitmap_obj is None or bitmap_obj._bitmap is NULL:
+                    free(bitmap_ptrs)
+                    raise ValueError(f"bitmaps[{i}] is not initialized")
                 bitmap_ptrs[i] = bitmap_obj._bitmap
 
         # Create output chunks
         cdef MtmdInputChunks chunks = MtmdInputChunks()
         cdef int32_t result
+        cdef mtmd_context * ctx_ptr
+        cdef mtmd_input_chunks * out_chunks
 
         try:
             # Perform tokenization
-            result = mtmd_tokenize(self._ctx, chunks._chunks, &input_text,
-                                   <const mtmd_bitmap**>bitmap_ptrs, n_bitmaps)
+            ctx_ptr = self._ctx
+            out_chunks = chunks._chunks
+            with nogil:  # image preprocessing
+                result = mtmd_tokenize(ctx_ptr, out_chunks, &input_text,
+                                       <const mtmd_bitmap**>bitmap_ptrs, n_bitmaps)
 
             if result != 0:
                 if result == 1:
@@ -816,8 +832,15 @@ cdef class MtmdContext:
             0 on success, non-zero on error
         """
         self._check_open()
-
-        return mtmd_encode_chunk(self._ctx, chunk._chunk)
+        if chunk is None or chunk._chunk is NULL:
+            raise ValueError("chunk is not initialized")
+        cdef mtmd_context * ctx_ptr = self._ctx
+        cdef const mtmd_input_chunk * c_chunk = chunk._chunk
+        cdef int32_t rc
+        with nogil:  # runs the vision/audio encoder
+            rc = mtmd_encode_chunk(ctx_ptr, c_chunk)
+        self._encoded_tokens = mtmd_input_chunk_get_n_tokens(chunk._chunk) if rc == 0 else 0
+        return rc
 
     def get_output_embeddings(self, n_tokens: int, n_embd: int) -> List[List[float]]:
         """Get output embeddings from the last encode pass.
@@ -831,6 +854,13 @@ cdef class MtmdContext:
             List of embedding vectors
         """
         self._check_open()
+        # The buffer holds the last encoded chunk: n_tokens rows of the text
+        # model's n_embd_inp floats. Larger values read past it.
+        cdef int n_embd_inp = (<LlamaModel>self._model_ref).n_embd_inp
+        if n_embd != n_embd_inp:
+            raise ValueError(f"n_embd must be the text model's n_embd_inp ({n_embd_inp}), got {n_embd}")
+        if not 0 <= n_tokens <= <long long>self._encoded_tokens:
+            raise ValueError(f"n_tokens must be in [0, {self._encoded_tokens}] (the last encoded chunk), got {n_tokens}")
 
         cdef float* embd_ptr = mtmd_get_output_embd(self._ctx)
         if embd_ptr is NULL:
@@ -876,10 +906,15 @@ cdef class MtmdContext:
         cdef llama_context* ctx_ptr = llama_ctx.ptr
 
         cdef llama_pos new_n_past
-        cdef int32_t result = mtmd_helper_eval_chunks(
-            self._ctx, ctx_ptr, chunks._chunks, <llama_pos>n_past,
-            <llama_seq_id>seq_id, <int32_t>n_batch, logits_last, &new_n_past
-        )
+        cdef mtmd_context * mctx = self._ctx
+        cdef const mtmd_input_chunks * c_chunks = chunks._chunks
+        cdef llama_pos c_n_past = <llama_pos>n_past
+        cdef llama_seq_id c_seq = <llama_seq_id>seq_id
+        cdef int32_t c_n_batch = <int32_t>n_batch
+        cdef bint c_last = logits_last
+        cdef int32_t result
+        with nogil:  # encoder plus llama_decode for every chunk
+            result = mtmd_helper_eval_chunks(mctx, ctx_ptr, c_chunks, c_n_past, c_seq, c_n_batch, c_last, &new_n_past)
 
         if result != 0:
             raise RuntimeError(f"Chunk evaluation failed with error code: {result}")
@@ -1032,8 +1067,9 @@ cdef class MtmdBatch:
         _require_mtmd(self._ctx_ref)
         if chunk._chunk is NULL:
             raise RuntimeError("Chunk not initialized")
-        if n_embd <= 0:
-            raise ValueError(f"n_embd must be positive, got {n_embd}")
+        cdef int n_embd_inp = (<LlamaModel>(<MtmdContext>self._ctx_ref)._model_ref).n_embd_inp
+        if n_embd != n_embd_inp:
+            raise ValueError(f"n_embd must be the text model's n_embd_inp ({n_embd_inp}), got {n_embd}")
 
         cdef float * embd = mtmd_batch_get_output_embd(self._batch, chunk._chunk)
         if embd is NULL:

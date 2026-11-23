@@ -40,6 +40,10 @@ class CacheInfo(NamedTuple):
 _BYTES_PER_FLOAT = 8
 
 
+# Texts embed_batch packs into one decode (sequences per batch).
+BATCH_SEQS = 16
+
+
 class _LRUCache:
     """Memory-aware LRU cache for embeddings.
 
@@ -214,12 +218,18 @@ class Embedder(EmbedderProtocol):
         # with generative models being used for embeddings.
         # TODO(pooling): Re-evaluate periodically -- llama.cpp pooling has improved
         # in recent releases.  If llama_context returns correct pooled embeddings
-        # for both dedicated embedding models AND generative models, the manual
-        # _mean_pool_manual / _get_sequence_embedding fallback can be removed.
+        # for both dedicated embedding models AND generative models, the
+        # manual pooling (LlamaContext._pool_embeddings) can be removed.
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = n_ctx
         ctx_params.n_batch = n_batch
+        # One text decodes as one batch, and non-causal encoders need it in one ubatch.
+        ctx_params.n_ubatch = n_batch
         ctx_params.pooling_type = 0  # NONE - we'll pool manually
+        # embed_batch packs up to BATCH_SEQS texts into one decode, one sequence
+        # each; a unified KV cache lets them share n_ctx instead of n_ctx / seqs.
+        ctx_params.n_seq_max = BATCH_SEQS
+        ctx_params.kv_unified = True
         ctx_params.n_threads = ctx_params.n_threads_batch = resolve_n_threads()
         self._ctx = LlamaContext(self._model, ctx_params)
         # Enable embedding mode on the context
@@ -368,22 +378,36 @@ class Embedder(EmbedderProtocol):
             self._busy_lock.release()
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """Embed multiple texts efficiently.
+        """Embed multiple texts, several per decode.
+
+        Texts are packed into one batch, one sequence each, up to BATCH_SEQS
+        texts and min(n_ctx, n_batch) tokens; each text was its own decode.
+        Cached texts are not recomputed.
 
         Args:
             texts: List of texts to embed
 
         Returns:
-            List of embedding vectors
+            List of embedding vectors, in the order of ``texts``
         """
-        # No busy-lock acquire here: embed_batch is a thin wrapper that
-        # delegates to embed(), which holds the lock per item. Acquiring
-        # twice would deadlock since the lock is non-reentrant. Note that
-        # this means a parallel embed_batch from another thread will see
-        # interleaved per-item locking, not exclusive batch ownership —
-        # which is correct (each embed() call is self-contained) and
-        # mirrors how LLM.chat() delegates to LLM.__call__.
-        return [self.embed(text) for text in texts]
+        self._try_acquire_busy()
+        try:
+            out: list[list[float] | None] = [None] * len(texts)
+            todo: list[int] = []
+            for i, text in enumerate(texts):
+                cached = self._cache.get(text) if self._cache is not None else None
+                if cached is not None:
+                    out[i] = list(cached)
+                else:
+                    todo.append(i)
+            results = self._embed_many([texts[i] for i in todo])
+            for i, result in zip(todo, results):
+                out[i] = result.embedding
+                if self._cache is not None:
+                    self._cache.put(texts[i], tuple(result.embedding))
+            return [e for e in out if e is not None]
+        finally:
+            self._busy_lock.release()
 
     def embed_documents(
         self,
@@ -399,13 +423,13 @@ class Embedder(EmbedderProtocol):
         Returns:
             List of embedding vectors
         """
-        # No busy-lock acquire here — delegates to embed() per document.
-        embeddings = []
+        # Batched through embed_batch, in slices so progress can be reported.
+        embeddings: list[list[float]] = []
         total = len(documents)
-        for i, doc in enumerate(documents):
-            embeddings.append(self.embed(doc))
-            if show_progress and (i + 1) % 10 == 0:
-                print(f"Embedded {i + 1}/{total} documents")
+        for start in range(0, total, 64):
+            embeddings.extend(self.embed_batch(documents[start : start + 64]))
+            if show_progress:
+                print(f"Embedded {len(embeddings)}/{total} documents")
         return embeddings
 
     def embed_iter(self, texts: list[str]) -> Iterator[list[float]]:
@@ -424,6 +448,44 @@ class Embedder(EmbedderProtocol):
         for text in texts:
             yield self.embed(text)
 
+    def _embed_many(self, texts: list[str]) -> list[EmbeddingResult]:
+        """Embed ``texts``, packing several into each decode."""
+        limit = min(self.n_ctx, self.n_batch)
+        token_lists = [self._vocab.tokenize(t, add_special=True, parse_special=False)[:limit] for t in texts]
+        mode = {PoolingType.CLS: 1, PoolingType.LAST: 2}.get(self._pooling_type, 0)
+        results: list[EmbeddingResult] = []
+        i = 0
+        while i < len(texts):
+            # Greedy pack: as many whole texts as fit in one decode.
+            group = [i]
+            total = len(token_lists[i])
+            while (
+                i + len(group) < len(texts)
+                and len(group) < BATCH_SEQS
+                and total + len(token_lists[i + len(group)]) <= limit
+            ):
+                total += len(token_lists[i + len(group)])
+                group.append(i + len(group))
+
+            self._ctx.kv_cache_clear()
+            if total:
+                batch = LlamaBatch(n_tokens=total, embd=0, n_seq_max=1)
+                for seq, j in enumerate(group):
+                    for pos, token in enumerate(token_lists[j]):
+                        batch.add(token, pos, [seq], True)
+                self._ctx.decode(batch)
+
+            row = 0
+            for j in group:
+                n = len(token_lists[j])
+                embedding = self._ctx._pool_embeddings(n, mode, row) if n else [0.0] * self._n_embd
+                row += n
+                if self._normalize:
+                    embedding = self._l2_normalize(embedding)
+                results.append(EmbeddingResult(embedding=embedding, text=texts[j], token_count=n))
+            i += len(group)
+        return results
+
     def _embed_single(self, text: str) -> EmbeddingResult:
         """Generate embedding for a single text.
 
@@ -437,10 +499,11 @@ class Embedder(EmbedderProtocol):
         tokens = self._vocab.tokenize(text, add_special=True, parse_special=False)
         n_tokens = len(tokens)
 
-        # Truncate if needed
-        if n_tokens > self.n_ctx:
-            tokens = tokens[: self.n_ctx]
-            n_tokens = self.n_ctx
+        # Truncate to what one decode accepts.
+        limit = min(self.n_ctx, self.n_batch)
+        if n_tokens > limit:
+            tokens = tokens[:limit]
+            n_tokens = limit
 
         # Clear context for new embedding
         self._ctx.kv_cache_clear()
@@ -455,24 +518,10 @@ class Embedder(EmbedderProtocol):
         # Decode batch to compute embeddings
         self._ctx.decode(batch)
 
-        # Every token is an output row; get_embeddings() returns only the first.
-        raw_embeddings = []
-        for i in range(n_tokens):
-            raw_embeddings.extend(self._ctx.get_embeddings_ith(i))
-
-        # Apply pooling strategy
-        if self._pooling_type == PoolingType.MEAN:
-            embedding = self._mean_pool_manual(raw_embeddings, n_tokens)
-        elif self._pooling_type == PoolingType.CLS:
-            # CLS pooling - use first token's embedding
-            embedding = list(raw_embeddings[: self._n_embd])
-        elif self._pooling_type == PoolingType.LAST:
-            # Last token pooling
-            offset = (n_tokens - 1) * self._n_embd
-            embedding = list(raw_embeddings[offset : offset + self._n_embd])
-        else:
-            # NONE - still use mean as a reasonable default
-            embedding = self._mean_pool_manual(raw_embeddings, n_tokens)
+        # Every token is an output row; pool them in C. CLS takes the first
+        # row, LAST the last; MEAN and NONE average all rows.
+        mode = {PoolingType.CLS: 1, PoolingType.LAST: 2}.get(self._pooling_type, 0)
+        embedding = self._ctx._pool_embeddings(n_tokens, mode)
 
         # Normalize if requested
         if self._normalize:
@@ -483,36 +532,6 @@ class Embedder(EmbedderProtocol):
             text=text,
             token_count=n_tokens,
         )
-
-    def _mean_pool_manual(self, raw_embeddings: list[float], n_tokens: int) -> list[float]:
-        """Compute mean pooling over token embeddings.
-
-        Args:
-            raw_embeddings: Flat list of embeddings (n_tokens * n_embd)
-            n_tokens: Number of tokens
-
-        Returns:
-            Mean-pooled embedding vector
-        """
-        n_embd = self._n_embd
-        if len(raw_embeddings) != n_tokens * n_embd:
-            # Handle case where not all embeddings are present
-            n_tokens = len(raw_embeddings) // n_embd
-
-        result = [0.0] * n_embd
-        if n_tokens == 0:
-            return result
-
-        for t in range(n_tokens):
-            offset = t * n_embd
-            for i in range(n_embd):
-                result[i] += raw_embeddings[offset + i]
-
-        # Divide by number of tokens
-        for i in range(n_embd):
-            result[i] /= n_tokens
-
-        return result
 
     def _l2_normalize(self, embedding: list[float]) -> list[float]:
         """L2 normalize an embedding vector.

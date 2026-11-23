@@ -708,3 +708,15 @@ class TestDocumentMetadata:
         docs = loader.load(file_path)
 
         assert docs[0].metadata["source"] == str(file_path)
+
+
+@pytest.mark.parametrize("pattern", ["**/*", "**/*.txt", "*.txt"])
+def test_directory_loader_non_recursive(tmp_path, pattern):
+    # lstrip("*/") turned "**/*.txt" into ".txt" and "**/*" into "", which raised
+    from cyllama.rag.loaders import DirectoryLoader
+
+    (tmp_path / "top.txt").write_text("top")
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "deep.txt").write_text("deep")
+    docs = DirectoryLoader(glob=pattern, recursive=False).load(tmp_path)
+    assert [d.text for d in docs] == ["top"]

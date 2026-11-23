@@ -447,6 +447,8 @@ def cmd_txt2img(args: argparse.Namespace) -> int:
 
     sample_method, scheduler = parse_sampler_scheduler(args)
 
+    args.width = args.width or 512
+    args.height = args.height or 512
     print(f"Generating {args.batch} image(s)...")
     print(f"  Prompt: {args.prompt}")
     print(f"  Size: {args.width}x{args.height}")
@@ -801,6 +803,10 @@ def cmd_video(args: argparse.Namespace) -> int:
             video_frames=args.video_frames,
             sample_method=sample_method,
             scheduler=scheduler,
+            init_image=init_image,  # loaded above, and used to be dropped here
+            end_image=end_image,
+            eta=args.eta,
+            moe_boundary=args.moe_boundary,
         )
     except RuntimeError as e:
         print(f"\nError: {e}", file=sys.stderr)
@@ -971,8 +977,10 @@ def add_common_gen_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--prompt", "-p", required=True, help="Text prompt")
     parser.add_argument("--negative", "-n", help="Negative prompt")
     parser.add_argument("--output", "-o", default="output.png", help="Output path")
-    parser.add_argument("--width", "-W", type=int, default=512, help="Image width")
-    parser.add_argument("--height", "-H", type=int, default=512, help="Image height")
+    # 0: 512 for txt2img; the input image's size for img2img/inpaint/controlnet,
+    # which a default of 512 made unreachable.
+    parser.add_argument("--width", "-W", type=int, default=0, help="Image width (default: 512, or the input image's)")
+    parser.add_argument("--height", "-H", type=int, default=0, help="Image height (default: 512, or the input image's)")
     parser.add_argument("--steps", type=int, default=20, help="Sampling steps")
     parser.add_argument("--cfg-scale", dest="cfg_scale", type=float, default=7.0, help="CFG scale")
     parser.add_argument("--seed", "-s", type=int, default=-1, help="Random seed")
@@ -1007,14 +1015,8 @@ def add_common_guidance_args(parser: argparse.ArgumentParser) -> None:
         default=0.0,
         help="Skip layer guidance scale (0=disabled, 2.5 good for SD3.5)",
     )
-    parser.add_argument(
-        "--skip-layer-start", dest="skip_layer_start", type=float, default=0.01, help="SLG enabling point"
-    )
-    parser.add_argument("--skip-layer-end", dest="skip_layer_end", type=float, default=0.2, help="SLG disabling point")
-    parser.add_argument("--guidance", type=float, help="Distilled guidance scale (for FLUX)")
-    parser.add_argument(
-        "--img-cfg-scale", dest="img_cfg_scale", type=float, help="Image CFG scale for inpaint/instruct-pix2pix"
-    )
+    # --skip-layer-start/--skip-layer-end/--guidance/--img-cfg-scale were parsed and never used:
+    # SDContext.generate() takes no such parameters. Removed rather than kept as no-ops.
 
 
 def add_common_memory_args(parser: argparse.ArgumentParser) -> None:

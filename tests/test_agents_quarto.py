@@ -133,7 +133,8 @@ class TestQuartoDefaultOutputDir:
 class TestQuartoRenderLive:
     """Exercises the real ``quarto`` CLI. Skipped when not on PATH."""
 
-    def test_render_existing_html(self, tmp_path: Path):
+    def test_render_existing_html(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("CYLLAMA_QUARTO_OUTPUT_DIR", str(tmp_path))
         src = tmp_path / "doc.qmd"
         src.write_text("---\ntitle: t\n---\n\nhello\n", encoding="utf-8")
 
@@ -172,7 +173,8 @@ class TestQuartoRenderLive:
         out2 = quarto_render(input="", content=src, to="html")
         assert "how-to-boil-an-egg-2" in out2
 
-    def test_input_not_found(self, tmp_path: Path):
+    def test_input_not_found(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("CYLLAMA_QUARTO_OUTPUT_DIR", str(tmp_path))
         ghost = tmp_path / "does-not-exist.qmd"
         with pytest.raises(FileNotFoundError):
             quarto_render(input=str(ghost), content="", to="html")
@@ -257,9 +259,18 @@ class TestQuartoWriteConfinement:
             quarto_render(content=self.SRC, output_dir="link")
 
     def test_output_dir_on_existing_input_outside_the_root_is_refused(self, root: Path, tmp_path: Path):
-        # Render-existing mode: output_dir is relative to the input's dir,
-        # which here is outside the root.
+        # Render-existing mode: the input is outside the root, so it is
+        # refused before its output_dir is considered.
         src = tmp_path / "doc.qmd"
         src.write_text(self.SRC, encoding="utf-8")
-        with pytest.raises(ValueError, match="refusing to write outside"):
+        with pytest.raises(ValueError, match="refusing to render outside"):
             quarto_render(input=str(src), output_dir="rendered")
+
+
+def test_render_existing_outside_root_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    # rendering runs code cells; any .qmd/.ipynb on disk was accepted
+    monkeypatch.setenv("CYLLAMA_QUARTO_OUTPUT_DIR", str(tmp_path / "root"))
+    elsewhere = tmp_path / "elsewhere.qmd"
+    elsewhere.write_text("---\ntitle: t\n---\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="refusing to render"):
+        quarto_render(input=str(elsewhere), content="", to="html")

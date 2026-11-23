@@ -231,3 +231,84 @@ def test_no_mangle_covers_what_backend_plugins_import():
 
 def test_windows_driver_dll_keys_are_backends():
     assert set(audit_wheel.WINDOWS_DRIVER_DLLS) <= set(manage._EXCLUDES_LINUX)
+
+
+# --- run paths and hardening ---------------------------------------------------
+
+
+audit = _load("audit_wheel")
+
+
+def _fake_tool(monkeypatch, outputs):
+    """Make subprocess.run return canned tool output keyed by the flag passed."""
+    import subprocess as _sp
+
+    def run(cmd, **kw):
+        flag = cmd[1]
+        return _sp.CompletedProcess(cmd, 0, stdout=outputs.get(flag, ""), stderr="")
+
+    monkeypatch.setattr(audit.subprocess, "run", run)
+
+
+def _ext(root):
+    so = root / "cyllama" / "llama" / "llama_cpp.abi3.so"
+    so.parent.mkdir(parents=True)
+    so.write_bytes(b"x")
+    return so
+
+
+def test_darwin_absolute_rpath_flagged(tmp_path, monkeypatch):
+    # the 1.0.0a0 CPU wheels carried /Users/runner/work/... here
+    _ext(tmp_path)
+    monkeypatch.setattr(audit, "_find_otool", lambda: "otool")
+    otool = (
+        "Load command 9\n          cmd LC_RPATH\n      cmdsize 64\n         path /Users/runner/work/x/lib (offset 12)\n"
+    )
+    _fake_tool(monkeypatch, {"-l": otool})
+    assert "absolute LC_RPATH" in audit._audit_darwin_paths("", tmp_path)[0]
+    relative = otool.replace("/Users/runner/work/x/lib", "@loader_path/../.dylibs")
+    _fake_tool(monkeypatch, {"-l": relative})
+    assert audit._audit_darwin_paths("", tmp_path) == []
+
+
+def test_darwin_vulkan_homebrew_rpath_allowed(tmp_path, monkeypatch):
+    _ext(tmp_path)
+    monkeypatch.setattr(audit, "_find_otool", lambda: "otool")
+    _fake_tool(monkeypatch, {"-l": "      cmd LC_RPATH\n  cmdsize 32\n     path /opt/homebrew/lib (offset 12)\n"})
+    assert audit._audit_darwin_paths("vulkan", tmp_path) == []
+    assert audit._audit_darwin_paths("", tmp_path)
+
+
+def test_linux_runpath_and_hardening(tmp_path, monkeypatch):
+    _ext(tmp_path)
+    monkeypatch.setattr(audit, "_find_readelf", lambda: "readelf")
+    good_dyn = " 0x1d (RUNPATH) Library runpath: [$ORIGIN/../../cyllama.libs]\n 0x6ffffffb (FLAGS_1) Flags: NOW\n"
+    _fake_tool(monkeypatch, {"-d": good_dyn, "-lW": "  GNU_RELRO      0x0\n"})
+    assert audit._audit_linux_paths("", tmp_path) == []
+    bad_dyn = " 0x1d (RUNPATH) Library runpath: [/project/thirdparty/llama.cpp/lib]\n"
+    _fake_tool(monkeypatch, {"-d": bad_dyn, "-lW": ""})
+    problems = audit._audit_linux_paths("", tmp_path)
+    assert any("not $ORIGIN-relative" in p for p in problems)
+    assert any("RELRO" in p for p in problems) and any("BIND_NOW" in p for p in problems)
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [" 0x18 (FLAGS) BIND_NOW\n", " 0x6ffffffb (FLAGS_1) Flags: NOW PIE\n", " 0x6ffffffb (FLAGS_1)            NOW\n"],
+    ids=["gnu-flags", "gnu-flags1", "llvm-flags1"],
+)
+def test_linux_bind_now_formats(tmp_path, monkeypatch, flags):
+    _ext(tmp_path)
+    monkeypatch.setattr(audit, "_find_readelf", lambda: "readelf")
+    _fake_tool(monkeypatch, {"-d": flags, "-lW": "  GNU_RELRO 0x0\n"})
+    assert audit._audit_linux_paths("", tmp_path) == []
+
+
+def test_darwin_delocate_install_id_is_not_a_dependency(tmp_path, monkeypatch):
+    # otool -L lists a dylib's own id first; delocate sets it to /DLC/<pkg>/.dylibs/<name>
+    lib = tmp_path / "cyllama" / ".dylibs" / "libllama.dylib"
+    lib.parent.mkdir(parents=True)
+    lib.write_bytes(b"x")
+    monkeypatch.setattr(audit, "_find_otool", lambda: "otool")
+    monkeypatch.setattr(audit, "_dylib_install_names", lambda path, otool: {"/DLC/cyllama/.dylibs/libllama.dylib"})
+    assert audit._audit_darwin(tmp_path / "w.whl", "", tmp_path) == []

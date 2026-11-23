@@ -997,32 +997,10 @@ class TestVectorStoreDeleteReconcilesSources:
 class TestConcurrentAccess:
     """Test VectorStore concurrent access from multiple threads.
 
-    SQLite does not allow sharing a connection across threads by default.
-    These tests use a file-based database with separate VectorStore instances
-    per thread (the correct usage pattern for concurrent access).
+    One instance may be used from any thread, one call at a time (see
+    test_store_usable_from_another_thread). Concurrent writers use separate
+    instances on a file-based database.
     """
-
-    def test_shared_instance_rejects_cross_thread_use(self):
-        """Test that a single VectorStore instance raises on cross-thread use."""
-        import sqlite3
-        import threading
-
-        with SqliteVectorStore(dimension=4) as store:
-            store.add([[1.0, 0.0, 0.0, 0.0]], ["seed"])
-            error_holder: list[Exception] = []
-
-            def reader():
-                try:
-                    store.search([1.0, 0.0, 0.0, 0.0], k=1)
-                except sqlite3.ProgrammingError as e:
-                    error_holder.append(e)
-
-            t = threading.Thread(target=reader)
-            t.start()
-            t.join()
-
-            assert len(error_holder) == 1
-            assert "thread" in str(error_holder[0]).lower()
 
     @pytest.mark.skipif(
         sys.platform == "win32",
@@ -1098,3 +1076,23 @@ class TestConcurrentAccess:
             assert errors == [], f"Concurrent reads failed: {errors}"
         finally:
             Path(db_path).unlink(missing_ok=True)
+
+
+def test_store_usable_from_another_thread(store, sample_embeddings, sample_texts):
+    # AsyncRAG runs every store call through asyncio.to_thread.
+    import threading
+
+    errors = []
+
+    def work():
+        try:
+            store.add(sample_embeddings[:2], sample_texts[:2])
+            assert len(store.search(sample_embeddings[0], k=1)) == 1
+        except Exception as e:  # surfaced below
+            errors.append(e)
+
+    t = threading.Thread(target=work)
+    t.start()
+    t.join()
+    assert errors == []
+    assert len(store) == 2

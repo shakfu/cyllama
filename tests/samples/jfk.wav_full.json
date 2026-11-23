@@ -1,0 +1,180 @@
+{
+  "text": "And so my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+  "segments": [
+    {
+      "id": 0,
+      "seek": 0,
+      "start": 0.0,
+      "end": 11.0,
+      "text": "And so my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+      "tokens": [
+        {
+          "text": "[_BEG_]",
+          "id": 50363,
+          "probability": 0.8370010852813721,
+          "t_dtw": null
+        },
+        {
+          "text": " And",
+          "id": 843,
+          "probability": 0.7107635736465454,
+          "t_dtw": 0.5
+        },
+        {
+          "text": " so",
+          "id": 523,
+          "probability": 0.9851444959640503,
+          "t_dtw": 0.74
+        },
+        {
+          "text": " my",
+          "id": 616,
+          "probability": 0.6977903246879578,
+          "t_dtw": 1.1
+        },
+        {
+          "text": " fellow",
+          "id": 5891,
+          "probability": 0.9945778846740723,
+          "t_dtw": 1.52
+        },
+        {
+          "text": " Americans",
+          "id": 3399,
+          "probability": 0.9036280512809753,
+          "t_dtw": 1.98
+        },
+        {
+          "text": ",",
+          "id": 11,
+          "probability": 0.2874894440174103,
+          "t_dtw": 3.36
+        },
+        {
+          "text": " ask",
+          "id": 1265,
+          "probability": 0.8005731701850891,
+          "t_dtw": 3.7
+        },
+        {
+          "text": " not",
+          "id": 407,
+          "probability": 0.7863745093345642,
+          "t_dtw": 4.16
+        },
+        {
+          "text": " what",
+          "id": 644,
+          "probability": 0.9312956929206848,
+          "t_dtw": 5.46
+        },
+        {
+          "text": " your",
+          "id": 534,
+          "probability": 0.9875299334526062,
+          "t_dtw": 5.72
+        },
+        {
+          "text": " country",
+          "id": 1499,
+          "probability": 0.9956027865409851,
+          "t_dtw": 6.2
+        },
+        {
+          "text": " can",
+          "id": 460,
+          "probability": 0.9764643311500549,
+          "t_dtw": 6.5600000000000005
+        },
+        {
+          "text": " do",
+          "id": 466,
+          "probability": 0.9897852540016174,
+          "t_dtw": 6.78
+        },
+        {
+          "text": " for",
+          "id": 329,
+          "probability": 0.9559463262557983,
+          "t_dtw": 7.04
+        },
+        {
+          "text": " you",
+          "id": 345,
+          "probability": 0.9844025373458862,
+          "t_dtw": 7.3
+        },
+        {
+          "text": ",",
+          "id": 11,
+          "probability": 0.4927806258201599,
+          "t_dtw": 7.3
+        },
+        {
+          "text": " ask",
+          "id": 1265,
+          "probability": 0.6465222239494324,
+          "t_dtw": 8.34
+        },
+        {
+          "text": " what",
+          "id": 644,
+          "probability": 0.9874621629714966,
+          "t_dtw": 8.72
+        },
+        {
+          "text": " you",
+          "id": 345,
+          "probability": 0.9806526303291321,
+          "t_dtw": 8.98
+        },
+        {
+          "text": " can",
+          "id": 460,
+          "probability": 0.9685735106468201,
+          "t_dtw": 9.28
+        },
+        {
+          "text": " do",
+          "id": 466,
+          "probability": 0.9081810116767883,
+          "t_dtw": 9.52
+        },
+        {
+          "text": " for",
+          "id": 329,
+          "probability": 0.9066371917724609,
+          "t_dtw": 9.76
+        },
+        {
+          "text": " your",
+          "id": 534,
+          "probability": 0.9808116555213928,
+          "t_dtw": 9.9
+        },
+        {
+          "text": " country",
+          "id": 1499,
+          "probability": 0.9954689145088196,
+          "t_dtw": 10.34
+        },
+        {
+          "text": ".",
+          "id": 13,
+          "probability": 0.8737307190895081,
+          "t_dtw": 10.72
+        },
+        {
+          "text": "[_TT_550]",
+          "id": 50913,
+          "probability": 0.07677335292100906,
+          "t_dtw": null
+        }
+      ],
+      "temperature": 0.0,
+      "avg_logprob": 0.0,
+      "compression_ratio": 0.0,
+      "no_speech_prob": 0.014296947047114372
+    }
+  ]
+}

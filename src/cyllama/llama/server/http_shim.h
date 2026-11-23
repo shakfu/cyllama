@@ -22,6 +22,8 @@ typedef struct {
     const char *body; /* empty during the precheck, which runs before the body is read */
     size_t body_len;
     size_t content_length; /* the Content-Length header, 0 if absent */
+    const char *host; /* the Host header, empty if absent */
+    size_t host_len;
 } cy_http_req;
 
 /* precheck: return nonzero if it answered the request, which is then not routed. */

@@ -30,15 +30,14 @@ from ..utils.color import white, magenta, grey, cyan, red, bold, END, esc, FG_EN
 from .llama_cpp import (
     LlamaModel,
     LlamaContext,
-    LlamaSampler,
     LlamaChatMessage,
     LlamaModelParams,
     LlamaContextParams,
-    LlamaSamplerChainParams,
     ggml_backend_load_all,
     llama_batch_get_one,
     disable_logging,
 )
+from .generation import build_sampler
 from .token_decoder import TokenDecoder
 
 # Vendored jinja2 for chat-template rendering (same path as api.py).
@@ -114,16 +113,18 @@ class Chat:
         self.context = LlamaContext(self.model, ctx_params)
 
         # Initialize sampler with caller-provided parameters
-        sampler_params = LlamaSamplerChainParams()
-        self.sampler = LlamaSampler(sampler_params)
-        self.sampler.add_suppress_tokens(self.vocab)
-        if repeat_penalty != 1.0:
-            self.sampler.add_penalties(self.vocab.n_vocab, 64, repeat_penalty, 0.0, 0.0)
-        self.sampler.add_top_k(top_k)
-        self.sampler.add_top_p(top_p, 1)
-        self.sampler.add_min_p(min_p, 1)
-        self.sampler.add_temp(temperature)
-        self.sampler.add_dist(seed)
+        from ..api import GenerationConfig
+
+        config = GenerationConfig(
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            min_p=min_p,
+            repeat_penalty=repeat_penalty,
+            penalty_last_n=64,
+            seed=seed,
+        )
+        self.sampler = build_sampler(self.vocab, config, n_ctx)
 
         # Initialize chat state (simplified - use list of dicts instead of LlamaChatMessage objects)
         self.messages: List[Dict[str, str]] = []

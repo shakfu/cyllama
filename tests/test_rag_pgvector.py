@@ -143,6 +143,17 @@ class TestInit:
 
 @requires_server
 class TestAddSearch:
+    def test_add_after_read_is_committed(self, store, sample_embeddings, sample_texts):
+        # A read opens an implicit transaction; add() must still commit.
+        assert not store.is_source_indexed("h")
+        store.add(sample_embeddings[:2], sample_texts[:2], source_hash="h", source_label="a.txt")
+        import psycopg
+
+        with psycopg.connect(_DSN) as other:
+            n = other.execute(f'SELECT count(*) FROM "{store.table_name}"').fetchone()[0]
+        assert n == 2
+        assert store.conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+
     def test_add_returns_sequential_ids(self, store, sample_embeddings, sample_texts):
         assert store.add(sample_embeddings, sample_texts) == [1, 2, 3, 4, 5]
         assert len(store) == 5

@@ -98,27 +98,74 @@ ActionFn = Callable[[Path], None]
 # env helpers
 
 
+_TRUE = frozenset(("ON", "TRUE", "YES", "Y"))
+_FALSE = frozenset(("OFF", "FALSE", "NO", "N"))
+
+
 def getenv(key: str, default: bool = False) -> bool:
-    """Convert '0','1' env values to bool {True, False}
+    """Read a boolean env var: an integer (0 is false), or a CMake-style ON/OFF/TRUE/FALSE/YES/NO.
 
     Args:
         key: Environment variable name
         default: Default value if not set
 
     Returns:
-        Boolean value from environment variable
-
-    Raises:
-        ValueError: If environment variable value is not a valid integer
+        Boolean value from environment variable; `default`, with a warning, if it is not one of those
     """
     value = os.getenv(key)
     if value is None:
         return default
+    word = value.strip().upper()
+    if word in _TRUE:
+        return True
+    if word in _FALSE:
+        return False
     try:
-        return bool(int(value))
+        return bool(int(word))
     except ValueError:
         logging.getLogger(__name__).warning(f"Invalid boolean value for {key}: {value}, using default {default}")
         return default
+
+
+_VERSION_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)(?:(a|b|rc)(\d+))?")
+
+
+def project_version() -> str:
+    """The version in pyproject.toml, the single source of truth."""
+    text = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
+    m = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    return m.group(1) if m else "unknown"
+
+
+def next_version(
+    current: str, major: bool = False, minor: bool = False, pre: bool = False, release: bool = False
+) -> str:
+    """The version after ``current`` (``X.Y.Z`` with an optional PEP 440 ``aN``/``bN``/``rcN``).
+
+    Default: patch increment, refused on a pre-release, where ``pre`` or ``release`` says which is meant.
+    """
+    m = _VERSION_RE.fullmatch(current)
+    if not m:
+        raise ValueError(f"Invalid version: {current!r} (expected X.Y.Z or X.Y.Z(a|b|rc)N)")
+    x, y, z = (int(g) for g in m.group(1, 2, 3))
+    tag, n = m.group(4), m.group(5)
+    if sum(map(bool, (major, minor, pre, release))) > 1:
+        raise ValueError("choose one of --major, --minor, --pre, --release")
+    if pre:
+        if tag is None:
+            raise ValueError(f"{current} is not a pre-release; nothing to --pre")
+        return f"{x}.{y}.{z}{tag}{int(n) + 1}"
+    if release:
+        if tag is None:
+            raise ValueError(f"{current} is already a release")
+        return f"{x}.{y}.{z}"
+    if major:
+        return f"{x + 1}.0.0"
+    if minor:
+        return f"{x}.{y + 1}.0"
+    if tag is not None:
+        raise ValueError(f"{current} is a pre-release: pass --pre or --release")
+    return f"{x}.{y}.{z + 1}"
 
 
 def setenv(key: str, default: str) -> str:
@@ -144,8 +191,42 @@ LLAMACPP_VERSION: str = _VERSIONS["llama_cpp"]
 WHISPERCPP_VERSION: str = _VERSIONS["whisper_cpp"]
 SDCPP_VERSION: str = _VERSIONS["stable_diffusion_cpp"]
 SQLITEVECTOR_VERSION: str = _VERSIONS["sqlite_vector"]
+# Wheel-repair tools, pinned: they rewrite the shipped binaries. Bump deliberately.
+REPAIR_TOOLS: dict[str, str] = {
+    "auditwheel": "auditwheel==6.8.2",
+    "delocate": "delocate==0.13.0",
+    "delvewheel": "delvewheel==1.13.2",
+    "wheel": "wheel==0.48.0",
+}
+
+# Commit each pinned tag must resolve to; see versions.toml.
+PINNED_COMMITS: dict[str, str] = _VERSIONS.get("commits", {})
+
+
+def pinned_commit(key: str, version: Optional[str]) -> Optional[str]:
+    """Expected commit for `version` of versions.toml entry `key`, or None if `version` is not the pin."""
+    if version is None or version != _VERSIONS.get(key):
+        return None
+    return PINNED_COMMITS.get(key)
+
+
+def verify_commit(src_dir: Path, key: str, version: Optional[str]) -> None:
+    """Raise if the checkout at `src_dir` is not the commit `version` is pinned to."""
+    expected = pinned_commit(key, version)
+    if expected is None:
+        return
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(src_dir), encoding="utf8").strip()
+    if head != expected:
+        raise RuntimeError(
+            f"{src_dir}: tag {version} resolved to {head}, but scripts/versions.toml pins {expected}. "
+            "The upstream tag may have moved; inspect it before updating the pin."
+        )
+
+
+# The one macOS deployment target: CI (pyproject.toml, workflows) and the Makefile use it too.
+MACOSX_DEPLOYMENT_TARGET_DEFAULT = "11.0"
 if PLATFORM == "Darwin":
-    MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
+    MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", MACOSX_DEPLOYMENT_TARGET_DEFAULT)
 DEBUG = getenv("DEBUG", default=True)
 COLOR = getenv("COLOR", default=True)
 
@@ -289,24 +370,23 @@ class ShellCmd:
         """
         tofolder_resolved = Path(tofolder).resolve()
 
-        def safe_extract_tar(members: list[tarfile.TarInfo], dest: Path) -> list[tarfile.TarInfo]:
-            """Validate tar members before extraction"""
-            for member in members:
-                member_path = (dest / member.name).resolve()
-                if not str(member_path).startswith(str(dest)):
-                    raise ValueError(f"Attempted path traversal in tar: {member.name}")
-            return members
+        def inside(path: Path) -> bool:
+            # is_relative_to, not a string prefix: "dest_evil/" starts with "dest".
+            return path == tofolder_resolved or path.is_relative_to(tofolder_resolved)
 
         if tarfile.is_tarfile(archive):
             with tarfile.open(archive) as tar:
-                safe_members = safe_extract_tar(tar.getmembers(), tofolder_resolved)
-                tar.extractall(tofolder_resolved, members=safe_members)
+                for member in tar.getmembers():
+                    if not inside((tofolder_resolved / member.name).resolve()):
+                        raise ValueError(f"Attempted path traversal in tar: {member.name}")
+                # filter="data" also refuses absolute and escaping links, device
+                # files and setuid bits, which the name check above does not cover.
+                tar.extractall(tofolder_resolved, filter="data")
         elif zipfile.is_zipfile(archive):
             with zipfile.ZipFile(archive) as zip_file:
                 # Validate all zip members before extraction
                 for info in zip_file.infolist():
-                    extracted_path = (tofolder_resolved / info.filename).resolve()
-                    if not str(extracted_path).startswith(str(tofolder_resolved)):
+                    if not inside((tofolder_resolved / info.filename).resolve()):
                         raise ValueError(f"Attempted path traversal in zip: {info.filename}")
                 zip_file.extractall(tofolder_resolved)
         else:
@@ -622,6 +702,8 @@ class AbstractBuilder(ShellCmd):
 
     name: str
     version: str
+    # versions.toml key holding `version` and its pinned commit
+    pin_key: str = ""
     repo_url: str
     download_url_template: str
     libs: list[str]
@@ -960,6 +1042,7 @@ class AbstractBuilder(ShellCmd):
         """
         if not self.src_dir.exists():
             self.setup()
+            self._verify_commit()
             self._write_version_stamp()
             return
 
@@ -968,6 +1051,7 @@ class AbstractBuilder(ShellCmd):
 
         current = self.checked_out_version()
         if current == self.version:
+            self._verify_commit()
             return
 
         self.log.warning(
@@ -982,7 +1066,18 @@ class AbstractBuilder(ShellCmd):
         )
         self.remove(self.src_dir)
         self.setup()
+        self._verify_commit()
         self._write_version_stamp()
+
+    def _verify_commit(self) -> None:
+        """Remove `src_dir` and raise if it is not the pinned commit; a git-less tree is not checked."""
+        if not self.pin_key or not (self.src_dir / ".git").exists():
+            return
+        try:
+            verify_commit(self.src_dir, self.pin_key, self.version)
+        except RuntimeError:
+            self.remove(self.src_dir)  # do not leave an unverified tree for the next build
+            raise
 
     def copy_licenses(self) -> None:
         """Stage `license_files` into thirdparty/<name>/licenses/, which the wheel ships."""
@@ -1224,6 +1319,28 @@ class GgmlBuilder(Builder):
             options["GGML_OPENMP"] = "ON" if getenv("GGML_OPENMP") else "OFF"
             self.log.info(f"  GGML_OPENMP={options['GGML_OPENMP']}")
 
+    def _apply_cpu_options(self, options: dict[str, Any]) -> None:
+        """GGML_OPENMP, GGML_NATIVE and GGML_CPU_ALL_VARIANTS, for every ggml this project builds.
+
+        Upstream defaults GGML_NATIVE to ON unless cross-compiling, so any
+        builder that compiles ggml-cpu without it targets the build machine.
+        """
+        self._apply_openmp(options)
+
+        # GGML_NATIVE: optimize for the build machine's CPU. Must be OFF
+        # for portable/CI wheels and when GGML_CPU_ALL_VARIANTS is used.
+        if os.environ.get("GGML_NATIVE") is not None:
+            options["GGML_NATIVE"] = "ON" if getenv("GGML_NATIVE") else "OFF"
+            self.log.info(f"  GGML_NATIVE={options['GGML_NATIVE']}")
+
+        # CPU all-variants: build ggml-cpu for multiple x86 ISAs (AVX, AVX2,
+        # AVX512, etc.) so the optimal one is selected at runtime. Requires
+        # GGML_BACKEND_DL (set automatically by build_shared).
+        if getenv("GGML_CPU_ALL_VARIANTS", default=False):
+            options["GGML_CPU_ALL_VARIANTS"] = "ON"
+            options["GGML_NATIVE"] = "OFF"
+            self.log.info("Enabling CPU all-variants (multi-ISA)")
+
     def takes_ggml_patches(self) -> bool:
         """True when ggml-*.patch apply to this tree; they target upstream ggml's layout."""
         return True
@@ -1234,6 +1351,7 @@ class LlamaCppBuilder(GgmlBuilder):
 
     name: str = "llama.cpp"
     version: str = LLAMACPP_VERSION
+    pin_key: str = "llama_cpp"
     repo_url: str = "https://github.com/ggml-org/llama.cpp.git"
     license_files: dict[str, str] = {
         "llama.cpp.txt": "LICENSE",
@@ -1290,23 +1408,7 @@ class LlamaCppBuilder(GgmlBuilder):
             else:
                 self.log.info("Enabling BLAS backend")
 
-        self._apply_openmp(options)
-
-        # GGML_NATIVE: optimize for the build machine's CPU. Must be OFF
-        # for portable/CI wheels and when GGML_CPU_ALL_VARIANTS is used.
-        ggml_native = os.environ.get("GGML_NATIVE")
-        if ggml_native is not None:
-            options["GGML_NATIVE"] = "ON" if getenv("GGML_NATIVE") else "OFF"
-            self.log.info(f"  GGML_NATIVE={options['GGML_NATIVE']}")
-
-        # CPU all-variants: build ggml-cpu for multiple x86 ISAs (AVX, AVX2,
-        # AVX512, etc.) so the optimal one is selected at runtime. Requires
-        # GGML_BACKEND_DL (set automatically by build_shared).
-        if getenv("GGML_CPU_ALL_VARIANTS", default=False):
-            options["GGML_CPU_ALL_VARIANTS"] = "ON"
-            options["GGML_NATIVE"] = "OFF"
-            self.log.info("Enabling CPU all-variants (multi-ISA)")
-
+        self._apply_cpu_options(options)
         return options
 
     def copy_backend_libs(self) -> None:
@@ -1823,6 +1925,7 @@ class WhisperCppBuilder(GgmlBuilder):
     name: str = "whisper.cpp"
     license_files: dict[str, str] = {"whisper.cpp.txt": "LICENSE"}
     version: str = WHISPERCPP_VERSION
+    pin_key: str = "whisper_cpp"
     repo_url: str = "https://github.com/ggml-org/whisper.cpp"
     # whisper.cpp ships a single combined `ggml` lib (no split partials).
     base_libs: list[str] = ["ggml"]
@@ -1860,7 +1963,7 @@ class WhisperCppBuilder(GgmlBuilder):
                 options["GGML_BLAS_VENDOR"] = blas_vendor
             self.log.info(f"Enabling BLAS backend{sfx}")
 
-        self._apply_openmp(options)
+        self._apply_cpu_options(options)
         return options
 
     INJECT_GGML = Path(__file__).resolve().parent / "cmake" / "whisper-use-llama-ggml.cmake"
@@ -1938,6 +2041,7 @@ class StableDiffusionCppBuilder(GgmlBuilder):
         "utf8proc.txt": "thirdparty/utf8proc/LICENSE.md",
     }
     version: str = SDCPP_VERSION
+    pin_key: str = "stable_diffusion_cpp"
     repo_url: str = "https://github.com/leejet/stable-diffusion.cpp.git"
     # SD installs only its own lib; ggml comes from llama.cpp by default,
     # or from SD's vendored copy when SD_USE_VENDORED_GGML is set to 1.
@@ -2061,7 +2165,7 @@ class StableDiffusionCppBuilder(GgmlBuilder):
             self._apply_hip_archs(options)
         self._set_backend(options, "SD_OPENCL", opencl, "OpenCL", sfx)
 
-        self._apply_openmp(options)
+        self._apply_cpu_options(options)
         return options
 
     def _ggml_options(self) -> dict[str, Any]:
@@ -2184,6 +2288,7 @@ class SqliteVectorBuilder(Builder):
 
     name: str = "sqlite-vector"
     version: str = SQLITEVECTOR_VERSION
+    pin_key: str = "sqlite_vector"
     repo_url: str = "https://github.com/sqliteai/sqlite-vector.git"
     libs: list[str] = ["vector"]
     # SQLite loadable extensions have no static form.
@@ -2523,7 +2628,8 @@ def _run_wheel_repair(
     scripts_dir = Path(sysconfig.get_path("scripts"))
 
     def _install(*pkgs: str) -> None:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", *pkgs])
+        # Pinned (REPAIR_TOOLS): these tools rewrite the shipped binaries.
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", *(REPAIR_TOOLS[p] for p in pkgs)])
 
     def _script(name: str) -> str:
         exe = scripts_dir / (f"{name}.exe" if PLATFORM == "Windows" else name)
@@ -2684,12 +2790,10 @@ class WheelBuilder(ShellCmd):
         thanks: @henryiii
         post: https://github.com/pypa/wheel/issues/573
 
-        For arm64, the minimal deployment target is 11.0.
-        On x86_64 (or universal2), use 10.9 as a default.
+        MACOSX_DEPLOYMENT_TARGET_DEFAULT on every architecture, as the CI
+        wheels use; x86_64 used 10.9 here and 11.0 in CI.
         """
-        min_osx_ver = "10.9"
-        if self.is_macos_arm64 and not self.universal:
-            min_osx_ver = "11.0"
+        min_osx_ver = MACOSX_DEPLOYMENT_TARGET_DEFAULT
         os.environ["MACOSX_DEPLOYMENT_TARGET"] = min_osx_ver
         return min_osx_ver
 
@@ -2910,7 +3014,7 @@ class MetaCommander(type):
 class Application(ShellCmd, metaclass=MetaCommander):
     """cyllama build manager"""
 
-    version: str = "0.0.4"
+    version: str = ""  # set from pyproject.toml in __init__
     epilog: str = ""
     default_args: list[str] = ["--help"]
     project: Project
@@ -2920,6 +3024,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
     def __init__(self) -> None:
         self.project = Project()
+        self.version = project_version()
         self.log = logging.getLogger(self.__class__.__name__)
 
     def parse_args(self) -> argparse.ArgumentParser:
@@ -3524,6 +3629,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
             ]
             subprocess.run(clone_cmd, check=True)
             src = tmp_path / "llama.cpp"
+            verify_commit(src, builder.pin_key, builder.version)
 
             expected = tmp_path / "include"
             expected.mkdir()
@@ -3566,6 +3672,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
                     ],
                     check=True,
                 )
+                verify_commit(dest, other.pin_key, other.version)
                 clones[other.name] = dest
 
             for other in others:
@@ -3587,6 +3694,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 [*git_clone, "--depth", "1", "--branch", sv.version, sv.repo_url, str(sv_clone)],
                 check=True,
             )
+            verify_commit(sv_clone, sv.pin_key, sv.version)
             sv_vendored = sv.project.cwd / "thirdparty" / sv.name
             sv_patches = sorted((Path(__file__).resolve().parent / "patches").glob(f"{sv.name}-*.patch"))
             problems = check_sqlite_vector_vendor(sv_vendored, sv_clone, sv_patches)
@@ -3617,8 +3725,23 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
     @opt("--reset", "-r", "reset project (removes build/ and thirdparty libs)")
     @opt("--verbose", "-v", "verbose cleaning ops")
+    def _require_repo_cwd(self, command: str) -> None:
+        """Exit unless the working directory is the repository holding this manage.py.
+
+        Project paths follow the cwd, so `manage.py clean --reset` run from
+        another directory deleted that directory's .venv, build/ and dist/.
+        """
+        if (self.project.cwd.resolve() / "scripts" / "manage.py") != Path(__file__).resolve():
+            self.log.error(
+                "`%s` acts on the current directory, which is not this repository (%s); run it from there",
+                command,
+                Path(__file__).resolve().parent.parent,
+            )
+            sys.exit(1)
+
     def do_clean(self, args: argparse.Namespace) -> None:
         """clean build artifacts"""
+        self._require_repo_cwd("clean")
         cwd = self.project.cwd
         src = cwd / "src" / "cyllama"
         verbose = args.verbose
@@ -3727,6 +3850,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
         # Handle --snapshot: commit and push with version info
         if args.snapshot:
+            self._require_repo_cwd("info --snapshot")
             if not versions:
                 self.log.error("No dependencies found, cannot create snapshot")
                 return
@@ -3755,10 +3879,14 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
     @opt("--major", "-M", "increment major version (X.0.0)")
     @opt("--minor", "-m", "increment minor version (0.X.0)")
+    @opt("--pre", "-p", "increment the pre-release number (1.0.0a0 -> 1.0.0a1)")
+    @opt("--release", "-r", "drop the pre-release suffix (1.0.0a1 -> 1.0.0)")
     @opt("--dry-run", "-n", "show what would be done without making changes")
     def do_bump(self, args: argparse.Namespace) -> None:
         """bump version and create git tag"""
         import re
+
+        self._require_repo_cwd("bump")
 
         # Files containing version
         pyproject_path = self.project.cwd / "pyproject.toml"
@@ -3774,31 +3902,11 @@ class Application(ShellCmd, metaclass=MetaCommander):
         current_version = version_match.group(1)
         self.log.info(f"Current version: {current_version}")
 
-        # Parse semantic version
-        parts = current_version.split(".")
-        if len(parts) != 3:
-            self.log.error(f"Invalid semantic version format: {current_version}")
-            return
-
         try:
-            major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
-        except ValueError:
-            self.log.error(f"Invalid version numbers: {current_version}")
+            new_version = next_version(current_version, args.major, args.minor, args.pre, args.release)
+        except ValueError as e:
+            self.log.error(str(e))
             return
-
-        # Calculate new version
-        if args.major:
-            major += 1
-            minor = 0
-            patch = 0
-        elif args.minor:
-            minor += 1
-            patch = 0
-        else:
-            # Default: patch increment
-            patch += 1
-
-        new_version = f"{major}.{minor}.{patch}"
         self.log.info(f"New version: {new_version}")
 
         if args.dry_run:

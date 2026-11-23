@@ -16,6 +16,8 @@ cdef extern from "http_shim.h" nogil:
         const char *body
         size_t body_len
         size_t content_length
+        const char *host
+        size_t host_len
 
     ctypedef int (*cy_http_handler)(void *userdata, const cy_http_req *req, cy_http_res *res) noexcept
     ctypedef int (*cy_http_stream_fn)(void *stream, cy_http_sink *sink) noexcept

@@ -3,6 +3,8 @@
 import math
 from pathlib import Path
 
+import gc
+
 import pytest
 
 from cyllama.llama.llama_cpp import llama_supports_gpu_offload
@@ -718,3 +720,49 @@ class TestPoolingMatchesLlamaCpp:
         with Embedder(str(SMALL_EMBED_MODEL), n_gpu_layers=0, pooling="cls") as cls_emb:
             cls = cls_emb.embed(self.TEXT)
         assert mean != pytest.approx(cls, abs=1e-3)
+
+
+@pytest.mark.skipif(not SMALL_EMBED_MODEL.exists(), reason="bge-small not downloaded")
+class TestPoolEmbeddings:
+    """LlamaContext._pool_embeddings pools output rows in C for Embedder."""
+
+    @pytest.fixture
+    def emb(self):
+        e = Embedder(str(SMALL_EMBED_MODEL), n_gpu_layers=0, pooling="mean", normalize=False)
+        e.embed("one two three four five")
+        yield e
+        e.close()
+        del e
+        gc.collect()
+
+    def test_matches_python_reference(self, emb):
+        ctx, n = emb._ctx, 4
+        rows = [ctx.get_embeddings_ith(i) for i in range(n)]
+        mean = [sum(col) / n for col in zip(*rows)]
+        assert ctx._pool_embeddings(n, 0) == pytest.approx(mean, rel=1e-6, abs=1e-7)
+        assert ctx._pool_embeddings(n, 1) == pytest.approx(rows[0])
+        assert ctx._pool_embeddings(n, 2) == pytest.approx(rows[-1])
+
+    @pytest.mark.parametrize("args", [(0, 0), (4, 3)])
+    def test_invalid_arguments(self, emb, args):
+        with pytest.raises(ValueError):
+            emb._ctx._pool_embeddings(*args)
+
+
+@pytest.mark.skipif(not SMALL_EMBED_MODEL.exists(), reason="bge-small not downloaded")
+@pytest.mark.parametrize("pooling", ["mean", "cls", "last"])
+def test_embed_batch_matches_one_at_a_time(pooling):
+    # embed_batch packs several texts into one decode; it must give the same vectors
+    texts = ["the cat sat", "a much longer sentence about something else entirely", "x", "", "dogs bark loudly"] * 5
+    e = Embedder(str(SMALL_EMBED_MODEL), n_gpu_layers=0, pooling=pooling, normalize=True, n_ctx=512, n_batch=512)
+    batched = e.embed_batch(texts)
+    single = [e.embed_with_info(t).embedding for t in texts]
+    assert len(batched) == len(texts)
+    # Packed batches round differently with kernel shape (seen: cosine 0.99992 for one
+    # text in a 16-text batch); a cross-sequence leak would move every vector far more.
+    for b, s in zip(batched, single):
+        assert sum(x * y for x, y in zip(b, s)) > 0.9999
+    assert e.embed_batch(texts[:1]) == [single[0]]  # a batch of one is the single path
+    e.close()
+    del e
+    gc.collect()

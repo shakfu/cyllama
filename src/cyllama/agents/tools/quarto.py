@@ -156,7 +156,7 @@ _QUARTO_EXAMPLE_CONTENT = (
 )
 
 
-def _quarto_confine(path: _Path, base: _Path) -> _Path:
+def _quarto_confine(path: _Path, base: _Path, action: str = "write") -> _Path:
     """Resolve ``path`` against ``base`` and require it under the output dir.
 
     Paths reach here straight from the model, and the write is followed by
@@ -177,9 +177,9 @@ def _quarto_confine(path: _Path, base: _Path) -> _Path:
     target = target.resolve()
     if target != root and not target.is_relative_to(root):
         raise ValueError(
-            f"refusing to write outside the quarto output directory: "
+            f"refusing to {action} outside the quarto output directory: "
             f"{target} is not under {root}. Pass a path inside it, or set "
-            f"CYLLAMA_QUARTO_OUTPUT_DIR to the directory you want written to."
+            f"CYLLAMA_QUARTO_OUTPUT_DIR to the directory to use."
         )
     return target
 
@@ -231,7 +231,8 @@ def quarto_render(
 
     Args:
         input: Path to an existing input file (``.qmd``, ``.md``,
-            ``.ipynb``) or quarto project directory. When ``content`` is
+            ``.ipynb``) or quarto project directory, inside the quarto
+            output directory (relative paths resolve there). When ``content`` is
             supplied this is the destination path the tool writes
             ``content`` to before rendering; it must then resolve inside
             the quarto output directory. May be empty if ``content``
@@ -268,7 +269,12 @@ def quarto_render(
         raise ValueError(f"unsupported format {fmt!r} (allowed: {', '.join(sorted(_QUARTO_FORMATS))})")
 
     target = _quarto_write_target(input_path, body) if body.strip() else None
-    abs_input = target if target is not None else _Path(input_path).expanduser().resolve()
+    # Rendering runs the document's code cells, so an existing input is confined
+    # like a written one; it accepted any .qmd or .ipynb on disk.
+    if target is not None:
+        abs_input = target
+    else:
+        abs_input = _quarto_confine(_Path(input_path), default_quarto_output_dir().resolve(), "render")
     od = output_dir.strip()
     # --output-dir is relative to the input's directory; confine it like input.
     out_dir = _quarto_confine(_Path(od), abs_input.parent) if od else None

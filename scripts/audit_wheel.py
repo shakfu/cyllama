@@ -40,9 +40,13 @@ Backend defaults to whatever appears between the first ``_`` and the
 ``-<version>`` in the wheel filename (``cyllama_sycl-...`` -> ``sycl``;
 ``cyllama-0.1.6-...`` -> no backend, treated as CPU/base build).
 
+Also fails a wheel whose binaries carry a run path that is not relative
+(``$ORIGIN`` / ``@loader_path``), or whose Linux extension modules lack
+RELRO or BIND_NOW.
+
 Exit codes:
-    0 — no unexpected NEEDED entries / imports
-    1 — at least one unexpected NEEDED entry / import was found
+    0 — no unexpected NEEDED entries / imports, run paths or hardening gaps
+    1 — at least one unexpected NEEDED entry / import, run path or hardening gap
     2 — usage / tooling error (e.g. no readelf available)
 
 Example::
@@ -443,6 +447,10 @@ def _audit_darwin(wheel: Path, backend: str, root: Path) -> list[tuple[str, set[
         # @rpath, or @executable_path is bundled-or-relative — not external.
         if name.startswith(("@loader_path", "@rpath", "@executable_path")):
             continue
+        # A bundled dylib's own install id, which otool -L lists first;
+        # delocate sets it to /DLC/<pkg>/.dylibs/<name>. Not a dependency.
+        if name.startswith("/DLC/"):
+            continue
         # OS-supplied dylibs that delocate (and Apple) consider always-present.
         if name.startswith(("/usr/lib/", "/System/")):
             continue
@@ -451,6 +459,64 @@ def _audit_darwin(wheel: Path, backend: str, root: Path) -> list[tuple[str, set[
             continue
         unexpected.append((name, refs[name]))
     return unexpected
+
+
+# ---------------------------------------------------------------------------
+# Run paths and hardening
+#
+# The 1.0.0a0 macOS CPU wheels shipped /Users/runner/work/... in LC_RPATH:
+# repair tools leave a static wheel's binaries untouched. These checks keep
+# that, and the Linux hardening flags, from regressing.
+
+# Absolute run paths a backend may keep on purpose: the macOS Vulkan wheel
+# resolves Homebrew's libvulkan (see manage.py _fix_macos_vulkan_wheel_impl).
+ALLOWED_ABS_RPATHS = {"vulkan": ("/opt/homebrew/lib", "/usr/local/lib")}
+
+_RUNPATH_RE = re.compile(r"\((?:RPATH|RUNPATH)\)\s+Library (?:rpath|runpath): \[([^\]]*)\]")
+
+
+def _is_extension(path: Path, root: Path) -> bool:
+    """True for cyllama's own extension modules, not libraries bundled from elsewhere."""
+    rel = path.relative_to(root).as_posix()
+    return rel.startswith("cyllama/") and (".cpython-" in path.name or ".abi3." in path.name)
+
+
+def _audit_linux_paths(backend: str, root: Path) -> list[str]:
+    readelf = _find_readelf()
+    problems = []
+    for so in sorted(root.rglob("*.so*")):
+        if not so.is_file() or so.is_symlink():
+            continue
+        dyn = subprocess.run([readelf, "-d", str(so)], capture_output=True, text=True, check=False).stdout
+        for entry in _RUNPATH_RE.findall(dyn):
+            for d in entry.split(":"):
+                if d and not d.startswith("$ORIGIN"):
+                    problems.append(f"{so.relative_to(root)}: run path {d!r} is not $ORIGIN-relative")
+        if _is_extension(so, root):
+            seg = subprocess.run([readelf, "-lW", str(so)], capture_output=True, text=True, check=False).stdout
+            if "GNU_RELRO" not in seg:
+                problems.append(f"{so.relative_to(root)}: no RELRO (-Wl,-z,relro)")
+            # (FLAGS) BIND_NOW, or (FLAGS_1) Flags: NOW ...
+            if "BIND_NOW" not in dyn and not re.search(r"\(FLAGS_1\)\s+(?:Flags:)?[^\n]*\bNOW\b", dyn):
+                problems.append(f"{so.relative_to(root)}: not BIND_NOW (-Wl,-z,now)")
+    return problems
+
+
+def _audit_darwin_paths(backend: str, root: Path) -> list[str]:
+    otool = _find_otool()
+    allowed = ALLOWED_ABS_RPATHS.get(backend, ())
+    problems = []
+    for lib in sorted([*root.rglob("*.dylib"), *root.rglob("*.so")]):
+        if not lib.is_file() or lib.is_symlink():
+            continue
+        out = subprocess.run([otool, "-l", str(lib)], capture_output=True, text=True, check=False).stdout
+        lines = out.splitlines()
+        for i, line in enumerate(lines):
+            if line.strip() == "cmd LC_RPATH" and i + 2 < len(lines):
+                path = lines[i + 2].split()[1]
+                if not path.startswith("@") and path not in allowed:
+                    problems.append(f"{lib.relative_to(root)}: absolute LC_RPATH {path!r}")
+    return problems
 
 
 # ---------------------------------------------------------------------------
@@ -501,12 +567,23 @@ def main(argv: list[str] | None = None) -> int:
         if plat == "linux":
             unexpected = _audit_linux(wheel, backend, root)
             exclude_field = "_EXCLUDES_LINUX"
+            path_problems = _audit_linux_paths(backend, root)
         elif plat == "darwin":
             unexpected = _audit_darwin(wheel, backend, root)
             exclude_field = "_EXCLUDES_DARWIN"
+            path_problems = _audit_darwin_paths(backend, root)
         else:
             unexpected = _audit_windows(wheel, backend, root)
             exclude_field = "_WIN_EXCLUDES"
+            path_problems = []
+
+    if path_problems:
+        print(f"FAIL: {len(path_problems)} run-path / hardening problem(s):")
+        for problem in path_problems:
+            print(f"  {problem}")
+        print()
+        if not unexpected:
+            return 1
 
     if not unexpected:
         print(

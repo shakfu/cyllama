@@ -85,7 +85,7 @@ jobs:
         env:
           CIBW_ARCHS_MACOS: x86_64
           CIBW_BEFORE_BUILD_MACOS: >
-            pip install delocate wheel &&
+            pip install delocate==0.13.0 wheel==0.48.0 &&
             python {project}/scripts/ci_rename_package.py cyllama-vulkan &&
             cd {project} &&
             python scripts/manage.py build --all --deps-only --no-sd-examples
@@ -108,6 +108,14 @@ jobs:
 
       - name: List built wheels
         run: ls -lah wheelhouse/
+
+      # Run paths, Linux hardening and external deps; it was run on the Windows legs only.
+      - name: Audit built wheels
+        shell: bash
+        run: |
+          for w in wheelhouse/*.whl; do
+            python3 scripts/audit_wheel.py "$w"
+          done
 
       - name: Upload wheels
         uses: actions/upload-artifact@v7

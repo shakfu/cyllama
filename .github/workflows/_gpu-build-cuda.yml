@@ -91,7 +91,7 @@ jobs:
             ln -s /usr/local/cuda-12.4 /usr/local/cuda &&
             if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
             CI_PYTHON=/opt/python/cp312-cp312/bin &&
-            $CI_PYTHON/pip install cmake ninja &&
+            $CI_PYTHON/pip install cmake==4.4.5 ninja==1.13.2 &&
             PATH=/usr/local/cuda/bin:$CI_PYTHON:$PATH
             CCACHE_DIR=/project/.ccache
             CCACHE_DEPEND=1
@@ -132,6 +132,14 @@ jobs:
 
       - name: List built wheels
         run: ls -lah wheelhouse/
+
+      # Run paths, Linux hardening and external deps; it was run on the Windows legs only.
+      - name: Audit built wheels
+        shell: bash
+        run: |
+          for w in wheelhouse/*.whl; do
+            python3 scripts/audit_wheel.py "$w"
+          done
 
       - name: Upload wheels
         uses: actions/upload-artifact@v7

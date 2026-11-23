@@ -166,7 +166,7 @@ class TestServerSlot:
         """Test creating a server slot."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch("cyllama.llama.server.python.LlamaContext"), patch("cyllama.llama.server.python.LlamaSampler"):
+        with patch("cyllama.llama.server.python.LlamaContext"), patch("cyllama.llama.server.python.build_sampler"):
             slot = ServerSlot(0, mock_model, config)
 
             assert slot.id == 0
@@ -180,7 +180,7 @@ class TestServerSlot:
 
         with (
             patch("cyllama.llama.server.python.LlamaContext") as MockContext,
-            patch("cyllama.llama.server.python.LlamaSampler"),
+            patch("cyllama.llama.server.python.build_sampler"),
         ):
             mock_context = Mock()
             MockContext.return_value = mock_context
@@ -208,12 +208,13 @@ class TestServerSlot:
 
         with (
             patch("cyllama.llama.server.python.LlamaContext") as MockContext,
-            patch("cyllama.llama.server.python.LlamaSampler") as MockSampler,
-            patch("cyllama.llama.server.python.llama_batch_get_one") as mock_batch,
+            patch("cyllama.llama.server.python.build_sampler") as MockSampler,
+            patch("cyllama.llama.generation.llama_batch_get_one") as mock_batch,
         ):
             mock_context = Mock()
             mock_context.decode.return_value = 0  # Success
             mock_context.n_ctx = 512
+            mock_context.n_batch = 512
             MockContext.return_value = mock_context
 
             mock_sampler = Mock()
@@ -242,7 +243,7 @@ class TestServerSlot:
         mock_vocab = mock_model.get_vocab()
         mock_vocab.tokenize.return_value = [1, 2, 3, 4, 5]  # 5 tokens > 3 ctx
 
-        with patch("cyllama.llama.server.python.LlamaContext"), patch("cyllama.llama.server.python.LlamaSampler"):
+        with patch("cyllama.llama.server.python.LlamaContext"), patch("cyllama.llama.server.python.build_sampler"):
             slot = ServerSlot(0, mock_model, config)
 
             result = slot.process_and_generate("Very long prompt")
@@ -255,7 +256,7 @@ class TestServerSlot:
 
         with (
             patch("cyllama.llama.server.python.LlamaContext") as MockContext,
-            patch("cyllama.llama.server.python.LlamaSampler"),
+            patch("cyllama.llama.server.python.build_sampler"),
         ):
             mock_context = Mock()
             mock_context.decode.side_effect = Exception("Decode error")
@@ -282,7 +283,7 @@ class TestResourceConfig:
         with (
             patch("cyllama.utils.platform.physical_cores", return_value=16),
             patch("cyllama.llama.server.python.LlamaContext") as MockContext,
-            patch("cyllama.llama.server.python.LlamaSampler"),
+            patch("cyllama.llama.server.python.build_sampler"),
         ):
             ServerSlot(0, Mock(), config)
         params = MockContext.call_args.args[1]

@@ -1,66 +1,61 @@
 """
 Agent Client Protocol (ACP) implementation.
 
-Provides an ACP-compliant agent that can be spawned by editors (Zed, Neovim, etc.)
-and communicates using JSON-RPC over stdio.
+Provides an ACP agent that editors (Zed, Neovim, etc.) spawn and talk to with
+JSON-RPC over stdio. Message shapes follow the ACP schema, protocol version 1:
+https://agentclientprotocol.com/protocol/schema
 
-.. warning::
+Supported: ``initialize``, ``session/new``, ``session/load`` (history replay),
+``session/prompt`` with text and embedded-resource blocks, ``session/cancel``,
+``session/set_mode``, and the ``session/update`` kinds ``agent_message_chunk``,
+``agent_thought_chunk``, ``user_message_chunk``, ``tool_call`` and
+``tool_call_update``. Tools that act on the editor (``fs/*``, ``terminal/*``)
+are offered only when the client advertises them, and writes and commands
+ask for ``session/request_permission`` first.
 
-    **This module is experimental.** Treat it as a working sketch, not a
-    stable API. Three concrete reasons:
-
-    1. ``ACP_PROTOCOL_VERSION`` is hardcoded to ``"2025-01-01"`` and
-       embedded directly into initialize responses without negotiating
-       against the client's announced version. If/when the spec moves,
-       this module will need version-negotiation logic that does not
-       exist yet.
-    2. There is **no conformance test** against a reference ACP client.
-       The wire shapes here match the spec as the author understood it
-       on the date of writing; real-world clients may surface drift the
-       unit tests cannot.
-    3. The API surface (``ACPAgent``, ``serve_acp``, and the supporting
-       dataclasses) may change as the protocol stabilizes and as actual
-       editor integrations exercise the rough edges.
-
-    Build on it for prototypes and editor experiments; do not build a
-    production integration on this surface without expecting churn.
+Not supported: images and audio in prompts, plans, HTTP MCP servers, and
+authentication methods. No test runs against a real ACP client; the shapes
+are checked against the schema by unit tests.
 """
 
 import logging
+import os
 import sys
 import uuid
-from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
-from .tools import Tool
+from .jsonrpc import JsonRpcServer, StdioTransport
+from .mcp import McpClient, McpServerConfig, McpTransportType
 from .react import ReActAgent
+from .session import Session, create_session_store
+from .tools import Tool
 from .types import AgentEvent, AgentProtocol, EventType
-from .jsonrpc import (
-    JsonRpcServer,
-    StdioTransport,
-    AsyncBridge,
-)
-from .mcp import McpClient, McpServerConfig
-from .session import (
-    Session,
-    create_session_store,
-)
 
 logger = logging.getLogger(__name__)
 
-# ACP Protocol Version
-ACP_PROTOCOL_VERSION = "2025-01-01"
+# The ACP protocol version this agent implements (an integer in the spec).
+ACP_PROTOCOL_VERSION = 1
+
+# ACP ToolKind of the editor-backed tools; a UI hint for the client.
+_TOOL_KINDS = {"read_file": "read", "write_file": "edit", "run_command": "execute"}
+
+# Characters of earlier turns given to the inner agent with each prompt.
+HISTORY_CHARS = 8000
+
+# Bytes of terminal output the client keeps for one command.
+TERMINAL_OUTPUT_LIMIT = 64 * 1024
 
 
 class StopReason(Enum):
-    """Reasons why an agent stopped processing."""
+    """Why a prompt turn ended (``session/prompt`` result)."""
 
     END_TURN = "end_turn"
     MAX_TOKENS = "max_tokens"
-    CANCELLED = "cancelled"
+    MAX_TURN_REQUESTS = "max_turn_requests"
     REFUSAL = "refusal"
-    ERROR = "error"
+    CANCELLED = "cancelled"
 
 
 class ToolCallStatus(Enum):
@@ -106,45 +101,85 @@ class ContentBlock:
 
 @dataclass
 class ToolCallUpdate:
-    """Update for a tool call in progress."""
+    """Fields of a ``tool_call`` or ``tool_call_update`` session update."""
 
-    id: str
-    name: str
+    tool_call_id: str
     status: ToolCallStatus
-    arguments: Optional[Dict[str, Any]] = None
+    title: Optional[str] = None
+    kind: Optional[str] = None
+    raw_input: Optional[Dict[str, Any]] = None
     content: Optional[List[ContentBlock]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        result: Dict[str, Any] = {
-            "id": self.id,
-            "name": self.name,
-            "status": self.status.value,
-        }
-        if self.arguments is not None:
-            result["arguments"] = self.arguments
+        result: Dict[str, Any] = {"toolCallId": self.tool_call_id, "status": self.status.value}
+        if self.title is not None:
+            result["title"] = self.title
+        if self.kind is not None:
+            result["kind"] = self.kind
+        if self.raw_input is not None:
+            result["rawInput"] = self.raw_input
         if self.content is not None:
-            result["content"] = [c.to_dict() for c in self.content]
+            result["content"] = [{"type": "content", "content": c.to_dict()} for c in self.content]
         return result
 
 
 @dataclass
 class SessionUpdate:
-    """ACP session update notification."""
+    """A ``session/update`` notification: ``{sessionId, update: {sessionUpdate: kind, ...}}``."""
 
     session_id: str
-    content: Optional[List[ContentBlock]] = None
-    tool_calls: Optional[List[ToolCallUpdate]] = None
-    stop_reason: Optional[StopReason] = None
+    kind: str  # the sessionUpdate discriminator, e.g. "agent_message_chunk"
+    fields: Dict[str, Any]
 
     def to_dict(self) -> Dict[str, Any]:
-        result: Dict[str, Any] = {"sessionId": self.session_id}
-        if self.content is not None:
-            result["content"] = [c.to_dict() for c in self.content]
-        if self.tool_calls is not None:
-            result["toolCalls"] = [tc.to_dict() for tc in self.tool_calls]
-        if self.stop_reason is not None:
-            result["stopReason"] = self.stop_reason.value
-        return result
+        return {"sessionId": self.session_id, "update": {"sessionUpdate": self.kind, **self.fields}}
+
+    @classmethod
+    def text(cls, session_id: str, kind: str, text: str) -> "SessionUpdate":
+        """A message or thought chunk holding one text block."""
+        return cls(session_id, kind, {"content": ContentBlock.from_text(text).to_dict()})
+
+    @classmethod
+    def tool_call(cls, session_id: str, call: ToolCallUpdate, first: bool) -> "SessionUpdate":
+        """``tool_call`` when ``first``, else ``tool_call_update``."""
+        return cls(session_id, "tool_call" if first else "tool_call_update", call.to_dict())
+
+
+def _prompt_text(blocks: List[Dict[str, Any]]) -> str:
+    """Text of a prompt: text blocks, embedded-resource text, and resource-link references."""
+    parts = []
+    for block in blocks:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "text":
+            parts.append(block.get("text", ""))
+        elif block.get("type") == "resource":
+            res = block.get("resource") or {}
+            if "text" in res:
+                parts.append(f"[{res.get('uri', 'resource')}]\n{res['text']}")
+        elif block.get("type") == "resource_link":
+            parts.append(f"[{block.get('name') or block.get('uri', 'resource')}: {block.get('uri', '')}]")
+    return "\n".join(p for p in parts if p)
+
+
+def _mcp_configs(servers: List[Dict[str, Any]]) -> List[McpServerConfig]:
+    """McpServerConfigs for the stdio servers of a ``session/new`` or ``session/load`` request."""
+    configs = []
+    for s in servers or []:
+        if s.get("type", "stdio") != "stdio" or not s.get("command"):
+            logger.warning("Skipping unsupported MCP server %r (only stdio is supported)", s.get("name"))
+            continue
+        env = {e["name"]: e["value"] for e in s.get("env", []) if "name" in e and "value" in e}
+        configs.append(
+            McpServerConfig(
+                name=s.get("name", s["command"]),
+                transport=McpTransportType.STDIO,
+                command=s["command"],
+                args=list(s.get("args", [])),
+                env=env or None,
+            )
+        )
+    return configs
 
 
 class ACPAgent:
@@ -155,7 +190,7 @@ class ACPAgent:
     Agent Client Protocol over stdio.
     """
 
-    VERSION = "0.1.10"
+    VERSION = "0.2.0"
 
     def __init__(
         self,
@@ -176,7 +211,8 @@ class ACPAgent:
             llm: Language model instance
             tools: List of tools available to the agent
             inner_agent_type: Type of inner agent ("react" or "constrained")
-            mcp_servers: List of MCP server configurations
+            mcp_servers: MCP servers to connect at initialize, in addition to
+                those a client names in ``session/new``
             session_storage: Session storage type ("memory", "file", "sqlite")
             session_path: Path for file/sqlite session storage
             system_prompt: Custom system prompt
@@ -190,35 +226,31 @@ class ACPAgent:
         self.max_iterations = max_iterations
         self.verbose = verbose
 
-        # MCP client
-        self._mcp_client: Optional[McpClient] = None
-        if mcp_servers:
-            self._mcp_client = McpClient(mcp_servers)
-
-        # Session storage
+        self._mcp_client: Optional[McpClient] = McpClient(mcp_servers) if mcp_servers else None
         self._session_store = create_session_store(session_storage, session_path)
-
-        # JSON-RPC server (initialized in serve())
         self._server: Optional[JsonRpcServer] = None
-        self._async_bridge: Optional[AsyncBridge] = None
+
+        # What the client said it supports in initialize (clientCapabilities).
+        self._client_fs_read = False
+        self._client_fs_write = False
+        self._client_terminal = False
 
         # Current processing state
         self._current_session_id: Optional[str] = None
+        self._current_tool_call_id: Optional[str] = None
         self._cancelled = False
 
-        # Available modes
         self._modes = {
             "default": {"id": "default", "name": "Default", "description": "Standard assistant mode"},
         }
 
+    # === Inner agent ===
+
     def _create_inner_agent(self, session: Session) -> AgentProtocol:
-        """Create an inner agent for processing prompts."""
-        # Combine built-in tools with MCP tools
+        """Create an inner agent with the built-in, MCP and editor-backed tools."""
         all_tools = list(self.tools)
         if self._mcp_client and self._mcp_client.is_connected:
             all_tools.extend(self._mcp_client.get_tools_for_agent())
-
-        # Add ACP-specific tools (file operations delegate to editor)
         all_tools.extend(self._create_acp_tools())
 
         if self.inner_agent_type == "constrained":
@@ -231,92 +263,127 @@ class ACPAgent:
                 max_iterations=self.max_iterations,
                 verbose=self.verbose,
             )
-        else:
-            return ReActAgent(
-                llm=self.llm,
-                tools=all_tools,
-                system_prompt=self.system_prompt,
-                max_iterations=self.max_iterations,
-                verbose=self.verbose,
-            )
+        return ReActAgent(
+            llm=self.llm,
+            tools=all_tools,
+            system_prompt=self.system_prompt,
+            max_iterations=self.max_iterations,
+            verbose=self.verbose,
+        )
+
+    @staticmethod
+    def _with_history(session: Session, task: str) -> str:
+        """``task`` preceded by the session's earlier turns, newest kept when over HISTORY_CHARS.
+
+        The inner agents take one task at a time, so earlier turns go in as text.
+        """
+        lines = []
+        for msg in session.messages[:-1]:  # the last message is this task
+            who = "User" if msg.role == "user" else "Assistant"
+            lines.append(f"{who}: {msg.content}")
+        history = "\n".join(lines)
+        if not history:
+            return task
+        if len(history) > HISTORY_CHARS:
+            history = "..." + history[-HISTORY_CHARS:]
+        return f"Conversation so far:\n{history}\n\nCurrent request:\n{task}"
 
     def _create_acp_tools(self) -> List[Tool]:
-        """Create ACP-backed tools that delegate to the editor."""
+        """Tools that delegate to the editor, for the capabilities the client advertised."""
         tools = []
 
-        # File read tool
-        def read_file(path: str) -> str:
-            """Read a file from the editor's workspace."""
-            return self._acp_read_file(path)
+        if self._client_fs_read:
 
-        tools.append(
-            Tool(
-                name="read_file",
-                description="Read the contents of a file from the workspace",
-                func=read_file,
-                parameters={
-                    "type": "object",
-                    "properties": {"path": {"type": "string", "description": "Path to the file to read"}},
-                    "required": ["path"],
-                },
-            )
-        )
+            def read_file(path: str) -> str:
+                """Read a file from the editor's workspace."""
+                return self._acp_read_file(path)
 
-        # File write tool
-        def write_file(path: str, content: str) -> str:
-            """Write content to a file in the editor's workspace."""
-            return self._acp_write_file(path, content)
-
-        tools.append(
-            Tool(
-                name="write_file",
-                description="Write content to a file in the workspace",
-                func=write_file,
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string", "description": "Path to the file to write"},
-                        "content": {"type": "string", "description": "Content to write"},
+            tools.append(
+                Tool(
+                    name="read_file",
+                    description="Read the contents of a file from the workspace",
+                    func=read_file,
+                    parameters={
+                        "type": "object",
+                        "properties": {"path": {"type": "string", "description": "Path to the file to read"}},
+                        "required": ["path"],
                     },
-                    "required": ["path", "content"],
-                },
+                )
             )
-        )
 
-        # Terminal/shell tool
-        def run_command(command: str) -> str:
-            """Execute a shell command via the editor's terminal."""
-            return self._acp_run_command(command)
+        # Writes and commands ask the editor first: the model may be acting on
+        # injected text. Reads are not gated; their result only reaches the model.
+        if self._client_fs_write:
 
-        tools.append(
-            Tool(
-                name="run_command",
-                description="Execute a shell command in the terminal",
-                func=run_command,
-                parameters={
-                    "type": "object",
-                    "properties": {"command": {"type": "string", "description": "Command to execute"}},
-                    "required": ["command"],
-                },
+            def write_file(path: str, content: str) -> str:
+                """Write content to a file in the editor's workspace."""
+                if not self._request_permission("write_file", {"path": path}):
+                    return "Error: permission denied by the user"
+                return self._acp_write_file(path, content)
+
+            tools.append(
+                Tool(
+                    name="write_file",
+                    description="Write content to a file in the workspace",
+                    func=write_file,
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string", "description": "Path to the file to write"},
+                            "content": {"type": "string", "description": "Content to write"},
+                        },
+                        "required": ["path", "content"],
+                    },
+                )
             )
-        )
+
+        if self._client_terminal:
+
+            def run_command(command: str) -> str:
+                """Execute a shell command via the editor's terminal."""
+                if not self._request_permission("run_command", {"command": command}):
+                    return "Error: permission denied by the user"
+                return self._acp_run_command(command)
+
+            tools.append(
+                Tool(
+                    name="run_command",
+                    description="Execute a shell command in the terminal",
+                    func=run_command,
+                    parameters={
+                        "type": "object",
+                        "properties": {"command": {"type": "string", "description": "Command to execute"}},
+                        "required": ["command"],
+                    },
+                )
+            )
 
         return tools
 
     # === ACP File/Terminal Operations (delegate to editor) ===
 
+    def _session_cwd(self) -> str:
+        session = self._session_store.load(self._current_session_id) if self._current_session_id else None
+        return str((session.metadata.get("cwd") if session else None) or os.getcwd())
+
+    def _abs_path(self, path: str) -> str:
+        """``path`` made absolute against the session's cwd; ACP requires absolute paths."""
+        return os.path.normpath(path if os.path.isabs(path) else os.path.join(self._session_cwd(), path))
+
     def _acp_read_file(self, path: str) -> str:
         """Request file read from editor via ACP."""
         if not self._server:
             raise RuntimeError("ACP server not running")
-
         try:
-            response = self._server.send_request("fs/read_text_file", {"path": path}, timeout=30.0)
+            response = self._server.send_request(
+                "fs/read_text_file",
+                {"sessionId": self._current_session_id, "path": self._abs_path(path)},
+                timeout=30.0,
+            )
             if response.is_error:
                 assert response.error is not None
                 return f"Error reading file: {response.error.message}"
-            assert response.result is not None
-            return str(response.result.get("contents", ""))
+            return str((response.result or {}).get("content", ""))
         except TimeoutError:
             return "Error: File read timed out"
         except Exception as e:
@@ -326,10 +393,11 @@ class ACPAgent:
         """Request file write from editor via ACP."""
         if not self._server:
             raise RuntimeError("ACP server not running")
-
         try:
             response = self._server.send_request(
-                "fs/write_text_file", {"path": path, "contents": content}, timeout=30.0
+                "fs/write_text_file",
+                {"sessionId": self._current_session_id, "path": self._abs_path(path), "content": content},
+                timeout=30.0,
             )
             if response.is_error:
                 assert response.error is not None
@@ -340,43 +408,62 @@ class ACPAgent:
         except Exception as e:
             return f"Error writing file: {e}"
 
-    def _acp_run_command(self, command: str) -> str:
-        """Request command execution from editor via ACP."""
+    def _acp_run_command(self, command: str, timeout: float = 120.0) -> str:
+        """Run ``command`` in a shell in an editor terminal; return its output and exit status."""
         if not self._server:
             raise RuntimeError("ACP server not running")
-
+        sid = self._current_session_id
+        shell, flag = ("cmd", "/c") if os.name == "nt" else ("/bin/sh", "-c")
         try:
-            # Create terminal
-            create_resp = self._server.send_request("terminal/create", {"command": command}, timeout=10.0)
-            if create_resp.is_error:
-                assert create_resp.error is not None
-                return f"Error creating terminal: {create_resp.error.message}"
-
-            assert create_resp.result is not None
-            terminal_id = create_resp.result.get("terminalId")
+            create = self._server.send_request(
+                "terminal/create",
+                {
+                    "sessionId": sid,
+                    "command": shell,
+                    "args": [flag, command],
+                    "cwd": self._session_cwd(),
+                    "outputByteLimit": TERMINAL_OUTPUT_LIMIT,
+                },
+                timeout=10.0,
+            )
+            if create.is_error:
+                assert create.error is not None
+                return f"Error creating terminal: {create.error.message}"
+            terminal_id = (create.result or {}).get("terminalId")
             if not terminal_id:
                 return "Error: No terminal ID returned"
-
-            # Wait for exit
-            self._server.send_request("terminal/wait_for_exit", {"terminalId": terminal_id}, timeout=120.0)
-
-            # Get output
-            output_resp = self._server.send_request("terminal/output", {"terminalId": terminal_id}, timeout=10.0)
-
-            # Release terminal
-            self._server.send_request("terminal/release", {"terminalId": terminal_id}, timeout=5.0)
-
-            if output_resp.is_error:
-                assert output_resp.error is not None
-                return f"Error getting output: {output_resp.error.message}"
-
-            assert output_resp.result is not None
-            return str(output_resp.result.get("output", ""))
-
         except TimeoutError:
-            return "Error: Command timed out"
+            return "Error: terminal/create timed out"
         except Exception as e:
             return f"Error running command: {e}"
+
+        ids = {"sessionId": sid, "terminalId": terminal_id}
+        try:
+            try:
+                self._server.send_request("terminal/wait_for_exit", ids, timeout=timeout)
+            except TimeoutError:
+                self._server.send_request("terminal/kill", ids, timeout=5.0)
+            output = self._server.send_request("terminal/output", ids, timeout=10.0)
+            if output.is_error:
+                assert output.error is not None
+                return f"Error getting output: {output.error.message}"
+            result = output.result or {}
+            text = str(result.get("output", ""))
+            if result.get("truncated"):
+                text = "[earlier output truncated]\n" + text
+            status = result.get("exitStatus") or {}
+            if status.get("signal"):
+                text += f"\n[terminated by signal {status['signal']}]"
+            elif status.get("exitCode") not in (None, 0):
+                text += f"\n[exit code {status['exitCode']}]"
+            return text
+        except Exception as e:
+            return f"Error running command: {e}"
+        finally:
+            try:
+                self._server.send_request("terminal/release", ids, timeout=5.0)
+            except Exception as e:
+                logger.warning("terminal/release failed: %s", e)
 
     def _request_permission(self, tool_name: str, arguments: Dict[str, Any]) -> bool:
         """
@@ -397,19 +484,23 @@ class ACPAgent:
                     return False
 
         try:
+            # Shape per the ACP schema (RequestPermissionRequest / PermissionOption):
+            # https://agentclientprotocol.com/protocol/tool-calls
             response = self._server.send_request(
                 "session/request_permission",
                 {
                     "sessionId": self._current_session_id,
                     "toolCall": {
-                        "name": tool_name,
-                        "arguments": arguments,
+                        "toolCallId": self._current_tool_call_id or f"call_{uuid.uuid4().hex[:12]}",
+                        "title": tool_name,
+                        "kind": _TOOL_KINDS.get(tool_name, "other"),
+                        "rawInput": arguments,
                     },
                     "options": [
-                        {"id": "allow_once", "kind": "allow_once", "label": "Allow"},
-                        {"id": "allow_always", "kind": "allow_always", "label": "Always Allow"},
-                        {"id": "reject_once", "kind": "reject_once", "label": "Deny"},
-                        {"id": "reject_always", "kind": "reject_always", "label": "Always Deny"},
+                        {"optionId": "allow_once", "name": "Allow", "kind": "allow_once"},
+                        {"optionId": "allow_always", "name": "Always Allow", "kind": "allow_always"},
+                        {"optionId": "reject_once", "name": "Deny", "kind": "reject_once"},
+                        {"optionId": "reject_always", "name": "Always Deny", "kind": "reject_always"},
                     ],
                 },
                 timeout=300.0,  # Long timeout for user interaction
@@ -420,9 +511,10 @@ class ACPAgent:
                 logger.warning("Permission request failed: %s", response.error.message)
                 return False
 
-            assert response.result is not None
-            outcome = response.result.get("outcome", {})
-            if outcome.get("kind") == "cancelled":
+            # result: {"outcome": {"outcome": "selected", "optionId": ...}} or {"outcome": {"outcome": "cancelled"}}.
+            # Anything else is not approval.
+            outcome = (response.result or {}).get("outcome")
+            if not isinstance(outcome, dict) or outcome.get("outcome") != "selected":
                 return False
 
             option_id = outcome.get("optionId", "")
@@ -445,69 +537,62 @@ class ACPAgent:
 
     def _handle_initialize(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle initialize request."""
-        client_info = params.get("clientInfo", {})
+        client_info = params.get("clientInfo", {}) or {}
         logger.info("ACP client connected: %s %s", client_info.get("name", "unknown"), client_info.get("version", ""))
 
-        # Connect to MCP servers
+        caps = params.get("clientCapabilities", {}) or {}
+        fs = caps.get("fs", {}) or {}
+        self._client_fs_read = bool(fs.get("readTextFile"))
+        self._client_fs_write = bool(fs.get("writeTextFile"))
+        self._client_terminal = bool(caps.get("terminal"))
+
         if self._mcp_client:
             try:
                 self._mcp_client.connect_all()
             except Exception as e:
                 logger.error("Failed to connect MCP servers: %s", e)
 
-        capabilities = {
-            "prompts": {
-                "text": True,
-                "image": False,
-                "audio": False,
-            },
-            "tools": True,
-            "permissions": True,
-            "sessions": {
-                "load": True,
-            },
-            "fileSystem": {
-                "read": True,
-                "write": True,
-            },
-            "terminal": True,
-        }
-
-        if self._mcp_client:
-            capabilities["mcp"] = self._mcp_client.get_capabilities()
-
         return {
+            # Version 1 is the only one implemented; a client that cannot speak it disconnects.
             "protocolVersion": ACP_PROTOCOL_VERSION,
-            "capabilities": capabilities,
-            "agentInfo": {
-                "name": "cyllama",
-                "version": self.VERSION,
+            "agentCapabilities": {
+                "loadSession": True,
+                "promptCapabilities": {"image": False, "audio": False, "embeddedContext": True},
+                "mcpCapabilities": {"http": False, "sse": False},
             },
-            "modes": list(self._modes.values()),
+            "agentInfo": {"name": "cyllama", "version": self.VERSION},
+            "authMethods": [],
         }
 
     def _handle_authenticate(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle authenticate request."""
-        # Currently no authentication required
-        return {"authenticated": True}
+        """Handle authenticate request; no method is advertised, so any call succeeds."""
+        return {}
+
+    def _connect_session_mcp(self, servers: List[Dict[str, Any]]) -> None:
+        """Connect the MCP servers a session/new or session/load request names."""
+        for config in _mcp_configs(servers):
+            if self._mcp_client is None:
+                self._mcp_client = McpClient([])
+            try:
+                self._mcp_client.add_server(config)
+                self._mcp_client._connect_server(config)
+                self._mcp_client._connected = True
+            except Exception as e:
+                logger.error("Failed to connect MCP server %r: %s", config.name, e)
 
     def _handle_session_new(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle session/new request."""
-        session_id = str(uuid.uuid4())
-        mode_id = params.get("modeId", "default")
-
-        session = Session(id=session_id, mode_id=mode_id)
+        session_id = f"sess_{uuid.uuid4().hex}"
+        session = Session(id=session_id, mode_id=params.get("modeId", "default"))
+        if params.get("cwd"):
+            session.metadata["cwd"] = params["cwd"]
         self._session_store.save(session)
-
+        self._connect_session_mcp(params.get("mcpServers", []))
         logger.info("Created new session: %s", session_id)
-
-        return {
-            "sessionId": session_id,
-            "mode": self._modes.get(mode_id, self._modes["default"]),
-        }
+        return {"sessionId": session_id}
 
     def _handle_session_load(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle session/load request."""
+        """Handle session/load: replay the conversation as session/update notifications, then reply."""
         session_id = params.get("sessionId")
         if not session_id:
             raise ValueError("sessionId is required")
@@ -515,13 +600,17 @@ class ACPAgent:
         session = self._session_store.load(session_id)
         if not session:
             raise ValueError(f"Session not found: {session_id}")
+        if params.get("cwd"):
+            session.metadata["cwd"] = params["cwd"]
+            self._session_store.save(session)
+        self._connect_session_mcp(params.get("mcpServers", []))
+
+        for msg in session.messages:
+            kind = "user_message_chunk" if msg.role == "user" else "agent_message_chunk"
+            self._send_update(SessionUpdate.text(session_id, kind, msg.content))
 
         logger.info("Loaded session: %s", session_id)
-
-        return {
-            "sessionId": session_id,
-            "mode": self._modes.get(session.mode_id or "default", self._modes["default"]),
-        }
+        return {}
 
     def _handle_session_set_mode(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle session/set_mode request."""
@@ -540,14 +629,11 @@ class ACPAgent:
 
         session.mode_id = mode_id
         self._session_store.save(session)
-
-        return {"mode": self._modes[mode_id]}
+        return {}
 
     def _handle_session_prompt(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle session/prompt request."""
         session_id = params.get("sessionId")
-        content = params.get("content", [])
-
         if not session_id:
             raise ValueError("sessionId is required")
 
@@ -555,121 +641,105 @@ class ACPAgent:
         if not session:
             raise ValueError(f"Session not found: {session_id}")
 
-        # Extract text from content blocks
-        text_parts = []
-        for block in content:
-            if block.get("type") == "text":
-                text_parts.append(block.get("text", ""))
-
-        task = "\n".join(text_parts)
+        task = _prompt_text(params.get("prompt", []) or [])
         if not task:
             raise ValueError("No text content provided")
 
-        # Record user message
         session.add_message("user", task)
         self._session_store.save(session)
 
-        # Process with inner agent
         self._current_session_id = session_id
         self._cancelled = False
-
         try:
             stop_reason = self._process_prompt(session, task)
         finally:
             self._current_session_id = None
+            self._current_tool_call_id = None
 
         return {"stopReason": stop_reason.value}
 
     def _process_prompt(self, session: Session, task: str) -> StopReason:
-        """Process a prompt and stream updates."""
+        """Run the inner agent on ``task`` and stream its events as session updates."""
         inner_agent = self._create_inner_agent(session)
+        prefix = f"call_{uuid.uuid4().hex[:8]}"
+        n_calls = 0
 
-        tool_call_counter = 0
-
-        for event in inner_agent.stream(task):
+        for event in inner_agent.stream(self._with_history(session, task)):
             if self._cancelled:
                 return StopReason.CANCELLED
 
-            update = self._event_to_update(session.id, event, tool_call_counter)
+            if event.type == EventType.ACTION:
+                n_calls += 1
+                self._current_tool_call_id = f"{prefix}_{n_calls}"
+            update = self._event_to_update(session.id, event, self._current_tool_call_id)
             if update:
-                if event.type == EventType.ACTION:
-                    tool_call_counter += 1
                 self._send_update(update)
 
-            # Record to session
             if event.type == EventType.ANSWER:
                 session.add_message("assistant", event.content)
                 self._session_store.save(session)
                 return StopReason.END_TURN
-            elif event.type == EventType.ERROR:
+            if event.type == EventType.ERROR:
                 session.add_message("assistant", f"Error: {event.content}")
                 self._session_store.save(session)
-                return StopReason.ERROR
+                if "maximum iterations" in event.content:
+                    return StopReason.MAX_TURN_REQUESTS
+                return StopReason.END_TURN
 
-        return StopReason.END_TURN
+        return StopReason.CANCELLED if self._cancelled else StopReason.END_TURN
 
-    def _event_to_update(self, session_id: str, event: AgentEvent, tool_call_index: int) -> Optional[SessionUpdate]:
-        """Convert an AgentEvent to an ACP SessionUpdate."""
+    def _event_to_update(
+        self, session_id: str, event: AgentEvent, tool_call_id: Optional[str] = None
+    ) -> Optional[SessionUpdate]:
+        """Convert an AgentEvent to an ACP session update."""
         if event.type == EventType.THOUGHT:
-            return SessionUpdate(session_id=session_id, content=[ContentBlock.from_text(f"Thinking: {event.content}")])
+            return SessionUpdate.text(session_id, "agent_thought_chunk", event.content)
 
-        elif event.type == EventType.ACTION:
+        if event.type == EventType.ACTION:
             tool_name = event.metadata.get("tool_name", "unknown")
-            tool_args = event.metadata.get("tool_args", {})
-
-            return SessionUpdate(
-                session_id=session_id,
-                tool_calls=[
-                    ToolCallUpdate(
-                        id=f"tc_{tool_call_index}",
-                        name=tool_name,
-                        status=ToolCallStatus.IN_PROGRESS,
-                        arguments=tool_args,
-                    )
-                ],
+            call = ToolCallUpdate(
+                tool_call_id=tool_call_id or "call_0",
+                status=ToolCallStatus.IN_PROGRESS,
+                title=tool_name,
+                kind=_TOOL_KINDS.get(tool_name, "other"),
+                raw_input=event.metadata.get("tool_args", {}),
             )
+            return SessionUpdate.tool_call(session_id, call, first=True)
 
-        elif event.type == EventType.OBSERVATION:
-            tool_name = event.metadata.get("tool_name", "unknown")
-
-            return SessionUpdate(
-                session_id=session_id,
-                tool_calls=[
-                    ToolCallUpdate(
-                        id=f"tc_{tool_call_index - 1}",  # Previous tool call
-                        name=tool_name,
-                        status=ToolCallStatus.COMPLETED,
-                        content=[ContentBlock.from_text(event.content)],
-                    )
-                ],
+        if event.type == EventType.OBSERVATION:
+            failed = event.content.startswith("Error")
+            call = ToolCallUpdate(
+                tool_call_id=tool_call_id or "call_0",
+                status=ToolCallStatus.FAILED if failed else ToolCallStatus.COMPLETED,
+                content=[ContentBlock.from_text(event.content)],
             )
+            return SessionUpdate.tool_call(session_id, call, first=False)
 
-        elif event.type == EventType.ANSWER:
-            return SessionUpdate(
-                session_id=session_id, content=[ContentBlock.from_text(event.content)], stop_reason=StopReason.END_TURN
-            )
+        if event.type == EventType.ANSWER:
+            return SessionUpdate.text(session_id, "agent_message_chunk", event.content)
 
-        elif event.type == EventType.ERROR:
-            return SessionUpdate(
-                session_id=session_id,
-                content=[ContentBlock.from_text(f"Error: {event.content}")],
-                stop_reason=StopReason.ERROR,
-            )
+        if event.type == EventType.ERROR:
+            return SessionUpdate.text(session_id, "agent_message_chunk", f"Error: {event.content}")
 
         return None
 
     def _send_update(self, update: SessionUpdate) -> None:
-        """Send a session update notification."""
-        if self._async_bridge:
-            self._async_bridge.send_notification("session/update", update.to_dict())
-        elif self._server:
+        """Send a session/update notification.
+
+        Synchronous, so every update reaches the client before the response
+        to the request that produced it, as ACP requires.
+        """
+        if self._server:
             self._server.send_notification("session/update", update.to_dict())
 
     def _handle_session_cancel(self, params: Dict[str, Any]) -> None:
-        """Handle session/cancel notification."""
+        """Handle session/cancel: stop the prompt turn, aborting generation in flight."""
         session_id = params.get("sessionId")
         if session_id == self._current_session_id:
             self._cancelled = True
+            cancel = getattr(self.llm, "cancel", None)
+            if callable(cancel):
+                cancel()
             logger.info("Cancelling session: %s", session_id)
 
     # === Server Lifecycle ===
@@ -694,11 +764,6 @@ class ACPAgent:
         )
         self._server = JsonRpcServer(transport)
 
-        # Set up async bridge for sending notifications from sync agent
-        self._async_bridge = AsyncBridge(self._server)
-        self._async_bridge.start()
-
-        # Register ACP method handlers
         self._server.register("initialize", self._handle_initialize)
         self._server.register("authenticate", self._handle_authenticate)
         self._server.register("session/new", self._handle_session_new)
@@ -712,7 +777,6 @@ class ACPAgent:
         try:
             self._server.serve()
         finally:
-            self._async_bridge.stop()
             if self._mcp_client:
                 self._mcp_client.disconnect_all()
             logger.info("ACP server stopped")

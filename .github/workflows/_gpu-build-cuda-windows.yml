@@ -84,7 +84,7 @@ jobs:
         env:
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_BEFORE_BUILD_WINDOWS: >
-            pip install delvewheel &&
+            pip install delvewheel==1.13.2 &&
             python {project}/scripts/ci_rename_package.py cyllama-cuda12 &&
             cd {project} &&
             python scripts/manage.py build --all --deps-only --no-sd-examples

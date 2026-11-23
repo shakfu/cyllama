@@ -31,6 +31,14 @@ _CALC_UNARYOPS: Dict[type, Callable[[Any], Any]] = {
 # legitimate arithmetic question while remaining trivially fast.
 _CALC_MAX_EXPONENT = 1000
 _CALC_MAX_EXPR_LEN = 200
+# Cap on the size of an integer result. The exponent cap alone does not bound
+# it: ``((9**999)**999)**999`` has small exponents and a ~3e9-bit result,
+# computed while holding the GIL.
+_CALC_MAX_INT_BITS = 100_000
+
+
+def _int_bits(x: Any) -> int:
+    return abs(x).bit_length() if isinstance(x, int) else 0
 
 
 def _calc_eval(node: ast.AST) -> Any:
@@ -49,6 +57,15 @@ def _calc_eval(node: ast.AST) -> Any:
         right = _calc_eval(node.right)
         if isinstance(node.op, ast.Pow) and isinstance(right, (int, float)) and abs(right) > _CALC_MAX_EXPONENT:
             raise ValueError(f"exponent {right!r} exceeds maximum of {_CALC_MAX_EXPONENT}")
+        # bits(a**b) <= bits(a) * b and bits(a*b) <= bits(a) + bits(b), estimated before computing
+        if isinstance(node.op, ast.Pow) and isinstance(left, int) and isinstance(right, int) and right > 0:
+            estimate = _int_bits(left) * right
+        elif isinstance(node.op, ast.Mult):
+            estimate = _int_bits(left) + _int_bits(right)
+        else:
+            estimate = 0
+        if estimate > _CALC_MAX_INT_BITS:
+            raise ValueError(f"result too large (about {estimate} bits; limit {_CALC_MAX_INT_BITS})")
         return op_fn(left, right)
     if isinstance(node, ast.UnaryOp):
         unary_fn = _CALC_UNARYOPS.get(type(node.op))

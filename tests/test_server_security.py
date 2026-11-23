@@ -243,8 +243,13 @@ def test_embedded_stop_from_other_thread_waits_for_loop():
         signal.signal(signal.SIGTERM, saved[1])
 
 
+@pytest.mark.skipif(not hasattr(signal, "SIGUSR1"), reason="needs SIGUSR1")
 def test_embedded_loop_exit_by_exception_does_not_block_stop():
-    """A raising signal handler ends the loop; stop() must not then wait for it."""
+    """A raising signal handler ends the loop; stop() must not then wait for it.
+
+    wait_for_shutdown() installs its own SIGINT/SIGTERM handlers, so the raising
+    handler is on another signal.
+    """
     import time
 
     class Interrupt(Exception):
@@ -253,33 +258,145 @@ def test_embedded_loop_exit_by_exception_does_not_block_stop():
     def raise_interrupt(signum, frame):
         raise Interrupt
 
-    saved = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
+    saved = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGUSR1)
     server = _NoModelEmbeddedServer(_config(port=_free_port()))
     try:
         assert server.start()
-        signal.signal(signal.SIGTERM, raise_interrupt)
-        threading.Timer(0.2, signal.raise_signal, (signal.SIGTERM,)).start()
+        signal.signal(signal.SIGUSR1, raise_interrupt)
+        threading.Timer(0.2, signal.raise_signal, (signal.SIGUSR1,)).start()
         with pytest.raises(Interrupt):
             server.wait_for_shutdown()
+        # its handlers are removed again
+        assert signal.getsignal(signal.SIGTERM) == saved[1]
         t0 = time.monotonic()
         server.stop()
         assert time.monotonic() - t0 < 1.0
     finally:
         signal.signal(signal.SIGINT, saved[0])
         signal.signal(signal.SIGTERM, saved[1])
+        signal.signal(signal.SIGUSR1, saved[2])
 
 
-def test_500_body_does_not_carry_exception_text(serve):
+def test_embedded_start_leaves_signal_handlers_alone():
+    # start() used to replace the host application's SIGINT/SIGTERM handlers
+    saved = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
+    server = _NoModelEmbeddedServer(_config(port=_free_port()))
+    try:
+        assert server.start()
+        assert (signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)) == saved
+    finally:
+        server.stop()
+
+
+def test_500_body_does_not_carry_exception_text(serve, monkeypatch):
     """A handler exception can name model and filesystem paths; the body must not."""
+    import cyllama.llama.server.embedded as embedded_mod
+    import cyllama.llama.server.python as python_mod
+
+    def fail(data, config):
+        raise RuntimeError("/secret/models/private.gguf")
+
+    monkeypatch.setattr(python_mod, "parse_chat_request", fail)
+    monkeypatch.setattr(embedded_mod, "parse_chat_request", fail)
     port = serve()
-    # a message without "content" raises KeyError('content') inside the handler
     status, body = _request(
         port,
         "POST",
         "/v1/chat/completions",
         {"Content-Type": "application/json"},
-        json.dumps({"messages": [{"role": "user"}]}),
+        json.dumps({"messages": [{"role": "user", "content": "hi"}]}),
     )
     assert status == 500
     assert body["error"]["message"] == "Internal Server Error"
-    assert "content" not in json.dumps(body)
+    assert "secret" not in json.dumps(body)
+
+
+@pytest.mark.parametrize(
+    "payload,field",
+    [
+        ([1, 2], "JSON object"),
+        ({"messages": "hi"}, "messages"),
+        ({"messages": [{"role": "user", "content": "x"}], "max_tokens": "10"}, "max_tokens"),
+        ({"messages": [{"role": "user", "content": "x"}], "stop": [1]}, "stop"),
+        ({"messages": [{"role": "user", "content": "x"}], "temperature": "hot"}, "temperature"),
+    ],
+)
+def test_bad_request_fields_get_400(serve, payload, field):
+    # these used to raise inside the handler and return 500
+    port = serve()
+    status, body = _request(
+        port, "POST", "/v1/chat/completions", {"Content-Type": "application/json"}, json.dumps(payload)
+    )
+    assert status == 400
+    assert field in body["error"]["message"]
+
+
+def test_busy_slots_get_503(serve):
+    port = serve(slot_wait_s=0.1)  # the stub servers have no slots
+    status, body = _request(
+        port,
+        "POST",
+        "/v1/chat/completions",
+        {"Content-Type": "application/json"},
+        json.dumps({"messages": [{"role": "user", "content": "hi"}]}),
+    )
+    assert status == 503
+    assert "No available slots" in body["error"]["message"]
+
+
+def test_render_chat_uses_model_template(model_path):
+    # the servers sent "System:/User:/Assistant:" text, which instruct models were not trained on
+    import gc
+
+    from cyllama.llama.llama_cpp import LlamaModel, LlamaModelParams
+    from cyllama.llama.server.python import ChatMessage, render_chat
+
+    params = LlamaModelParams()
+    params.n_gpu_layers = 0
+    model = LlamaModel(model_path, params)
+    vocab = model.get_vocab()
+    prompt = render_chat(
+        model, [ChatMessage(role="system", content="Be brief."), ChatMessage(role="user", content="Hi")]
+    )
+    assert "<|start_header_id|>user<|end_header_id|>" in prompt  # Llama 3 template
+    assert prompt.rstrip().endswith("<|start_header_id|>assistant<|end_header_id|>")
+    tokens = vocab.tokenize(prompt, add_special=True, parse_special=True)
+    assert tokens.count(vocab.token_bos()) == 1  # not one from the template and one from tokenize
+    assert render_chat(None, [ChatMessage(role="user", content="Hi")]) == "User: Hi\nAssistant:"
+    model.close()
+    del model, vocab
+    gc.collect()
+
+
+@pytest.mark.parametrize(
+    "host,allowed",
+    [
+        ("127.0.0.1:8080", True),
+        ("localhost", True),
+        ("[::1]:8080", True),
+        ("evil.example.com", False),
+        ("10.0.0.5:80", False),
+    ],
+)
+def test_host_check_without_api_key(host, allowed):
+    # DNS rebinding: a web page reaches a local server under its own host name
+    result = check_request(_config(), "/v1/models", None, 0, host)
+    assert (result is None) == allowed
+    if not allowed:
+        assert result[0] == 403
+
+
+def test_host_check_skipped_with_api_key_or_wildcard_bind():
+    assert check_request(_config(api_key="k"), "/health", None, 0, "evil.example.com") is None
+    assert check_request(_config(host="0.0.0.0"), "/health", None, 0, "evil.example.com") is None
+
+
+def test_rebinding_host_refused_by_both_servers(serve):
+    port = serve()
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        conn.request("GET", "/v1/models", headers={"Host": "evil.example.com"})
+        assert conn.getresponse().status == 403
+    finally:
+        conn.close()
+    assert _request(port, "GET", "/v1/models", {}, None)[0] == 200

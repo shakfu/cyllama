@@ -14,8 +14,9 @@ import os
 from typing import Any, Callable, Dict, List, Optional, Protocol, runtime_checkable
 from dataclasses import dataclass
 from enum import Enum
-import urllib.request
 import urllib.error
+import urllib.parse
+import urllib.request
 
 from .tools import Tool
 from .jsonrpc import (
@@ -30,6 +31,39 @@ logger = logging.getLogger(__name__)
 # Default timeout values (in seconds)
 DEFAULT_REQUEST_TIMEOUT = 30.0
 DEFAULT_SHUTDOWN_TIMEOUT = 5.0
+
+# Largest HTTP response body or stdout line accepted from an MCP server.
+MAX_MESSAGE_BYTES = 16 * 1024 * 1024
+
+# Environment variables a stdio server inherits unless inherit_env is set;
+# the rest of the parent environment (API keys, tokens) stays out of it.
+_INHERITED_ENV = (
+    (
+        "APPDATA",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "LOCALAPPDATA",
+        "PATH",
+        "PROCESSOR_ARCHITECTURE",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
+        "TEMP",
+        "USERNAME",
+        "USERPROFILE",
+    )
+    if os.name == "nt"
+    else ("HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER", "LANG", "LC_ALL", "TMPDIR")
+)
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse redirects: urllib would resend the configured headers, credentials included, to the new host."""
+
+    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> None:
+        raise urllib.error.HTTPError(req.full_url, code, f"redirect to {newurl} refused", headers, fp)
+
+
+_HTTP_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 class McpTransportType(Enum):
@@ -61,6 +95,9 @@ class McpServerConfig:
     request_timeout: float = DEFAULT_REQUEST_TIMEOUT
     shutdown_timeout: float = DEFAULT_SHUTDOWN_TIMEOUT
 
+    # Stdio: pass the whole parent environment, not just _INHERITED_ENV plus `env`.
+    inherit_env: bool = False
+
     def validate(self) -> None:
         """Validate the configuration."""
         if self.transport == McpTransportType.STDIO:
@@ -69,6 +106,9 @@ class McpServerConfig:
         elif self.transport == McpTransportType.HTTP:
             if not self.url:
                 raise ValueError(f"MCP server '{self.name}': http transport requires 'url'")
+            scheme = urllib.parse.urlsplit(self.url).scheme
+            if scheme not in ("http", "https"):
+                raise ValueError(f"MCP server '{self.name}': url must be http or https, got {scheme!r}")
 
 
 @dataclass
@@ -163,7 +203,10 @@ class McpStdioConnection(McpConnectionProtocol):
 
     def connect(self) -> None:
         """Start the MCP server subprocess."""
-        env = os.environ.copy()
+        if self._config.inherit_env:
+            env = os.environ.copy()
+        else:
+            env = {k: os.environ[k] for k in _INHERITED_ENV if k in os.environ}
         if self._config.env:
             env.update(self._config.env)
 
@@ -201,7 +244,15 @@ class McpStdioConnection(McpConnectionProtocol):
 
         def _read_stdout() -> None:
             try:
-                for line in out_stream:
+                while True:
+                    line = out_stream.readline(MAX_MESSAGE_BYTES + 1)
+                    if not line:
+                        break
+                    if len(line) > MAX_MESSAGE_BYTES:
+                        logger.error("MCP server '%s' sent a line over %d bytes; dropped", name, MAX_MESSAGE_BYTES)
+                        while line and not line.endswith("\n"):
+                            line = out_stream.readline(MAX_MESSAGE_BYTES)
+                        continue
                     self._responses.put(line)
             except (ValueError, OSError):
                 pass  # pipe closed during shutdown
@@ -408,10 +459,13 @@ class McpHttpConnection(McpConnectionProtocol):
         req = urllib.request.Request(self._config.url, data=request_str.encode("utf-8"), headers=headers, method="POST")
 
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                response_str = response.read().decode("utf-8")
+            with _HTTP_OPENER.open(req, timeout=timeout) as response:
+                body = response.read(MAX_MESSAGE_BYTES + 1)
         except urllib.error.URLError as e:
             raise RuntimeError(f"MCP HTTP error: {e}")
+        if len(body) > MAX_MESSAGE_BYTES:
+            raise RuntimeError(f"MCP HTTP response from '{self._config.name}' exceeds {MAX_MESSAGE_BYTES} bytes")
+        response_str = body.decode("utf-8")
 
         msg = parse_message(response_str)
         if not isinstance(msg, JsonRpcResponse):
@@ -436,7 +490,7 @@ class McpHttpConnection(McpConnectionProtocol):
         req = urllib.request.Request(self._config.url, data=request_str.encode("utf-8"), headers=headers, method="POST")
 
         try:
-            with urllib.request.urlopen(req, timeout=10.0) as response:
+            with _HTTP_OPENER.open(req, timeout=10.0):
                 pass  # Ignore response for notifications
         except urllib.error.URLError as e:
             logger.warning("MCP notification failed: %s", e)
@@ -603,9 +657,14 @@ class McpClient:
         conn = self._connections[server_name]
 
         result = conn.send_request("tools/call", {"name": tool_name, "arguments": arguments})
+        if not isinstance(result, dict):
+            return None
 
-        # MCP returns content array
-        content = result.get("content", [])
+        # MCP returns content array; isError marks a failed call whose content is the message
+        content = result.get("content") or []
+        if result.get("isError"):
+            text = "; ".join(str(i.get("text", "")) for i in content if isinstance(i, dict))
+            raise RuntimeError(f"MCP tool '{name}' failed: {text or 'no details'}")
         if not content:
             return None
 

@@ -56,14 +56,24 @@ jobs:
           path: thirdparty/
           key: deps-abi3-vulkan-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', 'scripts/versions.toml', 'scripts/patches/*.patch', '.github/workflows/_gpu-build-vulkan-windows.yml') }}
 
+      # Pinned and checksummed: vulkan-1.dll from this installer ships in the wheel,
+      # and "latest" made two builds of one tag differ. To update, set both values;
+      # the hash is `shasum -a 256` of the installer at the new version's URL.
       - name: Install Vulkan SDK
         shell: pwsh
+        env:
+          VK_VERSION: "1.4.363.1"
+          VK_SHA256: "c02932bd9a968b22d404536108adaacac908c081cd6b0113f5bfefc523dd0a6a"
         run: |
-          $VK_LATEST = (Invoke-RestMethod -Uri "https://vulkan.lunarg.com/sdk/latest/windows.json").windows
-          Write-Host "Latest Vulkan SDK: ${VK_LATEST}"
+          $VK_LATEST = $env:VK_VERSION
           $VK_URL = "https://sdk.lunarg.com/sdk/download/${VK_LATEST}/windows/vulkan-sdk.exe"
           Write-Host "Downloading Vulkan SDK from ${VK_URL}..."
           Invoke-WebRequest -Uri $VK_URL -OutFile vulkan-sdk.exe
+          $actual = (Get-FileHash -Algorithm SHA256 vulkan-sdk.exe).Hash.ToLower()
+          if ($actual -ne $env:VK_SHA256) {
+            Write-Error "Vulkan SDK checksum mismatch: expected $env:VK_SHA256, got $actual"
+            exit 1
+          }
           Write-Host "Installing Vulkan SDK..."
           Start-Process -FilePath .\vulkan-sdk.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait -NoNewWindow
           $VK_PATH = "C:\VulkanSDK\${VK_LATEST}"
@@ -85,7 +95,7 @@ jobs:
         env:
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_BEFORE_BUILD_WINDOWS: >
-            pip install delvewheel &&
+            pip install delvewheel==1.13.2 &&
             python {project}/scripts/ci_rename_package.py cyllama-vulkan &&
             cd {project} &&
             python scripts/manage.py build --all --deps-only --no-sd-examples

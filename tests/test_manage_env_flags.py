@@ -50,7 +50,22 @@ def test_zero_one(options, var, value, expected):
 
 
 @pytest.mark.parametrize("var", ["GGML_NATIVE", "GGML_OPENMP"])
+@pytest.mark.parametrize("value, expected", [("ON", "ON"), ("off", "OFF"), ("TRUE", "ON"), ("no", "OFF")])
+def test_cmake_style_booleans(options, var, value, expected):
+    # the GPU workflows set GGML_NATIVE=OFF
+    assert options(**{var: value})[var] == expected
+
+
+@pytest.mark.parametrize("var", ["GGML_NATIVE", "GGML_OPENMP"])
 def test_invalid_value_warns(options, var, caplog):
     with caplog.at_level(logging.WARNING):
-        assert options(**{var: "ON"})[var] == "OFF"
+        assert options(**{var: "maybe"})[var] == "OFF"
     assert f"Invalid boolean value for {var}" in caplog.text
+
+
+@pytest.mark.parametrize("builder", ["WhisperCppBuilder", "StableDiffusionCppBuilder"])
+def test_native_forwarded_to_every_ggml_builder(tmp_path, monkeypatch, builder):
+    # upstream defaults GGML_NATIVE to ON, so a builder that drops it builds -march=native
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GGML_NATIVE", "OFF")
+    assert getattr(manage, builder)().get_backend_cmake_options()["GGML_NATIVE"] == "OFF"

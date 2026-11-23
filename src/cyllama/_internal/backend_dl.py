@@ -104,6 +104,22 @@ def _scan_dir(dirpath: str, results: list[bytes]) -> None:
             results.append(os.path.join(dirpath, fname).encode())
 
 
+def _exclude_cwd_from_dll_search() -> None:
+    """Drop the current directory from the legacy DLL search order (Windows).
+
+    That order checks the current directory before PATH. The CUDA runtime
+    DLLs a backend imports are resolved from the host, so a ``cublas64_12.dll``
+    planted in the working directory would load first. ``SetDllDirectoryW("")``
+    removes the current directory and leaves PATH in the search.
+    """
+    try:
+        import ctypes
+
+        ctypes.windll.kernel32.SetDllDirectoryW("")  # type: ignore[attr-defined]
+    except (AttributeError, OSError):
+        pass
+
+
 def libs_to_load(site_dir: str) -> list[bytes]:
     """Return encoded paths of ggml backend libs to load, or ``[]`` if
     already called.
@@ -138,6 +154,7 @@ def libs_to_load(site_dir: str) -> list[bytes]:
             path = os.environ.get("PATH", "")
             if libs_dir not in path.split(os.pathsep):
                 os.environ["PATH"] = libs_dir + os.pathsep + path
+            _exclude_cwd_from_dll_search()
     # delocate (macOS) — libs inside the package with original names
     dylibs_dir = os.path.join(site_dir, "cyllama", ".dylibs")
     _scan_dir(dylibs_dir, results)

@@ -317,7 +317,10 @@ class RAG:
 
         for path in paths:
             path = Path(path)
-            label = path.name
+            # The stored label is the resolved path: as a basename, a/README.md
+            # and b/README.md collided and the second was refused as "edited".
+            label = str(path.resolve())
+            shown = path.name  # what skipped_labels and errors show
 
             # Hash the raw bytes of the file. This is what catches
             # "user edited the file" -- a single byte difference
@@ -335,16 +338,16 @@ class RAG:
             file_hash = _content_hash(file_bytes)
 
             if self.store.is_source_indexed(file_hash):
-                skipped_labels.append(label)
+                skipped_labels.append(shown)
                 continue
 
-            # Same basename, different content -> file was edited.
+            # Same path, different content -> file was edited.
             # Refuse rather than producing two versions of the same
             # logical source in the index.
             existing = self.store.get_source_by_label(label)
             if existing is not None and existing["content_hash"] != file_hash:
                 raise ValueError(
-                    f"File {label!r} is already in the store with a different "
+                    f"File {shown!r} ({label}) is already in the store with a different "
                     f"content hash. The file content has changed since it was "
                     f"indexed. To append the new version, either rename the "
                     f"file (treat it as a new source) or pass --rebuild to "

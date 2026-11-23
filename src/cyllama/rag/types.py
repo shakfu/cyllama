@@ -110,6 +110,14 @@ class VectorStoreProtocol(Protocol):
     ``False`` / ``None`` to opt out of dedup -- the RAG layer treats
     that as "always re-index" and behaves correctly, just less
     efficiently on repeated ``add_documents`` calls.
+
+    Shared semantics, checked by ``tests/test_rag_store_conformance.py``:
+
+    - ``search`` scores are higher-is-better: cosine similarity, or
+      ``-distance`` for distance metrics; ``threshold`` is a minimum score.
+    - IDs from ``add`` are never reused for a live chunk, including after a
+      ``delete``.
+    - Calls on a closed store raise ``VectorStoreError`` (a ``RuntimeError``).
     """
 
     def search(
@@ -150,6 +158,14 @@ class VectorStoreProtocol(Protocol):
         Should return a dict with at least ``content_hash`` and
         ``source_label`` keys, or None if no source with this label is
         indexed. Backends without dedup support may return None.
+        """
+        ...
+
+    def delete(self, ids: list[str | int]) -> int:
+        """Remove the chunks with these IDs; return how many were removed.
+
+        A source whose every chunk is deleted is forgotten, so it can be
+        indexed again. Every backend implemented this; the protocol omitted it.
         """
         ...
 

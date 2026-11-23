@@ -826,10 +826,6 @@ python -m cyllama.sd info
 | Option | Description |
 |--------|-------------|
 | `--slg-scale` | Skip layer guidance scale |
-| `--skip-layer-start` | SLG start point |
-| `--skip-layer-end` | SLG end point |
-| `--guidance` | Distilled guidance (FLUX) |
-| `--img-cfg-scale` | Image CFG scale |
 
 **Memory Options**:
 

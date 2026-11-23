@@ -195,6 +195,14 @@ jobs:
             GGML_METAL=0
             GGML_NATIVE=0
 
+      # Run paths, Linux hardening and external deps; it was run on the Windows legs only.
+      - name: Audit built wheels
+        shell: bash
+        run: |
+          for w in wheelhouse/*.whl; do
+            python3 scripts/audit_wheel.py "$w"
+          done
+
       - uses: actions/upload-artifact@v7
         with:
           name: abi3-wheels-${{ matrix.os }}
@@ -484,8 +492,10 @@ jobs:
   # ---------------------------------------------------------------------------
   publish_to_pypi:
     name: Publish abi3 wheels to PyPI
-    needs: [collect_wheels, cross_version_smoke_test]
-    if: inputs.publish_to_pypi
+    # Plain `if`, so collect_wheels and every smoke test must succeed. PyPI files
+    # cannot be replaced, so only a verified tag publishes.
+    needs: [verify_tag, collect_wheels, cross_version_smoke_test]
+    if: inputs.publish_to_pypi && github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     environment: pypi
@@ -497,7 +507,7 @@ jobs:
           path: dist
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: dist
           password: ${{ secrets.PYPI_API_TOKEN }}

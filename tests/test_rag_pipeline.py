@@ -57,11 +57,14 @@ class TestRAGConfig:
             RAGConfig(top_k=0)
 
     def test_invalid_similarity_threshold(self):
-        """Test that invalid similarity_threshold raises error."""
-        with pytest.raises(ValueError, match="similarity_threshold must be between"):
-            RAGConfig(similarity_threshold=1.5)
-        with pytest.raises(ValueError, match="similarity_threshold must be between"):
-            RAGConfig(similarity_threshold=-0.1)
+        """A non-finite threshold is rejected."""
+        for bad in (float("nan"), float("inf")):
+            with pytest.raises(ValueError, match="similarity_threshold must be a finite number"):
+                RAGConfig(similarity_threshold=bad)
+
+    def test_negative_threshold_allowed(self):
+        # l2/l1 stores score as -distance, so a useful threshold there is negative
+        assert RAGConfig(similarity_threshold=-0.5).similarity_threshold == -0.5
 
     def test_invalid_max_tokens(self):
         """Test that invalid max_tokens raises error."""

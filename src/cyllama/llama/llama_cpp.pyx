@@ -3,7 +3,7 @@
 
 
 from libc.stdint cimport uint8_t, int32_t, int64_t, uint32_t, uint64_t
-from libc.string cimport strlen, strcmp
+from libc.string cimport strlen, strcmp, memset
 from libc.stdlib cimport malloc, calloc, realloc, free
 from libc.math cimport INFINITY
 from libc.stdio cimport FILE, fdopen, fclose
@@ -11,6 +11,7 @@ from libcpp.vector cimport vector as std_vector
 from libcpp.string cimport string as std_string
 from libcpp.set cimport set as std_set
 from libcpp cimport bool as cppbool  # required for func pointer sigs
+cimport cython
 
 cimport ggml
 cimport llama
@@ -205,7 +206,8 @@ cdef cppbool progress_callback(float progress, void * py_progress_callback) noex
     callback's success.
     """
     try:
-        return (<object>py_progress_callback)(progress)
+        # None (a callback that only reports) continues; it converted to False and aborted the load.
+        return (<object>py_progress_callback)(progress) is not False
     except BaseException:
         traceback.print_exc()
         return True
@@ -370,6 +372,10 @@ cdef class BatchMemoryPool:
             batch: Batch object to return to pool
         """
         cdef tuple key = (batch._n_tokens, batch.embd, batch.n_seq_max)
+
+        # A closed batch has freed arrays; handing it out again would reuse them.
+        if batch._closed or not batch.owner:
+            return
 
         # Don't pool very large allocations
         if batch._n_tokens > self._max_batch_size:
@@ -661,10 +667,17 @@ cdef class GgmlThreadPool:
     # def get_n_threads(self) -> int:
     #     return ggml.ggml_threadpool_get_n_threads(self.ptr)
 
+    cdef int _check_open(self) except -1:
+        if self.ptr is NULL:
+            raise RuntimeError("GgmlThreadPool was not created with GgmlThreadPool(params)")
+        return 0
+
     def pause(self):
+        self._check_open()
         return ggml.ggml_threadpool_pause(self.ptr)
 
     def resume(self):
+        self._check_open()
         return ggml.ggml_threadpool_resume(self.ptr)
 
 
@@ -693,10 +706,11 @@ cdef class LlamaBatch:
     """Input data for llama_decode
 
     A llama_batch object can contain input about one or many sequences
-    The provided arrays (i.e. token, embd, pos, etc.) must have size of n_tokens
+    The provided arrays (i.e. token, pos, etc.) must have size of n_tokens
 
-    - token  : the token ids of the input (used when embd is NULL)
-    - embd   : token embeddings (i.e. float vector of size n_embd) (used when token is NULL)
+    Token input only. For embedding input use :class:`LlamaBatchExt` (``add_embd``).
+
+    - token  : the token ids of the input
     - pos    : the positions of the respective token in the sequence
                (if set to NULL, the token position will be tracked automatically by llama_decode)
     - seq_id : the sequence to which the respective token belongs
@@ -715,16 +729,23 @@ cdef class LlamaBatch:
     cdef int _n_seq_max
     cdef public bint verbose
     cdef bint owner
+    cdef bint _closed
 
-    def __init__(self, *, n_tokens: int, embd: int, n_seq_max: int, verbose: bool = True):
-        """Allocates a batch of tokens on the heap that can hold a maximum of `n_tokens`
+    def __init__(self, *, n_tokens: int, n_seq_max: int, embd: int = 0, verbose: bool = True):
+        """Allocates a batch that can hold a maximum of `n_tokens` tokens
 
         Each token can be assigned up to `n_seq_max sequence` ids
 
-        If `embd != 0`, `llama_batch.embd` will be allocated with size of `n_tokens * embd * sizeof(float)`
-        Otherwise, `llama_batch.token` will be allocated to store `n_tokens llama_token`
-        The rest of the llama_batch members are allocated with size `n_tokens`
+        `embd` must be 0. An embedding batch (`embd != 0`) had no way to fill
+        its embedding array and no token array; use :class:`LlamaBatchExt`.
         """
+        # llama_batch_init writes seq_id[n_tokens], and token writes go through seq_id[i][0].
+        if n_tokens < 0:
+            raise ValueError(f"n_tokens must be >= 0, got {n_tokens}")
+        if embd != 0:
+            raise ValueError("LlamaBatch holds tokens only (embd must be 0); use LlamaBatchExt.add_embd for embeddings")
+        if n_seq_max < 1:
+            raise ValueError(f"n_seq_max must be >= 1, got {n_seq_max}")
         self._n_tokens = n_tokens
         self._embd = embd
         self._n_seq_max = n_seq_max
@@ -746,6 +767,15 @@ cdef class LlamaBatch:
         if self.owner is True:
             llama.llama_batch_free(self.p)
             self.owner = False
+        # Drop the freed pointers so no later write or decode can reach them.
+        memset(&self.p, 0, sizeof(self.p))
+        self._n_tokens = 0
+        self._closed = True
+
+    cdef int _check_writable(self) except -1:
+        if self._closed:
+            raise RuntimeError("LlamaBatch is closed")
+        return 0
 
     def __enter__(self):
         return self
@@ -771,7 +801,7 @@ cdef class LlamaBatch:
 
     @property
     def embd(self) -> int:
-        """Embedding-dim allocated for this batch. Read-only; set at construction."""
+        """Always 0: LlamaBatch holds tokens only. Kept for pool keys and old callers."""
         return self._embd
 
     @property
@@ -794,6 +824,7 @@ cdef class LlamaBatch:
         Raises:
             IndexError: If batch is full
         """
+        self._check_writable()
         cdef int n = self.p.n_tokens
         cdef int n_seq = len(seq_ids)
         if n >= self._n_tokens:
@@ -820,6 +851,7 @@ cdef class LlamaBatch:
         cdef int past_pos = n_past
         cdef bint logits_flag = logits_all
 
+        self._check_writable()
         if n_tokens > self._n_tokens:
             raise IndexError(
                 f"len(batch)={n_tokens} exceeds capacity={self._n_tokens}"
@@ -850,6 +882,7 @@ cdef class LlamaBatch:
         cdef int seq_id_val = seq_id
         cdef bint logits_flag = logits_all
 
+        self._check_writable()
         if n_tokens0 + n_tokens > self._n_tokens:
             raise IndexError(
                 f"add_sequence overflow: n_tokens0={n_tokens0} + len(batch)={n_tokens} "
@@ -929,6 +962,8 @@ cdef class LlamaBatchExt:
         return self._n_tokens
 
     cdef int _check_usable(self) except -1:
+        # the batch holds pointers into its context's memory and vocab
+        self.ctx._check_open()
         if self._rejected:
             raise ValueError("batch holds a rejected entry; call clear()")
         return 0
@@ -967,6 +1002,7 @@ cdef class LlamaBatchExt:
 
     def clear(self):
         """Remove all entries."""
+        self.ctx._check_open()
         llama.llama_batch_ext_clear(self.ptr)
         self._n_tokens = 0
         self._rejected = False
@@ -1001,11 +1037,13 @@ cdef class LlamaBatchExt:
 
     def add_seq(self, int idx, int seq_id):
         """Add the entry at ``idx`` to another sequence; call before the set_* methods."""
+        self.ctx._check_open()
         if not llama.llama_batch_ext_add_seq(self.ptr, idx, seq_id):
             raise ValueError(f"invalid batch index {idx} or seq_id {seq_id}")
 
     def set_embd_token(self, int idx, data):
         """Attach a token embedding to a token entry; can be set once per entry."""
+        self.ctx._check_open()
         cdef const float[::1] view = _as_float_view(data)
         cdef llama.llama_embd embd
         embd.data = &view[0] if view.shape[0] else NULL
@@ -1016,6 +1054,7 @@ cdef class LlamaBatchExt:
 
     def set_embd_state(self, int idx, data, int n_rows=1):
         """Attach extra hidden state (MTP, deepstack) to the entry at ``idx``."""
+        self.ctx._check_open()
         cdef const float[::1] view = _as_float_view(data)
         cdef llama.llama_embd embd
         if n_rows <= 0 or view.shape[0] % n_rows:
@@ -1031,16 +1070,19 @@ cdef class LlamaBatchExt:
 
     def set_output(self, int idx, bint value=True):
         """Request logits and embeddings for the entry at ``idx``."""
+        self.ctx._check_open()
         if not llama.llama_batch_ext_set_output_logits(self.ptr, idx, value):
             raise IndexError(f"invalid batch index {idx}")
 
     def set_output_embd(self, int idx, bint value=True):
         """Upstream currently treats this the same as :meth:`set_output`."""
+        self.ctx._check_open()
         if not llama.llama_batch_ext_set_output_embd(self.ptr, idx, value):
             raise IndexError(f"invalid batch index {idx}")
 
     def set_pos(self, int idx, pos):
         """Overwrite the position(s) of an embedding entry, or the position of a token entry."""
+        self.ctx._check_open()
         if not 0 <= idx < self._n_tokens:
             raise IndexError(f"invalid batch index {idx}")
         n = len(pos) if not isinstance(pos, int) else 1
@@ -1105,6 +1147,8 @@ cdef class LlamaModelTensorBuftOverride:
 
     @property
     def pattern(self) -> str:
+        if self.ptr is NULL or self.ptr.pattern is NULL:
+            raise RuntimeError("LlamaModelTensorBuftOverride is not bound to an override")
         return self.ptr.pattern.decode()
 
     # @property
@@ -1920,6 +1964,14 @@ cdef class LlamaVocab:
             raise RuntimeError("LlamaModel is closed")
         return 0
 
+    cdef int _check_token(self, long long token) except -1:
+        # llama.cpp indexes token tables with .at(); an out-of-range id throws
+        # std::out_of_range, which terminates the process across the C ABI.
+        cdef int32_t n = llama.llama_vocab_n_tokens(self.ptr)
+        if token < 0 or token >= n:
+            raise IndexError(f"token id {token} is outside the vocabulary [0, {n})")
+        return 0
+
     def __cinit__(self):
         self.ptr = NULL
         self.owner = False
@@ -1942,27 +1994,31 @@ cdef class LlamaVocab:
         self._check_open()
         return llama.llama_vocab_n_tokens(self.ptr)
 
-    def get_text(self, llama.llama_token token) -> str:
+    def get_text(self, long long token) -> str:
         self._check_open()
-        return llama.llama_vocab_get_text(self.ptr, token).decode("utf-8")
+        self._check_token(token)
+        return llama.llama_vocab_get_text(self.ptr, <llama.llama_token>token).decode("utf-8")
 
-    def get_score(self, llama.llama_token token) -> float:
+    def get_score(self, long long token) -> float:
         self._check_open()
-        return llama.llama_vocab_get_score(self.ptr, token)
+        self._check_token(token)
+        return llama.llama_vocab_get_score(self.ptr, <llama.llama_token>token)
 
-    def get_attr(self, llama.llama_token token) -> llama.llama_token_attr:
+    def get_attr(self, long long token) -> llama.llama_token_attr:
         self._check_open()
-        return llama.llama_vocab_get_attr(self.ptr, token)
+        self._check_token(token)
+        return llama.llama_vocab_get_attr(self.ptr, <llama.llama_token>token)
 
     def is_eog(self, llama.llama_token token) -> bool:
         """Check if the token is supposed to end generation (end-of-generation, eg. EOS, EOT, etc.)"""
         self._check_open()
         return llama.llama_vocab_is_eog(self.ptr, token)
 
-    def is_control(self, llama.llama_token token) -> bool:
+    def is_control(self, long long token) -> bool:
         """Identify if Token Id is a control token or a render-able token"""
         self._check_open()
-        return llama.llama_vocab_is_control(self.ptr, token)
+        self._check_token(token)
+        return llama.llama_vocab_is_control(self.ptr, <llama.llama_token>token)
 
     # Special tokens
 
@@ -2144,6 +2200,7 @@ cdef class LlamaVocab:
     def token_to_bytes(self, token: int, lstrip: int = 0, special: bool = False) -> bytes:
         """Token Id -> raw piece bytes, as ``token_to_piece`` without decoding."""
         self._check_open()
+        self._check_token(token)
         cdef char stackbuf[128]
         cdef int32_t length = llama.llama_token_to_piece(
             self.ptr, token, stackbuf, 128, lstrip, special
@@ -2198,6 +2255,7 @@ cdef class LlamaVocab:
 
         try:
             for i in tokens:
+                self._check_token(i)
                 vec.push_back(i)
 
             vocab_ptr = self.ptr
@@ -2240,7 +2298,8 @@ cdef class LlamaVocab:
             result = buf[:res].decode("utf-8", errors="replace")
         finally:
             free(buf)
-        return result.lstrip()
+        # Not stripped: leading whitespace and newlines are part of the text.
+        return result
 
 
 cdef class _GgufFileHandle:
@@ -2348,6 +2407,7 @@ cdef class LlamaModel:
     cdef uint64_t _cached_n_params
     cdef uint64_t _cached_size
     cdef bint _cache_initialized
+    cdef object _contexts  # WeakSet of live LlamaContexts on this model
 
     cdef int _check_open(self) except -1:
         if self.ptr is NULL:
@@ -2357,6 +2417,7 @@ cdef class LlamaModel:
     def __cinit__(self):
         self.ptr = NULL
         self.owner = True
+        self._contexts = weakref.WeakSet()
         self._cache_initialized = False
         # Initialize cached values to -1/0 to indicate they need to be computed
         self._cached_n_embd = -1
@@ -2381,11 +2442,14 @@ cdef class LlamaModel:
         # rather than crashing inside the C++ GGUF parser.
         validate_gguf_file(path_model, kind="GGUF model")
 
-        # with suppress_stdout_stderr(disable=verbose):
-        self.ptr = llama.llama_model_load_from_file(
-            self.path_model.encode("utf-8"),
-            self.params.p
-        )
+        # Without the GIL: a load takes seconds and stalled every other Python thread.
+        cdef bytes c_path_bytes = self.path_model.encode("utf-8")
+        cdef const char * c_path = c_path_bytes
+        cdef llama.llama_model_params c_mparams = self.params.p
+        cdef llama.llama_model * loaded
+        with nogil:
+            loaded = llama.llama_model_load_from_file(c_path, c_mparams)
+        self.ptr = loaded
 
         if self.ptr is NULL:
             raise ValueError(
@@ -2406,8 +2470,14 @@ cdef class LlamaModel:
             self.ptr = NULL
 
     def close(self):
-        """Release the underlying model immediately. Idempotent."""
+        """Release the underlying model immediately. Idempotent.
+
+        Contexts created on this model are closed first: freeing a
+        llama_context reads its model.
+        """
         if self.ptr is not NULL and self.owner is True:
+            for ctx in list(self._contexts):
+                (<LlamaContext>ctx).close()
             llama.llama_model_free(self.ptr)
             self.ptr = NULL
 
@@ -2447,8 +2517,13 @@ cdef class LlamaModel:
         model.path_model = name if isinstance(name, str) else None
         model.params = params if params else LlamaModelParams()
         model.verbose = verbose
+        cdef FILE * c_fp = fh.fp
+        cdef llama.llama_model_params c_mparams = model.params.p
+        cdef llama.llama_model * loaded = NULL
         try:
-            model.ptr = llama.llama_model_load_from_file_ptr(fh.fp, model.params.p)
+            with nogil:
+                loaded = llama.llama_model_load_from_file_ptr(c_fp, c_mparams)
+            model.ptr = loaded
         finally:
             fh.close()
         if model.ptr is NULL:
@@ -2964,7 +3039,8 @@ cdef class LlamaModel:
                 nbytes = llama.llama_model_meta_key_by_index(
                     self.ptr, i, buffer, buffer_size
                 )
-                if nbytes > <int>buffer_size:
+                # nbytes excludes the NUL; nbytes == buffer_size means the value was truncated
+                if nbytes >= <int>buffer_size:
                     buffer_size = nbytes + 1
                     tmp = <char*>realloc(buffer, buffer_size * sizeof(char))
                     if tmp is NULL:
@@ -2975,11 +3051,14 @@ cdef class LlamaModel:
                     nbytes = llama.llama_model_meta_key_by_index(
                         self.ptr, i, buffer, buffer_size
                     )
+                if nbytes < 0:
+                    continue
                 key = buffer[:nbytes].decode("utf-8", errors="replace")
                 nbytes = llama.llama_model_meta_val_str_by_index(
                     self.ptr, i, buffer, buffer_size
                 )
-                if nbytes > <int>buffer_size:
+                # nbytes excludes the NUL; nbytes == buffer_size means the value was truncated
+                if nbytes >= <int>buffer_size:
                     buffer_size = nbytes + 1
                     tmp = <char*>realloc(buffer, buffer_size * sizeof(char))
                     if tmp is NULL:
@@ -2988,7 +3067,7 @@ cdef class LlamaModel:
                     nbytes = llama.llama_model_meta_val_str_by_index(
                         self.ptr, i, buffer, buffer_size
                     )
-                value = buffer[:nbytes].decode("utf-8", errors="replace")
+                value = buffer[:nbytes].decode("utf-8", errors="replace") if nbytes >= 0 else ""
                 metadata[key] = value
         finally:
             free(buffer)
@@ -3001,6 +3080,9 @@ cdef class LlamaModel:
         return LlamaModelParams()
 
 
+# no_gc_clear: tp_clear would drop `model` before __dealloc__ frees the context,
+# and llama_free reads the model. Keeping the reference orders the frees.
+@cython.no_gc_clear
 cdef class LlamaContext:
     """Intermediate Python wrapper for a llama.cpp llama_context."""
     cdef llama.llama_context * ptr
@@ -3037,11 +3119,11 @@ cdef class LlamaContext:
     cdef object __weakref__
 
     cdef int _check_open(self) except -1:
-        if self.ptr is NULL:
-            raise RuntimeError("LlamaContext is closed")
-        # llama_context keeps the model's weights; LlamaModel.close() frees them regardless
+        # LlamaModel.close() closes its contexts too; name the cause
         if self.model is not None and self.model.ptr is NULL:
             raise RuntimeError("LlamaModel is closed")
+        if self.ptr is NULL:
+            raise RuntimeError("LlamaContext is closed")
         return 0
 
     def __cinit__(self):
@@ -3134,8 +3216,12 @@ cdef class LlamaContext:
             cparams.samplers = configs
             cparams.n_samplers = len(entries)
 
+        cdef llama.llama_model * c_model = self.model.ptr
+        cdef llama.llama_context * created = NULL
         try:
-            self.ptr = llama.llama_init_from_model(self.model.ptr, cparams)
+            with nogil:  # allocates the KV cache and reserves compute graphs
+                created = llama.llama_init_from_model(c_model, cparams)
+            self.ptr = created
         finally:
             free(configs)
 
@@ -3155,6 +3241,7 @@ cdef class LlamaContext:
                 "n_ctx exceeds what the model supports, or invalid context parameters. "
                 "Try lowering n_ctx or n_batch."
             )
+        self.model._contexts.add(self)
 
     def __dealloc__(self):
         if self.ptr is not NULL and self.owner is True:
@@ -3324,8 +3411,10 @@ cdef class LlamaContext:
     # Manage Threadpools
     # -------------------------------------------------------------------------
 
-    def attach_threadpool(self, GgmlThreadPool threadpool, GgmlThreadPool threadpool_batch):
+    def attach_threadpool(self, GgmlThreadPool threadpool not None, GgmlThreadPool threadpool_batch not None):
         self._check_open()
+        threadpool._check_open()
+        threadpool_batch._check_open()
         # Retain Python references so the underlying ggml_threadpool*
         # pointers passed to the C side stay valid for the life of the
         # context (or until detach_threadpool replaces them).
@@ -3745,16 +3834,39 @@ cdef class LlamaContext:
     # Decoding
     # -------------------------------------------------------------------------
 
-    def encode(self, LlamaBatch batch):
+    cdef int _check_batch_size(self, LlamaBatch batch, bint encoder) except -1:
+        # llama_encode / llama_decode GGML_ASSERT these limits, which aborts the process.
+        if batch._closed:
+            raise RuntimeError("LlamaBatch is closed")
+        cdef int n = batch.p.n_tokens
+        cdef uint32_t n_batch = llama.llama_n_batch(self.ptr)
+        cdef uint32_t n_ubatch = llama.llama_n_ubatch(self.ptr)
+        if n < 0:
+            raise ValueError(f"batch has a negative token count ({n})")
+        if not encoder and <uint32_t>n > n_batch:
+            raise ValueError(
+                f"batch of {n} tokens exceeds the context's n_batch={n_batch}; "
+                "split it, or create the context with a larger n_batch"
+            )
+        if (encoder or not llama.llama_get_causal_attn(self.ptr)) and <uint32_t>n > n_ubatch:
+            raise ValueError(
+                f"batch of {n} tokens exceeds the context's n_ubatch={n_ubatch}; "
+                "non-causal attention processes a batch in one ubatch"
+            )
+        return 0
+
+    def encode(self, LlamaBatch batch not None):
         """Processes a batch of tokens with the encoder part of the encoder-decoder model.
 
         Stores the encoder output internally for later use by the decoder cross-attention layers.
 
         Raises:
+            ValueError: the batch holds more tokens than n_ubatch.
             InterruptedError: aborted by abort_callback (return code 2).
             RuntimeError: any other non-zero return code.
         """
         self._check_open()
+        self._check_batch_size(batch, True)
         cdef llama.llama_context * ctx_ptr = self.ptr
         cdef llama.llama_batch c_batch = batch.p
         cdef int32_t res
@@ -3767,8 +3879,11 @@ cdef class LlamaContext:
         if res != 0:
             raise RuntimeError(f"llama_encode failed with code {res}")
 
-    def decode(self, LlamaBatch batch) -> int:
+    def decode(self, LlamaBatch batch not None) -> int:
         """Run llama_decode on a batch.
+
+        Raises ValueError, before calling llama_decode, if the batch holds more
+        tokens than n_batch, or than n_ubatch when attention is non-causal.
 
         Return codes mirror the upstream contract (see llama.h):
           0 - success
@@ -3782,6 +3897,7 @@ cdef class LlamaContext:
         ``llama_memory_seq_pos_min/max`` if needed.
         """
         self._check_open()
+        self._check_batch_size(batch, False)
         cdef llama.llama_context * ctx_ptr = self.ptr
         cdef llama.llama_batch c_batch = batch.p
         cdef int32_t res
@@ -3885,6 +4001,11 @@ cdef class LlamaContext:
         collected while the context still polls it.
         """
         self._check_open()
+        if py_abort_callback is None:
+            # Clear it; installing the trampoline with None printed a TypeError on every poll.
+            self._abort_callback = None
+            llama.llama_set_abort_callback(self.ptr, NULL, NULL)
+            return
         self._abort_callback = py_abort_callback
         llama.llama_set_abort_callback(self.ptr,
             <ggml.ggml_abort_callback>&abort_callback, <void*>py_abort_callback)
@@ -4138,6 +4259,39 @@ cdef class LlamaContext:
             vec.push_back(embds[i])
         return vec
 
+    def _pool_embeddings(self, int n_rows, int mode, int start=0) -> list:
+        """Pool output rows ``start..start+n_rows-1`` in C: mode 0 = mean, 1 = first row, 2 = last row.
+
+        For ``Embedder``, which pools itself (pooling_type NONE). Copying every
+        row to Python and pooling there cost more than the pooling.
+        """
+        self._check_open()
+        if n_rows <= 0 or start < 0:
+            raise ValueError(f"n_rows must be > 0 and start >= 0, got {n_rows}, {start}")
+        if mode not in (0, 1, 2):
+            raise ValueError(f"mode must be 0 (mean), 1 (first) or 2 (last), got {mode}")
+        cdef int n_embd = self.model.n_embd_out
+        cdef float * row
+        cdef int r, j
+        if mode != 0:
+            row = llama.llama_get_embeddings_ith(self.ptr, start if mode == 1 else start + n_rows - 1)
+            if row is NULL:
+                raise ValueError("no embedding output for the requested row")
+            return [row[j] for j in range(n_embd)]
+        cdef double * acc = <double *>calloc(n_embd, sizeof(double))
+        if acc is NULL:
+            raise MemoryError("Failed to allocate pooling buffer")
+        try:
+            for r in range(start, start + n_rows):
+                row = llama.llama_get_embeddings_ith(self.ptr, r)
+                if row is NULL:
+                    raise ValueError(f"no embedding output for row {r}")
+                for j in range(n_embd):
+                    acc[j] += row[j]
+            return [acc[j] / n_rows for j in range(n_embd)]
+        finally:
+            free(acc)
+
     def get_embeddings_seq(self, int seq_id) -> Optional[list[float]]:
         """Pooled embeddings for a sequence id.
 
@@ -4174,7 +4328,7 @@ cdef class LlamaContext:
     @staticmethod
     def default_params():
         """Get the default llama_context_params."""
-        return LlamaContext()
+        return LlamaContextParams()
 
     #
     # Performance utils
@@ -4220,9 +4374,10 @@ cdef enum:
 
 cdef int _sampler_sample(llama.llama_sampler * smpl, llama.llama_context * ctx, int32_t idx,
                          int32_t n_vocab, std_vector[llama.llama_token_data] * cur,
-                         llama.llama_token * out) noexcept nogil:
+                         llama.llama_token * out) except -1 nogil:
     # Mirrors llama_sampler_sample() in llama-sampler.cpp, but returns an
     # error code at each of its GGML_ASSERTs instead of aborting the process.
+    # A grammar that rejects the token raises RuntimeError (accept is except +).
     cdef llama.llama_token token = llama.llama_get_sampled_token_ith(ctx, idx)
     if token != llama.LLAMA_TOKEN_NULL:
         llama.llama_sampler_accept(smpl, token)
@@ -4375,13 +4530,16 @@ cdef class LlamaSampler:
             raise ValueError("sampler is not a chain; build links on a LlamaSampler()")
         return 0
 
-    cdef int _chain_add(self, llama.llama_sampler * link) except -1:
+    cdef int _chain_add(self, llama.llama_sampler * link, str what=None) except -1:
         # takes ownership of link, freeing it if the chain cannot accept it
         if self._bound_ctx is not None or not self._is_chain():
             if link is not NULL:
                 llama.llama_sampler_free(link)
             self._check_chain()
             self._check_unbound()
+        # A NULL link (e.g. a grammar that failed to parse) crashes the next sample().
+        if link is NULL:
+            raise ValueError(what or "llama.cpp rejected the sampler parameters")
         llama.llama_sampler_chain_add(self.ptr, link)
         return 0
 
@@ -4488,6 +4646,7 @@ cdef class LlamaSampler:
         ``dst`` must be the same sampler type with the same configuration.
         """
         self._check_open()
+        dst._check_open()
         # llama_sampler_copy aborts the process on a type or chain-shape mismatch
         if not _same_sampler_shape(self.ptr, dst.ptr):
             raise TypeError("cannot copy state between samplers of different types or chain layouts")
@@ -4621,7 +4780,7 @@ cdef class LlamaSampler:
         """
         self._chain_add(llama.llama_sampler_init_adaptive_p(target, decay, seed))
 
-    def add_dry(self, LlamaVocab vocab, float dry_multiplier,
+    def add_dry(self, LlamaVocab vocab not None, float dry_multiplier,
                 float dry_base, int32_t dry_allowed_length, int32_t dry_penalty_last_n,
                 seq_breakers: Optional[Sequence[str]] = None):
         """DRY (Don't Repeat Yourself) repetition sampler.
@@ -4657,6 +4816,7 @@ cdef class LlamaSampler:
             # call; llama.cpp copies them into the sampler's own storage.
             for i in range(num_breakers):
                 breaker_array[i] = <const char *>(<bytes>breakers[i])
+            vocab._check_open()
             self._keepalive.append(vocab)
             self._chain_add(llama.llama_sampler_init_dry(
                     vocab.ptr,
@@ -4671,13 +4831,15 @@ cdef class LlamaSampler:
             if breaker_array != NULL:
                 free(breaker_array)
 
-    def add_grammar(self, LlamaVocab vocab, str grammar_str, str grammar_root):
+    def add_grammar(self, LlamaVocab vocab not None, str grammar_str, str grammar_root):
         """Add grammer chain link"""
+        vocab._check_open()
         self._keepalive.append(vocab)
         self._chain_add(llama.llama_sampler_init_grammar(
-                vocab.ptr, grammar_str.encode(), grammar_root.encode()))
+                vocab.ptr, grammar_str.encode(), grammar_root.encode()),
+            f"invalid grammar, or no rule named {grammar_root!r}")
 
-    def add_grammar_lazy_patterns(self, LlamaVocab vocab, str grammar_str,
+    def add_grammar_lazy_patterns(self, LlamaVocab vocab not None, str grammar_str,
                                   str grammar_root,
                                   trigger_patterns: Optional[Sequence[str]] = None,
                                   trigger_tokens: Optional[Sequence[int]] = None):
@@ -4721,6 +4883,7 @@ cdef class LlamaSampler:
                 pattern_array[i] = <const char *>(<bytes>patterns[i])
             for i in range(num_tokens):
                 token_array[i] = tokens[i]
+            vocab._check_open()
             self._keepalive.append(vocab)
             self._chain_add(llama.llama_sampler_init_grammar_lazy_patterns(
                     vocab.ptr,
@@ -4730,7 +4893,7 @@ cdef class LlamaSampler:
                     num_patterns,
                     token_array,
                     num_tokens,
-                ))
+                ), f"invalid grammar, or no rule named {grammar_root!r}")
         finally:
             if pattern_array != NULL:
                 free(pattern_array)
@@ -4788,12 +4951,13 @@ cdef class LlamaSampler:
         else:
             self._chain_add(llama.llama_sampler_init_logit_bias(n_vocab, 0, NULL))
 
-    def add_suppress_tokens(self, LlamaVocab vocab) -> None:
+    def add_suppress_tokens(self, LlamaVocab vocab not None) -> None:
         """Bias the model's suppress tokens to -inf, as upstream ``common_sampler`` does.
 
         Adds no link when the model declares none (``tokenizer.ggml.suppress_tokens``).
         """
         cdef int32_t n = 0
+        vocab._check_open()
         cdef const llama.llama_token * toks = llama.llama_vocab_get_suppress_tokens(vocab.ptr, &n)
         if toks is NULL or n <= 0:
             return
@@ -4809,7 +4973,7 @@ cdef class LlamaSampler:
         finally:
             free(bias)
 
-    def add_infill(self, LlamaVocab vocab):
+    def add_infill(self, LlamaVocab vocab not None):
         """This sampler is meant to be used for fill-in-the-middle infilling
 
         it's supposed to be used after top_k + top_p sampling
@@ -4832,12 +4996,13 @@ cdef class LlamaSampler:
         3. discard non-EOG tokens with low prob
         4. if no tokens are left -> pick EOT
         """
+        vocab._check_open()
         self._keepalive.append(vocab)
         self._chain_add(llama.llama_sampler_init_infill(vocab.ptr)
         )
 
 
-    def sample(self, LlamaContext ctx, int idx) -> int:
+    def sample(self, LlamaContext ctx not None, int idx) -> int:
         """Sample and accept a token from the idx-th output of the last evaluation.
 
         Equivalent to ``llama_sampler_sample``, which aborts the process
@@ -4857,8 +5022,11 @@ cdef class LlamaSampler:
                 "use sampler.clone() with this context")
         if self.ptr is NULL:
             raise RuntimeError("Sampler is closed")
-        if ctx.ptr is NULL:
-            raise RuntimeError("context has been closed")
+        ctx._check_open()
+        # grammar, DRY and infill links read their vocab; it is freed with its model
+        for obj in self._keepalive:
+            if isinstance(obj, LlamaVocab):
+                (<LlamaVocab>obj)._check_open()
         cdef llama.llama_sampler * smpl_ptr = self.ptr
         cdef llama.llama_context * ctx_ptr = ctx.ptr
         cdef int32_t idx_c = idx
@@ -5327,11 +5495,12 @@ def model_quantize(fname_inp: str, fname_out: str,
             f"(input={fname_inp!r}, output={fname_out!r})"
         )
 
-def llama_attach_threadpool(LlamaContext ctx, GgmlThreadPool threadpool, GgmlThreadPool threadpool_batch):
-    llama.llama_attach_threadpool(ctx.ptr, threadpool.ptr, threadpool_batch.ptr)
+def llama_attach_threadpool(LlamaContext ctx not None, GgmlThreadPool threadpool, GgmlThreadPool threadpool_batch):
+    """Same as :meth:`LlamaContext.attach_threadpool`, which keeps the pools alive."""
+    ctx.attach_threadpool(threadpool, threadpool_batch)
 
-def llama_detach_threadpool(LlamaContext ctx):
-    llama.llama_detach_threadpool(ctx.ptr)
+def llama_detach_threadpool(LlamaContext ctx not None):
+    ctx.detach_threadpool()
 
 def llama_batch_get_one(list[int] tokens, int n_past = 0) -> LlamaBatch:
     """Create a batch using the proper batch API with optimized token handling and memory pooling"""
@@ -5418,6 +5587,24 @@ cdef class GGUFContext:
         if self.ptr != NULL and self.owner:
             gguf.gguf_free(self.ptr)
             self.ptr = NULL
+
+    cdef int _check_open(self) except -1:
+        if self.ptr is NULL:
+            raise RuntimeError("GGUFContext is closed or was not created with empty()/from_file()")
+        return 0
+
+    cdef int _check_key(self, int64_t key_id) except -1:
+        # gguf asserts key_id < n_kv, which aborts the process
+        cdef int64_t n = gguf.gguf_get_n_kv(self.ptr)
+        if key_id < 0 or key_id >= n:
+            raise IndexError(f"key id {key_id} is outside [0, {n})")
+        return 0
+
+    cdef int _check_tensor(self, int64_t tensor_id) except -1:
+        cdef int64_t n = gguf.gguf_get_n_tensors(self.ptr)
+        if tensor_id < 0 or tensor_id >= n:
+            raise IndexError(f"tensor id {tensor_id} is outside [0, {n})")
+        return 0
 
     def close(self):
         """Release the underlying GGUF context immediately. Idempotent."""
@@ -5528,26 +5715,31 @@ cdef class GGUFContext:
     @property
     def version(self) -> int:
         """Get GGUF file version."""
+        self._check_open()
         return gguf.gguf_get_version(self.ptr)
 
     @property
     def alignment(self) -> int:
         """Get tensor data alignment."""
+        self._check_open()
         return gguf.gguf_get_alignment(self.ptr)
 
     @property
     def data_offset(self) -> int:
         """Get offset to tensor data in file."""
+        self._check_open()
         return gguf.gguf_get_data_offset(self.ptr)
 
     @property
     def n_kv(self) -> int:
         """Get number of key-value pairs."""
+        self._check_open()
         return gguf.gguf_get_n_kv(self.ptr)
 
     @property
     def n_tensors(self) -> int:
         """Get number of tensors."""
+        self._check_open()
         return gguf.gguf_get_n_tensors(self.ptr)
 
     def find_key(self, str key) -> int:
@@ -5560,11 +5752,14 @@ cdef class GGUFContext:
         Returns:
             Key ID (>= 0) if found, -1 if not found
         """
+        self._check_open()
         key_bytes = key.encode('utf-8')
         return gguf.gguf_find_key(self.ptr, key_bytes)
 
     def get_key(self, int key_id) -> str:
         """Get key name by ID."""
+        self._check_open()
+        self._check_key(key_id)
         cdef const char * key_c = gguf.gguf_get_key(self.ptr, key_id)
         if key_c == NULL:
             raise ValueError(f"Invalid key ID: {key_id}")
@@ -5572,6 +5767,8 @@ cdef class GGUFContext:
 
     def get_kv_type(self, int key_id) -> int:
         """Get value type for key."""
+        self._check_open()
+        self._check_key(key_id)
         return gguf.gguf_get_kv_type(self.ptr, key_id)
 
     def get_value(self, str key):
@@ -5623,6 +5820,8 @@ cdef class GGUFContext:
 
     def _get_array_value(self, int64_t key_id):
         """Get array value by key ID."""
+        self._check_open()
+        self._check_key(key_id)
         cdef int arr_type = gguf.gguf_get_arr_type(self.ptr, key_id)
         cdef size_t n = gguf.gguf_get_arr_n(self.ptr, key_id)
         cdef const char * s
@@ -5659,12 +5858,14 @@ cdef class GGUFContext:
 
     def set_val_str(self, str key, str value):
         """Set string value."""
+        self._check_open()
         key_bytes = key.encode('utf-8')
         value_bytes = value.encode('utf-8')
         gguf.gguf_set_val_str(self.ptr, key_bytes, value_bytes)
 
     def set_arr_str(self, str key, list values):
         """Set a string array value."""
+        self._check_open()
         encoded = [v.encode('utf-8') for v in values]
         cdef const char ** ptrs = <const char **>malloc(max(len(encoded), 1) * sizeof(char *))
         if ptrs is NULL:
@@ -5679,6 +5880,7 @@ cdef class GGUFContext:
 
     def set_arr_data(self, str key, int gguf_type, values):
         """Set a numeric or bool array value; ``gguf_type`` is a ``GGUF_TYPE_*`` constant."""
+        self._check_open()
         fmt = _GGUF_ARR_FORMATS.get(gguf_type)
         if fmt is None:
             raise ValueError(f"gguf_type {gguf_type} is not a numeric or bool type")
@@ -5689,56 +5891,67 @@ cdef class GGUFContext:
 
     def set_val_bool(self, str key, bint value):
         """Set boolean value."""
+        self._check_open()
         key_bytes = key.encode('utf-8')
         gguf.gguf_set_val_bool(self.ptr, key_bytes, value)
 
     def set_val_u8(self, str key, int value):
         """Set uint8 value."""
+        self._check_open()
         key_bytes = key.encode('utf-8')
         gguf.gguf_set_val_u8(self.ptr, key_bytes, value)
 
     def set_val_i8(self, str key, int value):
         """Set int8 value."""
+        self._check_open()
         key_bytes = key.encode('utf-8')
         gguf.gguf_set_val_i8(self.ptr, key_bytes, value)
 
     def set_val_u16(self, str key, int value):
         """Set uint16 value."""
+        self._check_open()
         key_bytes = key.encode('utf-8')
         gguf.gguf_set_val_u16(self.ptr, key_bytes, value)
 
     def set_val_i16(self, str key, int value):
         """Set int16 value."""
+        self._check_open()
         key_bytes = key.encode('utf-8')
         gguf.gguf_set_val_i16(self.ptr, key_bytes, value)
 
     def set_val_u32(self, str key, int value):
         """Set uint32 value."""
+        self._check_open()
         key_bytes = key.encode('utf-8')
         gguf.gguf_set_val_u32(self.ptr, key_bytes, value)
 
     def set_val_i32(self, str key, int value):
         """Set int32 value."""
+        self._check_open()
         key_bytes = key.encode('utf-8')
         gguf.gguf_set_val_i32(self.ptr, key_bytes, value)
 
     def set_val_f32(self, str key, float value):
         """Set float32 value."""
+        self._check_open()
         key_bytes = key.encode('utf-8')
         gguf.gguf_set_val_f32(self.ptr, key_bytes, value)
 
     def set_val_u64(self, str key, int value):
         """Set uint64 value."""
+        self._check_open()
         key_bytes = key.encode('utf-8')
         gguf.gguf_set_val_u64(self.ptr, key_bytes, value)
 
     def set_val_i64(self, str key, int value):
         """Set int64 value."""
+        self._check_open()
         key_bytes = key.encode('utf-8')
         gguf.gguf_set_val_i64(self.ptr, key_bytes, value)
 
     def set_val_f64(self, str key, float value):
         """Set float64 value."""
+        self._check_open()
         key_bytes = key.encode('utf-8')
         gguf.gguf_set_val_f64(self.ptr, key_bytes, value)
 
@@ -5752,6 +5965,7 @@ cdef class GGUFContext:
         Returns:
             Key ID that was removed, or -1 if key didn't exist
         """
+        self._check_open()
         key_bytes = key.encode('utf-8')
         return gguf.gguf_remove_key(self.ptr, key_bytes)
 
@@ -5765,11 +5979,14 @@ cdef class GGUFContext:
         Returns:
             Tensor ID (>= 0) if found, -1 if not found
         """
+        self._check_open()
         name_bytes = name.encode('utf-8')
         return gguf.gguf_find_tensor(self.ptr, name_bytes)
 
     def get_tensor_name(self, int tensor_id) -> str:
         """Get tensor name by ID."""
+        self._check_open()
+        self._check_tensor(tensor_id)
         cdef const char * name = gguf.gguf_get_tensor_name(self.ptr, tensor_id)
         if name == NULL:
             raise ValueError(f"Invalid tensor ID: {tensor_id}")
@@ -5777,14 +5994,20 @@ cdef class GGUFContext:
 
     def get_tensor_type(self, int tensor_id) -> int:
         """Get tensor type (ggml_type enum)."""
+        self._check_open()
+        self._check_tensor(tensor_id)
         return gguf.gguf_get_tensor_type(self.ptr, tensor_id)
 
     def get_tensor_offset(self, int tensor_id) -> int:
         """Get tensor data offset in file."""
+        self._check_open()
+        self._check_tensor(tensor_id)
         return gguf.gguf_get_tensor_offset(self.ptr, tensor_id)
 
     def get_tensor_size(self, int tensor_id) -> int:
         """Get tensor size in bytes."""
+        self._check_open()
+        self._check_tensor(tensor_id)
         return gguf.gguf_get_tensor_size(self.ptr, tensor_id)
 
     def get_all_tensor_info(self) -> list:
@@ -5817,14 +6040,18 @@ cdef class GGUFContext:
         Returns:
             True if successful
         """
+        self._check_open()
         filename_bytes = filename.encode('utf-8')
         return gguf.gguf_write_to_file(self.ptr, filename_bytes, only_meta)
 
     def get_meta_size(self) -> int:
         """Get size of metadata in bytes."""
+        self._check_open()
         return gguf.gguf_get_meta_size(self.ptr)
 
     def __repr__(self):
+        if self.ptr is NULL:
+            return "<GGUFContext: closed>"
         return f"<GGUFContext: version={self.version}, tensors={self.n_tensors}, kv_pairs={self.n_kv}>"
 
 
@@ -5849,22 +6076,70 @@ def _get_cache_dir():
 
 
 def _split_repo_tag(hf_repo_with_tag):
-    """Split 'user/repo:tag' into ('user/repo', 'tag'). Defaults tag to 'latest'."""
+    """Split 'user/repo:tag' into ('user/repo', 'tag'). Defaults tag to 'latest'.
+
+    Both become URL and cache-file name parts, so they are restricted to safe characters.
+    """
+    import re
     if ':' in hf_repo_with_tag:
         idx = hf_repo_with_tag.rfind(':')
-        return hf_repo_with_tag[:idx], hf_repo_with_tag[idx+1:]
-    return hf_repo_with_tag, 'latest'
+        repo, tag = hf_repo_with_tag[:idx], hf_repo_with_tag[idx+1:]
+    else:
+        repo, tag = hf_repo_with_tag, 'latest'
+    if not re.fullmatch(r"[\w.-]+(/[\w.-]+)*", repo) or ".." in repo.split("/"):
+        raise ValueError(f"invalid repository name: {repo!r}")
+    if not re.fullmatch(r"[\w.-]+", tag) or tag in (".", ".."):
+        raise ValueError(f"invalid tag: {tag!r}")
+    return repo, tag
+
+
+def _safe_cache_path(cache_dir, name):
+    """``cache_dir/name``, refusing a name (from a remote manifest) that would land outside cache_dir."""
+    import os
+    if not name or os.path.isabs(name) or "\\" in name or ".." in name.replace("\\", "/").split("/"):
+        raise ValueError(f"unsafe file name from manifest: {name!r}")
+    root = os.path.realpath(cache_dir)
+    path = os.path.realpath(os.path.join(root, name))
+    if os.path.commonpath([root, path]) != root:
+        raise ValueError(f"unsafe file name from manifest: {name!r}")
+    return path
 
 
 def _get_model_endpoint():
     """Get the model endpoint URL (supports LLAMA_CACHE_MODEL_ENDPOINT env var)."""
     import os
-    return os.environ.get('LLAMA_CACHE_MODEL_ENDPOINT', 'https://huggingface.co')
+    import warnings
+    from urllib.parse import urlsplit
+    endpoint = os.environ.get('LLAMA_CACHE_MODEL_ENDPOINT', 'https://huggingface.co').rstrip('/')
+    parts = urlsplit(endpoint)
+    if parts.scheme not in ('http', 'https') or not parts.hostname:
+        raise ValueError(f"LLAMA_CACHE_MODEL_ENDPOINT must be an http(s) URL, got {endpoint!r}")
+    if parts.scheme == 'http' and parts.hostname not in ('localhost', '127.0.0.1', '::1'):
+        warnings.warn(f"model endpoint {endpoint} is plain http: tokens and files travel unencrypted")
+    return endpoint
+
+
+def _opener():
+    """urllib opener that drops Authorization when a redirect leaves the original host.
+
+    Hugging Face resolve/ URLs redirect to a CDN; urllib forwards every header.
+    """
+    from urllib.parse import urlsplit
+    from urllib.request import HTTPRedirectHandler, build_opener
+
+    class _StripAuthOnHostChange(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            new = super().redirect_request(req, fp, code, msg, headers, newurl)
+            if new is not None and urlsplit(newurl).hostname != urlsplit(req.full_url).hostname:
+                new.remove_header('Authorization')
+            return new
+
+    return build_opener(_StripAuthOnHostChange)
 
 
 def _url_request(url, headers=None, method='GET', timeout=30):
     """Make an HTTP request using urllib. Returns (status_code, response_headers, body_bytes)."""
-    from urllib.request import Request, urlopen
+    from urllib.request import Request
     from urllib.error import HTTPError, URLError
 
     req = Request(url, method=method)
@@ -5873,7 +6148,7 @@ def _url_request(url, headers=None, method='GET', timeout=30):
             req.add_header(k, v)
 
     try:
-        resp = urlopen(req, timeout=timeout)
+        resp = _opener().open(req, timeout=timeout)
         return resp.status, dict(resp.headers), resp.read()
     except HTTPError as e:
         return e.code, dict(e.headers), e.read() if hasattr(e, 'read') else b''
@@ -5969,7 +6244,7 @@ def _download_file(url, dest_path, headers=None, max_retries=3):
     """
     import os
     import time
-    from urllib.request import Request, urlopen
+    from urllib.request import Request
     from urllib.error import HTTPError, URLError
 
     if headers is None:
@@ -5983,8 +6258,12 @@ def _download_file(url, dest_path, headers=None, max_retries=3):
     if head_status < 200 or head_status >= 400:
         return False
 
-    remote_etag = head_headers.get('ETag', '').strip('"')
+    raw_etag = head_headers.get('ETag', '')
+    remote_etag = raw_etag.strip('"')
     accepts_ranges = head_headers.get('Accept-Ranges', '').lower() == 'bytes'
+    # Resuming needs a strong ETag for If-Range: without one, a file changed
+    # upstream would be appended to the old partial download.
+    can_resume = accepts_ranges and bool(raw_etag) and not raw_etag.startswith('W/')
 
     # Check if cached file is still valid via ETag
     if os.path.exists(dest_path) and os.path.exists(etag_path):
@@ -6003,10 +6282,11 @@ def _download_file(url, dest_path, headers=None, max_retries=3):
             req = Request(url)
             for k, v in headers.items():
                 req.add_header(k, v)
-            if resume_from > 0 and accepts_ranges:
+            if resume_from > 0 and can_resume:
                 req.add_header('Range', f'bytes={resume_from}-')
+                req.add_header('If-Range', raw_etag)  # a changed file comes back whole, as 200
 
-            resp = urlopen(req, timeout=300)
+            resp = _opener().open(req, timeout=300)
             status = resp.status
 
             if status not in (200, 206):
@@ -6091,8 +6371,7 @@ def download_model(model_path=None, url=None, hf_repo=None, hf_file=None,
         url = f"{endpoint}/{repo}/resolve/main/{gguf_file}"
 
         if not model_path:
-            cache_dir = _get_cache_dir()
-            model_path = os.path.join(cache_dir, gguf_file)
+            model_path = _safe_cache_path(_get_cache_dir(), gguf_file)
 
     if not url:
         return False
@@ -6222,7 +6501,7 @@ def resolve_docker_model(docker_repo):
     # Download blob
     cache_dir = _get_cache_dir()
     safe_name = repo.replace('/', '_')
-    dest_path = os.path.join(cache_dir, f"{safe_name}_{tag}.gguf")
+    dest_path = _safe_cache_path(cache_dir, f"{safe_name}_{tag}.gguf")
 
     if os.path.exists(dest_path):
         return dest_path
@@ -6232,6 +6511,16 @@ def resolve_docker_model(docker_repo):
 
     if not _download_file(blob_url, dest_path, headers=dl_headers):
         raise RuntimeError(f"Failed to download Docker blob for {repo}:{tag}")
+
+    # The blob is content-addressed: check it is the one the manifest names.
+    import hashlib
+    h = hashlib.sha256()
+    with open(dest_path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            h.update(chunk)
+    if h.hexdigest() != digest.split(':', 1)[1].lower():
+        os.remove(dest_path)
+        raise RuntimeError(f"Docker blob for {repo}:{tag} does not match digest {digest}")
 
     return dest_path
 

@@ -306,3 +306,17 @@ class TestContentHash:
     def test_known_md5_value(self):
         # md5("") == d41d8cd98f00b204e9800998ecf8427e
         assert _content_hash(b"") == "d41d8cd98f00b204e9800998ecf8427e"
+
+
+def test_same_basename_in_two_directories(rag_with_stub_embedder, tmp_path):
+    # the basename was the unique label, so b/README.md was refused as an edit of a/README.md
+    for sub, text in (("a", "first readme"), ("b", "second readme")):
+        (tmp_path / sub).mkdir()
+        (tmp_path / sub / "README.md").write_text(text)
+    rag = rag_with_stub_embedder
+    rag.add_documents([tmp_path / "a" / "README.md", tmp_path / "b" / "README.md"])
+    assert len(rag.store.list_sources()) == 2
+    # an edited file at the same path is still refused
+    (tmp_path / "a" / "README.md").write_text("edited")
+    with pytest.raises(ValueError, match="different content hash"):
+        rag.add_documents([tmp_path / "a" / "README.md"])

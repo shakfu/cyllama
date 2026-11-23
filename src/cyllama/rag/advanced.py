@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncIterator
 
 from .pipeline import RAGConfig, RAGResponse
+from ..utils.cancellation import iterate_in_thread
 from ..utils.platform import resolve_n_threads
 from .types import RerankerProtocol, SearchResult
 
@@ -166,49 +167,15 @@ class AsyncRAG:
         Yields:
             Response tokens as strings
         """
-        queue: asyncio.Queue[str | None | Exception] = asyncio.Queue()
-
-        async def producer() -> None:
-            """Run sync generator in thread and put items in queue."""
-            try:
-
-                def generate_sync() -> None:
-                    for chunk in self._rag.stream(question, config):
-                        asyncio.run_coroutine_threadsafe(queue.put(chunk), loop)
-                    asyncio.run_coroutine_threadsafe(queue.put(None), loop)
-
-                await asyncio.to_thread(generate_sync)
-            except Exception as e:
-                await queue.put(e)
-
-        loop = asyncio.get_event_loop()
-
+        # Stopping early cancels generation and waits for the worker thread, so the
+        # lock is not released while the LLM and store are still in use.
+        chunks = iterate_in_thread(lambda: self._rag.stream(question, config), self._rag.generator.cancel)
         async with self._lock:
-            producer_task = asyncio.create_task(producer())
-
             try:
-                while True:
-                    item = await queue.get()
-                    if item is None:
-                        break
-                    if isinstance(item, Exception):
-                        raise item
-                    yield item
+                async for chunk in chunks:
+                    yield chunk
             finally:
-                # Consumer may exit early; cancel the producer so the lock
-                # releases promptly. The underlying retrieval/generation
-                # thread cannot be cancelled and will run to completion.
-                if not producer_task.done():
-                    producer_task.cancel()
-                    try:
-                        await producer_task
-                    except asyncio.CancelledError:
-                        pass
-                else:
-                    try:
-                        producer_task.result()
-                    except Exception:
-                        pass
+                await chunks.aclose()
 
     async def retrieve(
         self,
@@ -415,6 +382,8 @@ class Reranker(RerankerProtocol):
 
             ctx_params = LlamaContextParams()
             ctx_params.n_ctx = self.n_ctx
+            # A pair is truncated to n_ctx and decoded in one ubatch (non-causal).
+            ctx_params.n_batch = ctx_params.n_ubatch = self.n_ctx
             # A reranker's score comes from a classification head that is only
             # attached to the graph under RANK pooling, and pooled output is
             # only produced when embeddings are enabled. Without both, the
@@ -673,6 +642,14 @@ class HybridStore:
             END
         """)
 
+        # The triggers index new rows only. An FTS table created over an
+        # existing database starts empty, so index what is already there.
+        conn = self._vector_store.conn
+        n_rows = conn.execute(f"SELECT count(*) FROM {self.table_name}").fetchone()[0]
+        n_fts = conn.execute(f"SELECT count(*) FROM {fts_table}_docsize").fetchone()[0]
+        if n_rows and not n_fts:
+            conn.execute(f"INSERT INTO {fts_table}({fts_table}) VALUES ('rebuild')")
+
         self._vector_store.conn.commit()
 
     def add(
@@ -748,7 +725,8 @@ class HybridStore:
         # special characters like hyphens (e.g., "PEP-8" becomes '"PEP-8"')
         # This treats each word as a literal phrase
         words = query.split()
-        escaped_query = " ".join(f'"{word}"' for word in words)
+        # FTS5 string literals escape '"' by doubling it; 5" floppy raised OperationalError.
+        escaped_query = " ".join('"' + word.replace('"', '""') + '"' for word in words)
 
         # Use FTS5 MATCH with BM25 scoring
         cursor = self._vector_store.conn.execute(

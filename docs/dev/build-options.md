@@ -65,9 +65,9 @@ These are deliberately excluded as they serve niche hardware. If demand arises, 
 
 ### CUDA-Specific Options
 
-| Option | Local | CI (`build-gpu-wheels-abi3.yml`) | Upstream |
+| Option | Local | CI (`_gpu-build-cuda.yml`) | Upstream |
 |--------|-------|---------------------------|----------|
-| `CMAKE_CUDA_ARCHITECTURES` | `native` (dynamic targets) or llama.cpp default | `"75"` | User-provided or auto |
+| `CMAKE_CUDA_ARCHITECTURES` | `native` (dynamic targets) or llama.cpp default | `"75-real;80-virtual"` | User-provided or auto |
 | `CMAKE_CUDA_COMPILER` | Forwarded from env | Not set | Custom nvcc path |
 | `GGML_CUDA_FORCE_MMQ` | Forwarded from env | Not set | Force quantized matrix kernels |
 | `GGML_CUDA_FORCE_CUBLAS` | Forwarded from env | Not set | Force FP16 cuBLAS |
@@ -134,21 +134,21 @@ The Windows CUDA asset version defaults to `12.4` but can be overridden via the 
 
 ## Design Decisions
 
-### CUDA Architecture Coverage in CI -- Deliberate PTX-Only Strategy
+### CUDA Architecture Coverage in CI
 
-The GPU CI workflow (`build-gpu-wheels-abi3.yml`) sets `CMAKE_CUDA_ARCHITECTURES="75"`. This is **deliberate**, not an oversight. The history:
+The CUDA CI workflows (`_gpu-build-cuda.yml`, `_gpu-build-cuda-windows.yml`) set `CMAKE_CUDA_ARCHITECTURES="75-real;80-virtual"`: `sm_75` SASS for Turing, `compute_80` PTX JIT-compiled on Ampere and newer. Benchmarks and rejected options: [cuda-wheel.md](cuda-wheel.md).
 
-1. **v0.2.1** (`GGML_NATIVE=ON`, no explicit architectures): llama.cpp auto-detected the CI runner's GPU (sm_52), producing a 99 MB `libggml-cuda.so` with SASS for sm_52 only + PTX fallback.
+History:
 
-2. **v0.2.2 initial** (`GGML_NATIVE=OFF`, no explicit architectures): Without a GPU to detect, llama.cpp fell back to its full default architecture list, producing a 449 MB `libggml-cuda.so` (see `docs/dev/0.2.1-release-issue.md` for the full investigation).
+1. **v0.2.1** (`GGML_NATIVE=ON`, no explicit architectures): llama.cpp auto-detected the CI runner's GPU (sm_52), producing a 99 MB `libggml-cuda.so`.
 
-3. **v0.2.2 fix attempt** (`GGML_NATIVE=OFF`, `CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"`): The `-real` suffix compiles SASS (native code) for each architecture. This produced a 762 MB `libggml-cuda.so` -- even larger, because SASS for 5 architectures is bigger than PTX for 5.
+2. **v0.2.2 initial** (`GGML_NATIVE=OFF`, no explicit architectures): llama.cpp fell back to its full default list, producing a 449 MB `libggml-cuda.so` (see [0.2.1-release-issue.md](0.2.1-release-issue.md)).
 
-4. **v0.2.2 final** (`GGML_NATIVE=OFF`, `CMAKE_CUDA_ARCHITECTURES="75"`): A single architecture without `-real` produces **PTX only** for sm_75. The CUDA driver JIT-compiles the PTX to the user's actual GPU architecture at runtime (one-time startup cost). This keeps the wheel small while supporting all Turing-and-newer GPUs (RTX 20xx+, T4+). This is also forward-proof: CUDA 13.x drops pre-Turing (sm < 75) support, so sm_75 PTX is the correct minimum.
+3. **v0.2.2 fix attempt** (`"70-real;75-real;80-real;86-real;89-real;90"`): SASS for 5 architectures produced a 762 MB `libggml-cuda.so`.
 
-The tradeoff is clear: PTX-only means a JIT compilation penalty on first load (~seconds), but the wheel is ~45 MB compressed instead of ~300+ MB. This matches v0.2.1's behavior (which also relied on PTX JIT, just from sm_52 instead of sm_75) and was verified working on RTX 4060 (sm_89).
+4. **v0.2.2 to 1.0.0a0** (`"75"`): `sm_75` SASS plus `compute_75` PTX. Ampere and newer GPUs JIT-compiled `compute_75` PTX, which compiles out ggml's Ampere+ kernels.
 
-**This is not an issue to fix** -- it is a deliberate size/compatibility tradeoff. If future users report unacceptable JIT latency, the alternative is shipping multiple wheels per architecture or using `-real` for popular architectures (80, 86, 89) and accepting the size increase.
+5. **After 1.0.0a0** (`"75-real;80-virtual"`): about 2.5 MB smaller, 12-25% faster long-context prompt processing on an RTX 4060.
 
 ## Resolved Issues
 

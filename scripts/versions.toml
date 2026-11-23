@@ -5,3 +5,13 @@ llama_cpp = "b12359"  # same commit as v1.0.0
 whisper_cpp = "v1.9.5"
 stable_diffusion_cpp = "master-1094-3bad892"
 sqlite_vector = "1.2.0"
+
+# The commit each tag above must resolve to. A tag can be moved; manage.py
+# refuses a checkout whose HEAD differs. Update both lines together:
+#   git ls-remote https://github.com/<repo> 'refs/tags/<tag>^{}' 'refs/tags/<tag>'
+# (the ^{} line, when present, is the commit of an annotated tag).
+[commits]
+llama_cpp = "b1b770d90d94cad9e9ea5b993bdbc383a522fb28"
+whisper_cpp = "d1be6fde11ac6e0407606b4e42fe72d34add8037"
+stable_diffusion_cpp = "3bad89267b780b320a40f34d3a0b2d70e3005bba"
+sqlite_vector = "00c2ccece3687380c4ceff14b15d033573ee5c89"

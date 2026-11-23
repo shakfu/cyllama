@@ -144,7 +144,7 @@ import inspect
 import logging
 import time
 
-from .tools import Tool
+from .tools import AgentTermination, Tool, ToolArgumentError, coerce_args
 from .react import ReActAgent
 from .types import AgentEvent, AgentMetrics, AgentProtocol, AgentResult, EventType
 
@@ -279,8 +279,12 @@ class ViolationHandler(Protocol):
         ...
 
 
-class ContractTermination(Exception):
-    """Exception raised to terminate agent execution due to contract violation."""
+class ContractTermination(AgentTermination):
+    """Exception raised to terminate agent execution due to contract violation.
+
+    An ``AgentTermination``, so an inner agent re-raises it from a tool
+    instead of reporting it to the model as a failed call.
+    """
 
     def __init__(self, violation: ContractViolation):
         self.violation = violation
@@ -1054,11 +1058,22 @@ class ContractAgent(AgentProtocol):
         """Get effective policy, using contract-specific or default."""
         return contract_policy if contract_policy is not None else self.policy
 
+    def _coerced_args(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        """``args`` as the tool will receive them; unchanged if they fail coercion, which the call then reports."""
+        tool = next((t for t in self.tools if isinstance(t, Tool) and t.name == tool_name), None)
+        if tool is None or not tool.coerce:
+            return args
+        try:
+            return coerce_args(tool, args)
+        except ToolArgumentError:
+            return args
+
     def _check_preconditions(self, tool_name: str, args: Dict[str, Any]) -> Optional[ContractViolation]:
         """Check all preconditions for a tool call."""
         contracts = self._tool_contracts.get(tool_name)
         if not contracts:
             return None
+        args = self._coerced_args(tool_name, args)
 
         for pre_cond in contracts.preconditions:
             effective_policy = self._get_effective_policy(pre_cond.policy)

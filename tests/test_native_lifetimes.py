@@ -178,3 +178,112 @@ def test_speculative_with_closed_context(model_path):
     model.close()
     del spec, tgt, dft, model
     gc.collect()
+
+
+# llama_free reads the model, so a model's contexts must be freed before it.
+
+
+def test_model_close_closes_its_contexts(model_path):
+    model, ctx = _stack(model_path)
+    sampler = cy.LlamaSampler()
+    sampler.add_greedy()
+    model.close()
+    with pytest.raises(RuntimeError, match="LlamaModel is closed"):
+        sampler.sample(ctx, -1)
+    ctx.close()  # already freed with the model; idempotent
+    del ctx, model, sampler
+    gc.collect()
+
+
+def test_context_in_reference_cycle_is_freed_before_model(model_path):
+    model, ctx = _stack(model_path)
+    holder = [ctx]
+    ctx.set_abort_callback(lambda: holder is None)  # ctx -> callback -> holder -> ctx
+    del model, ctx, holder
+    gc.collect()  # used to free the model first under tp_clear
+
+
+def test_batch_ext_after_model_close_raises(model_path):
+    model, ctx = _stack(model_path)
+    batch = cy.LlamaBatchExt(ctx)
+    model.close()
+    with pytest.raises(RuntimeError, match="LlamaModel is closed"):
+        batch.add_token(1, 0)
+    with pytest.raises(RuntimeError, match="LlamaModel is closed"):
+        batch.clear()
+    del batch, ctx, model
+    gc.collect()
+
+
+def test_sample_with_grammar_vocab_of_closed_model_raises(model_path):
+    grammar_model = cy.LlamaModel(model_path, verbose=False)
+    sampler = cy.LlamaSampler()
+    sampler.add_grammar(grammar_model.get_vocab(), GRAMMAR, "root")
+    sampler.add_greedy()
+    model, ctx = _stack(model_path)
+    vocab = model.get_vocab()
+    ctx.decode(cy.llama_batch_get_one(vocab.tokenize("Answer:", add_special=True, parse_special=False)))
+    grammar_model.close()
+    with pytest.raises(RuntimeError, match="LlamaModel is closed"):
+        sampler.sample(ctx, -1)
+    sampler.close()
+    ctx.close()
+    model.close()
+    del sampler, ctx, model, vocab, grammar_model
+    gc.collect()
+
+
+class TestNoneAndUnboundArguments:
+    """Typed arguments used to accept None and read a C field from it."""
+
+    def test_vocab_arguments_reject_none(self):
+        s = cy.LlamaSampler()
+        for call in (
+            lambda: s.add_grammar(None, GRAMMAR, "root"),
+            lambda: s.add_infill(None),
+            lambda: s.add_suppress_tokens(None),
+            lambda: s.add_dry(None, 0.8, 1.75, 2, 64, []),
+        ):
+            with pytest.raises(TypeError):
+                call()
+
+    def test_sample_rejects_none_context(self):
+        s = cy.LlamaSampler()
+        s.add_greedy()
+        with pytest.raises(TypeError):
+            s.sample(None, -1)
+
+    def test_closed_vocab_rejected_when_adding(self, model_path):
+        model = cy.LlamaModel(model_path, verbose=False)
+        vocab = model.get_vocab()
+        model.close()
+        with pytest.raises(RuntimeError, match="LlamaModel is closed"):
+            cy.LlamaSampler().add_grammar(vocab, GRAMMAR, "root")
+        del vocab, model
+        gc.collect()
+
+    def test_copy_to_closed_destination_raises(self):
+        src, dst = cy.LlamaSampler(), cy.LlamaSampler()
+        src.add_greedy()
+        dst.add_greedy()
+        dst.close()
+        with pytest.raises(RuntimeError, match="closed"):
+            src.copy_to(dst)
+
+    def test_threadpool_arguments(self, model_path):
+        model, ctx = _stack(model_path)
+        with pytest.raises(TypeError):
+            ctx.attach_threadpool(None, None)
+        unbound = cy.GgmlThreadPool.__new__(cy.GgmlThreadPool)
+        with pytest.raises(RuntimeError, match="GgmlThreadPool"):
+            unbound.pause()
+        with pytest.raises(RuntimeError, match="GgmlThreadPool"):
+            cy.llama_attach_threadpool(ctx, unbound, unbound)
+        ctx.close()
+        model.close()
+        del ctx, model
+        gc.collect()
+
+    def test_unbound_buft_override_raises(self):
+        with pytest.raises(RuntimeError, match="not bound"):
+            cy.LlamaModelTensorBuftOverride().pattern

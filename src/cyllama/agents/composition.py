@@ -38,6 +38,7 @@ ones the framework intentionally does not support.
 
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -45,6 +46,25 @@ from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from .tools import Tool
 from .types import AgentEvent, AgentMetrics, AgentProtocol, AgentResult, EventType
+
+_NEGATIONS = frozenset({"NOT", "NO", "CANNOT", "CAN'T", "DON'T", "WON'T", "NEVER", "ISN'T", "WOULDN'T"})
+
+# Upper bound on plan steps plan_and_execute runs; a runaway plan costs one executor run each.
+MAX_PLAN_STEPS = 20
+
+
+def verdict_accepts(answer: str, marker: str = "ACCEPT") -> bool:
+    """True if ``answer`` contains ``marker`` as a word, not negated by any of the three words before it.
+
+    A substring test accepted "unacceptable" and "I cannot accept this".
+    ``marker`` may take an -ED or -S suffix ("ACCEPTED").
+    """
+    text = answer.upper()
+    for m in re.finditer(rf"\b{re.escape(marker.upper())}(?:ED|S)?\b", text):
+        before = re.findall(r"[A-Z']+", text[: m.start()])[-3:]
+        if not _NEGATIONS.intersection(before):
+            return True
+    return False
 
 
 __all__ = [
@@ -283,9 +303,9 @@ class ReflectionLoop:
 
     The critic is just another :class:`AgentProtocol` -- typically a
     :class:`ReActAgent` with a different system prompt focused on
-    critique. The acceptance check is a simple substring match on the
-    critic's answer (case-insensitive); pass a custom ``acceptance_marker``
-    if you need different framing than ``"ACCEPT"``.
+    critique. The critic accepts when its answer contains ``acceptance_marker``
+    as a word, not negated (see :func:`verdict_accepts`); pass a custom
+    marker if you need different framing than ``"ACCEPT"``.
 
     Example::
 
@@ -332,8 +352,8 @@ class ReflectionLoop:
                 feedback to be folded into the next worker call.
             max_attempts: Hard cap on iterations. The final draft is
                 returned even if the critic never accepts.
-            acceptance_marker: Substring search (case-insensitive) on the
-                critic's answer to detect acceptance. Default ``"ACCEPT"``.
+            acceptance_marker: Word (case-insensitive, not negated) that marks
+                acceptance in the critic's answer. Default ``"ACCEPT"``.
             critique_prefix: Prefix added to the worker's draft when
                 asking the critic. Override for non-English prompts or
                 different framing.
@@ -438,8 +458,7 @@ class ReflectionLoop:
                     critic_answer = ev.content
                 yield ev
 
-            # Accept-check is a substring match on the critic's verdict.
-            if self.acceptance_marker in critic_answer.upper():
+            if verdict_accepts(critic_answer, self.acceptance_marker):
                 accepted = True
                 break
 
@@ -470,6 +489,7 @@ def plan_and_execute(
     task: str,
     plan_parser: Optional[Callable[[str], List[str]]] = None,
     stop_on_error: bool = True,
+    max_steps: int = MAX_PLAN_STEPS,
 ) -> List[AgentResult]:
     """Plan-and-Execute pattern.
 
@@ -515,6 +535,7 @@ def plan_and_execute(
             splitting on newlines.
         stop_on_error: If True (default), stop after the first step that
             returns ``success=False``. If False, run all steps regardless.
+        max_steps: Run at most this many plan steps (default MAX_PLAN_STEPS, 20).
 
     Returns:
         List of ``AgentResult`` -- one per executed step. May be shorter
@@ -543,7 +564,7 @@ def plan_and_execute(
         ]
 
     results: List[AgentResult] = []
-    for step in steps:
+    for step in steps[:max_steps]:
         result = executor.run(step)
         results.append(result)
         if stop_on_error and not result.success:

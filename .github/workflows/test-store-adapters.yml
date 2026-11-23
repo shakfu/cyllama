@@ -174,15 +174,18 @@ jobs:
           --health-retries 10
 
     steps:
+      # Dispatch inputs reach the shell through env, never interpolated into the script.
       - name: Skip unselected adapter
         id: gate
+        env:
+          SELECTED: ${{ github.event.inputs.adapters || 'all' }}
+          ADAPTER: ${{ matrix.adapter }}
         run: |
-          selected='${{ github.event.inputs.adapters || 'all' }}'
-          if [ "$selected" = "all" ] || [ "$selected" = "${{ matrix.adapter }}" ]; then
+          if [ "$SELECTED" = "all" ] || [ "$SELECTED" = "$ADAPTER" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::${{ matrix.adapter }} not selected (adapters=$selected)"
+            echo "::notice::$ADAPTER not selected (adapters=$SELECTED)"
           fi
 
       - uses: actions/checkout@v7
@@ -201,6 +204,9 @@ jobs:
 
       - name: Install cyllama and the client
         if: steps.gate.outputs.run == 'true'
+        env:
+          CLIENT: ${{ matrix.client }}
+          PIP_ARGS: ${{ github.event.inputs.pip_args }}
         run: |
           python -m pip install --upgrade pip
           python -m pip install dist/*.whl
@@ -208,7 +214,8 @@ jobs:
           # Unpinned by default: testing against the current release is
           # the point. pip_args lets a dispatch pin a version to
           # reproduce a specific failure.
-          python -m pip install ${{ matrix.client }} ${{ github.event.inputs.pip_args }}
+          # word-split on purpose: PIP_ARGS may hold several arguments
+          python -m pip install $CLIENT $PIP_ARGS
 
       - name: Record resolved versions
         if: steps.gate.outputs.run == 'true'

@@ -16,8 +16,12 @@ would otherwise be deferred until the call returns.
 
 from __future__ import annotations
 
+import asyncio
 import signal
-from typing import Callable
+import threading
+from typing import Any, AsyncGenerator, Callable, Iterable, Optional, Tuple, TypeVar
+
+T = TypeVar("T")
 
 
 class SigintHandle:
@@ -72,3 +76,55 @@ def install_sigint_handler(cancel: Callable[[], None]) -> SigintHandle:
     """
     previous = signal.signal(signal.SIGINT, lambda *_: cancel())
     return SigintHandle(previous)
+
+
+async def iterate_in_thread(
+    make_iter: Callable[[], Iterable[T]], cancel: Optional[Callable[[], None]] = None
+) -> AsyncGenerator[T, None]:
+    """Yield the items of ``make_iter()``, which runs on a worker thread.
+
+    When the consumer stops early (break, exception, ``aclose()``, timeout), the
+    iterator is stopped at its next item and ``cancel`` is called to abort a long
+    native call. The generator does not finish until the thread has exited, so a
+    lock held around it is not released while the thread still uses shared state.
+    A worker thread cannot be interrupted, so waiting is the only way to know that.
+    """
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[Tuple[bool, Any]] = asyncio.Queue()
+    stop = threading.Event()
+
+    def run() -> None:
+        it = iter(make_iter())
+        try:
+            for item in it:
+                if stop.is_set():
+                    break
+                loop.call_soon_threadsafe(queue.put_nowait, (False, item))
+        except BaseException as e:
+            loop.call_soon_threadsafe(queue.put_nowait, (True, e))
+            return
+        finally:
+            close = getattr(it, "close", None)
+            if close is not None:
+                close()  # runs the iterator's own cleanup on this thread
+        loop.call_soon_threadsafe(queue.put_nowait, (True, None))
+
+    worker = asyncio.ensure_future(asyncio.to_thread(run))
+    finished = False
+    try:
+        while True:
+            finished, value = await queue.get()
+            if finished:
+                if value is not None:
+                    raise value
+                return
+            yield value
+    finally:
+        if not finished:
+            stop.set()
+            if cancel is not None:
+                cancel()
+        try:
+            await asyncio.shield(worker)
+        except Exception:
+            pass  # an error raised while closing the iterator; the consumer has already left

@@ -14,7 +14,6 @@ from cyllama.agents.jsonrpc import (
     serialize_message,
     StdioTransport,
     JsonRpcServer,
-    AsyncBridge,
 )
 
 
@@ -248,42 +247,73 @@ class TestJsonRpcServer:
         assert "id" not in parsed
 
 
-class TestAsyncBridge:
-    """Tests for async bridge."""
+class TestServeConcurrency:
+    """A request handler may call send_request(); the reader must stay free to deliver the reply."""
 
-    def test_queue_notification(self):
-        output_stream = io.StringIO()
-        transport = StdioTransport(io.StringIO(), output_stream)
-        server = JsonRpcServer(transport)
+    def _start(self, register):
+        import os
+        import threading
 
-        bridge = AsyncBridge(server)
-        bridge.start()
+        rfd, wfd = os.pipe()
+        orfd, owfd = os.pipe()
+        to_server = os.fdopen(wfd, "w", buffering=1)
+        from_server = os.fdopen(orfd, "r")
+        server = JsonRpcServer(StdioTransport(os.fdopen(rfd, "r"), os.fdopen(owfd, "w", buffering=1)))
+        register(server)
+        t = threading.Thread(target=server.serve, daemon=True)
+        t.start()
+        return server, t, to_server, from_server
 
-        try:
-            bridge.send_notification("test", {"value": 123})
-            time.sleep(0.2)  # Give worker time to process
-        finally:
-            bridge.stop()
+    def test_handler_receives_reply_to_its_own_request(self):
+        import json
 
-        output_stream.seek(0)
-        line = output_stream.readline()
-        parsed = json.loads(line)
+        server, t, to_server, from_server = self._start(
+            lambda s: s.register("ask", lambda params: s.send_request("peer/q", timeout=5).result)
+        )
+        to_server.write(json.dumps({"jsonrpc": "2.0", "id": "c1", "method": "ask"}) + "\n")
+        outgoing = json.loads(from_server.readline())
+        assert outgoing["method"] == "peer/q"
+        to_server.write(json.dumps({"jsonrpc": "2.0", "id": outgoing["id"], "result": 42}) + "\n")
+        reply = json.loads(from_server.readline())
+        assert reply == {"jsonrpc": "2.0", "id": "c1", "result": 42}
+        to_server.close()
+        t.join(timeout=5)
+        assert not t.is_alive()
 
-        assert parsed["method"] == "test"
-        assert parsed["params"]["value"] == 123
+    def test_notification_handled_while_request_runs(self):
+        import json
+        import threading
 
-    def test_sync_notification(self):
-        output_stream = io.StringIO()
-        transport = StdioTransport(io.StringIO(), output_stream)
-        server = JsonRpcServer(transport)
+        cancelled = threading.Event()
 
-        bridge = AsyncBridge(server)
+        def register(s):
+            s.register("long", lambda params: cancelled.wait(timeout=5))
+            s.register("cancel", lambda params: cancelled.set())
 
-        # Sync notification doesn't need worker thread
-        bridge.send_notification_sync("immediate", {"x": 1})
+        server, t, to_server, from_server = self._start(register)
+        to_server.write(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "long"}) + "\n")
+        to_server.write(json.dumps({"jsonrpc": "2.0", "method": "cancel"}) + "\n")
+        assert json.loads(from_server.readline()) == {"jsonrpc": "2.0", "id": 1, "result": True}
+        to_server.close()
+        t.join(timeout=5)
 
-        output_stream.seek(0)
-        line = output_stream.readline()
-        parsed = json.loads(line)
+    def test_eof_fails_waiting_request(self):
+        import json
 
-        assert parsed["method"] == "immediate"
+        got = {}
+
+        def register(s):
+            def handler(params):
+                resp = s.send_request("peer/q", timeout=30)
+                got["resp"] = resp
+                return "done"
+
+            s.register("ask", handler)
+
+        server, t, to_server, from_server = self._start(register)
+        to_server.write(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ask"}) + "\n")
+        from_server.readline()  # the outgoing peer/q
+        to_server.close()  # EOF before the peer answers
+        t.join(timeout=5)
+        assert not t.is_alive()
+        assert got["resp"].is_error
