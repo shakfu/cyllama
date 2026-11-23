@@ -175,6 +175,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **`check_vendor` checks whisper.cpp's ggml headers against llama.cpp.** Since whisper builds against llama.cpp's ggml, its committed `ggml*.h` are llama.cpp's copies; the check still compared them with whisper's bundled ggml and failed on every push.
+
 - **`VectorStoreProtocol` declares `delete` and the shared semantics.** Every store implemented `delete(ids)`; the protocol left it out. Its docstring now states the rules the conformance suite checks:
   - Scores are higher-is-better and a threshold is a minimum.
   - IDs are not reused after a delete.

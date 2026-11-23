@@ -3558,6 +3558,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
         "stable-diffusion.cpp": ["include", "thirdparty", "ggml/include"],
     }
 
+    _LLAMA_GGML_USERS = ("stable-diffusion.cpp", "whisper.cpp")
+
     def _check_vendor_by_name(
         self,
         builder: "AbstractBuilder",
@@ -3574,9 +3576,10 @@ class Application(ShellCmd, metaclass=MetaCommander):
         so comparing by filename against a plain checkout is equivalent for
         content drift, which is the failure mode that matters.
 
-        stable-diffusion.cpp is special-cased: its committed ggml/gguf headers
-        come from llama.cpp, not from sd's own vendored copy, because
-        `_ggml_options` builds SD against llama.cpp's ggml tree.
+        stable-diffusion.cpp and whisper.cpp are special-cased: their committed
+        ggml/gguf headers come from llama.cpp, not from their own vendored
+        copies, because both build against llama.cpp's ggml tree (SD via
+        `_ggml_options`, whisper via `whisper-use-llama-ggml.cmake`).
         They are therefore checked against the llama.cpp clone. This reflects
         the default build; `SD_USE_VENDORED_GGML=1` is not what ships.
         """
@@ -3588,7 +3591,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
             if not committed.is_file():
                 continue
             src = own
-            if builder.name == "stable-diffusion.cpp" and (
+            if builder.name in self._LLAMA_GGML_USERS and (
                 committed.name.startswith("ggml") or committed.name == "gguf.h"
             ):
                 src = clones["llama.cpp"]
