@@ -9,6 +9,7 @@ deterministically. tests/test_acp.py covers the handlers in-process.
 from __future__ import annotations
 
 import json
+import os
 import queue
 import subprocess
 import sys
@@ -24,13 +25,18 @@ CWD = "/work"
 TIMEOUT = 30.0
 
 
+def path(p: str) -> str:
+    """``p`` as the agent sends it: it normalises paths, so Windows gets ``\\work\\TODO.md``."""
+    return os.path.normpath(p)
+
+
 class Client:
     """Plays the editor: sends requests, answers the agent's, records updates."""
 
     def __init__(self, tmp_path: Path, replies: List[str], *args: str, files: Optional[Dict[str, str]] = None):
         script = tmp_path / f"script_{time.monotonic_ns()}.txt"
         script.write_text("\n---\n".join(replies), encoding="utf-8")
-        self.files: Dict[str, str] = dict(files or {})  # absolute path -> content
+        self.files: Dict[str, str] = {path(k): v for k, v in (files or {}).items()}  # normalised path -> content
         self.allow = True
         self.agent_requests: List[str] = []
         self.updates: List[Dict[str, Any]] = []
@@ -94,12 +100,12 @@ class Client:
         result: Any = {}
         error = None
         if method == "fs/read_text_file":
-            if params["path"] in self.files:
-                result = {"content": self.files[params["path"]]}
+            if path(params["path"]) in self.files:
+                result = {"content": self.files[path(params["path"])]}
             else:
                 error = {"code": -32002, "message": f"Resource not found: {params['path']}"}
         elif method == "fs/write_text_file":
-            self.files[params["path"]] = params["content"]
+            self.files[path(params["path"])] = params["content"]
             result = None
         elif method == "session/request_permission":
             kind = "allow_once" if self.allow else "reject_once"
@@ -160,7 +166,7 @@ def client(tmp_path):
         c.close()
 
 
-TODO = f"{CWD}/TODO.md"
+TODO = path(f"{CWD}/TODO.md")
 
 
 def test_read_then_edit(client):
@@ -199,7 +205,7 @@ def test_write_file_refuses_existing_and_creates_new(client):
     sid = c.start()
     assert c.prompt(sid, "write") == "end_turn"
     assert c.files[TODO] == "keep me\n"
-    assert c.files[f"{CWD}/NEW.md"] == "fresh"
+    assert c.files[path(f"{CWD}/NEW.md")] == "fresh"
     first, second = c.tool_results()
     assert first["status"] == "failed" and "use edit_file" in first["content"][0]["content"]["text"]
     assert second["status"] == "completed"
