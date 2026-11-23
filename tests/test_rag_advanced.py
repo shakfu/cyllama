@@ -648,6 +648,7 @@ class TestRerankerWithRealModel:
         assert reranked[0].text == self.RELEVANT
 
 
+@_skip_no_extension
 class TestHybridStoreFts:
     def test_quote_in_query(self):
         from cyllama.rag.advanced import HybridStore

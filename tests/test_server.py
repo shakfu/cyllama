@@ -8,6 +8,7 @@ ensuring proper server lifecycle management and API functionality.
 
 import pytest
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -142,8 +143,9 @@ class TestLlamaServer:
                 LlamaServer(config, server_binary="/nonexistent/llama-server")
 
     def test_find_server_binary_searches_path(self, monkeypatch, tmp_path):
-        # Path("llama-server").exists() tested the working directory, not PATH
-        exe = tmp_path / "llama-server"
+        # Path("llama-server").exists() tested the working directory, not PATH.
+        # Windows: shutil.which resolves the bare name through PATHEXT, so the file needs .exe
+        exe = tmp_path / ("llama-server.exe" if sys.platform == "win32" else "llama-server")
         exe.write_text("#!/bin/sh\n")
         exe.chmod(0o755)
         monkeypatch.setattr(Path, "exists", lambda self: self == exe)
